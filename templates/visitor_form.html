@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CRM para a gestão de visitantes e membros da Igreja Mais de Cristo">
+    <meta name="keywords" content="igreja, CRM, visitantes, membros, cadastro, WhatsApp">
+    <meta name="author" content="Igreja Mais de Cristo">
+    <title>CRM - Gestão de Relacionamento Church</title>
+    <link rel="stylesheet" href="/static/main.css">
+    <script src="/static/script.js" defer></script> <!-- Garantir que o script seja carregado após o DOM -->
+</head>
+<body>
+<header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>Bem-vindo ao Ministério de Integração</h1>
+</header>
+
+<main id="mainContent">
+    <!-- Seção de Login -->
+    <section id="loginContainer" aria-label="Formulário de Login de Administrador">
+        <h2>Login de Administrador</h2>
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <label for="username">Usuário:</label>
+                <input type="text" id="username" name="username" required aria-describedby="usernameHelp">
+                <small id="usernameHelp">Digite seu nome de usuário.</small>
+            </div>
+            <div class="form-group">
+                <label for="password">Senha:</label>
+                <input type="password" id="password" name="password" required aria-describedby="passwordHelp">
+                <small id="passwordHelp">Digite sua senha.</small>
+            </div>
+            <button type="submit" id="loginButton" class="btn-primary">Login</button>
+            <div id="loginErrorContainer" role="alert"></div>
+        </form>
+    </section>
+
+    <!-- Menu de Opções -->
+    <section id="options" class="hidden" aria-label="Menu de Opções">
+        <div id="buttonContainer">
+            <button type="button" id="showFormButton" class="btn-primary">Cadastro de Visitantes</button>
+            <button type="button" id="monitorStatusButton" class="btn-secondary">Monitorar Status</button>
+            <button type="button" id="sendWhatsappButton" class="btn-success">Enviar WhatsApp</button>
+            <button type="button" id="showMemberFormButton" class="btn-tertiary ">Cadastro de Membros</button>
+            <button type="button" id="showAcolhidoFormButton" class="btn-quaternary ">Cadastro de Acolhidos</button>
+        </div>
+        <div id="infoCardsContainer" class="info-cards">
+            <!-- Linha para Visitantes -->
+            <div class="info-row">
+                <div class="info-card">
+                    <h3>Visitantes</h3>
+                    <p id="totalVisitantes"></p>
+                </div>
+                <div class="info-card">
+                    <h3>Visitantes Homens</h3>
+                    <p id="totalHomens"></p>
+                    <p id="percentualHomens"></p>
+                </div>
+                <div class="info-card">
+                    <h3>Visitantes Mulheres</h3>
+                    <p id="totalMulheres"></p>
+                    <p id="percentualMulheres"></p>
+                </div>
+            </div>
+
+            <!-- Linha para Discipulado -->
+            <div class="info-row">
+                <div class="info-card">
+                    <h3>Discipulado Total</h3>
+                    <p id="discipuladosAtivos"></p>
+                </div>
+                <div class="info-card">
+                    <h3>Discipulado Homens</h3>
+                    <p id="totalHomensDiscipulado"></p>
+                </div>
+                <div class="info-card">
+                    <h3>Discipulado Mulheres</h3>
+                    <p id="totalMulheresDiscipulado"></p>
+                </div>
+            </div>
+
+            <!-- Linha para Membros -->
+            <div class="info-row">
+                <div class="info-card">
+                    <h3>Membros Total</h3>
+                    <p id="totalMembros">1</p>
+                </div>
+                <div class="info-card">
+                    <h3>Membros Homens</h3>
+                    <p id="totalhomensMembro">0</p>
+                </div>
+                <div class="info-card">
+                    <h3>Membros Mulheres</h3>
+                    <p id="totalmulheresMembro">0</p>
+                </div>
+            </div>
+
+            <!-- Linha para GC's -->
+            <div class="info-row">
+                <div class="info-card">
+                    <h3>GC's Total</h3>
+                    <p id="grupos_comunhao">0</p>
+                </div>
+                <div class="info-card">
+                    <h3>GC's Homens</h3>
+                    <p id="gcsHomens">0</p>
+                </div>
+                <div class="info-card">
+                    <h3>GC's Mulheres</h3>
+                    <p id="gcsMulheres">0</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+     <!-- Formulário de Cadastro de Visitantes -->
+    <section id="formContainer" class="hidden" aria-label="Formulário de Cadastro de Visitantes">
+        <h2>Cadastro de Visitantes</h2>
+        <form id="visitorForm" method="POST" action="/register">
+            <div class="form-group">
+                <label for="name">Nome Completo:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label for="phone">Telefone:</label>
+                <input type="tel" id="phone" name="phone" required pattern="[0-9]{11}" aria-describedby="phoneHelp">
+                <small id="phoneHelp">Digite seu telefone com 11 dígitos (DDD + Número).</small>>
+            </div>
+            <div class="form-group">
+                <label for="email">E-mail:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="birthdate">Data de Nascimento:</label>
+                <input type="date" id="birthdate" name="birthdate" required>
+            </div>
+            <div class="form-group">
+                <label for="city">Cidade:</label>
+                <input type="text" id="city" name="city" required>
+            </div>
+            <div class="form-group">
+                <label for="gender">Gênero:</label>
+                <select id="gender" name="gender" required>
+                    <option value="masculino">Masculino</option>
+                    <option value="feminino">Feminino</option>
+                    <option value="outro">Outro</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="maritalStatus">Estado Civil:</label>
+                <select id="maritalStatus" name="maritalStatus" required>
+                    <option value="solteiro">Solteiro</option>
+                    <option value="casado">Casado</option>
+                    <option value="divorciado">Divorciado</option>
+                    <option value="viuvo">Viúvo</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="currentChurch">Igreja Atual:</label>
+                <input type="text" id="currentChurch" name="currentChurch" required>
+            </div>
+            <div class="form-group">
+                <label for="attendingChurch">Frequenta a Igreja?</label>
+                <input type="checkbox" id="attendingChurch" name="attendingChurch">
+            </div>
+            <div class="form-group">
+                <label for="referral">Indicação:</label>
+                <input type="text" id="referral" name="referral" required>
+            </div>
+            <div class="form-group">
+                <label for="membership">Quer ser Membro?</label>
+                <input type="checkbox" id="membership" name="membership">
+            </div>
+            <div class="form-group">
+                <label for="prayerRequest">Pedido de Oração:</label>
+                <textarea id="prayerRequest" name="prayerRequest"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="contactTime">Horário de Contato:</label>
+                <input type="text" id="contactTime" name="contactTime">
+            </div>
+            <div id="registerErrorContainer"></div>
+            <button type="submit" class="btn-primary">Cadastrar</button>
+            <button type="button" id="backToOptionsCadastroButton" class="btn-secondary" onclick="toggleForm('visitorFormContainer')">Voltar</button>
+        </form>
+    </section>
+
+    <!-- Formulário de Cadastro de Membros -->
+    <section id="memberFormContainer" class="hidden" aria-label="Formulário de Cadastro de Membros">
+        <h2>Cadastro de Membros</h2>
+        <form id="memberForm" onsubmit="saveMember(event)">
+            <div class="form-group">
+                <label for="memberName">Nome:</label>
+                <input type="text" id="memberName" name="nome" required>
+            </div>
+            <div class="form-group">
+                <label for="memberPhone">Telefone:</label>
+                <input type="tel" id="memberPhone" name="telefone" required>
+            </div>
+            <div class="form-group">
+                <label for="memberEmail">E-mail:</label>
+                <input type="email" id="memberEmail" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="memberBirthday">Data de Nascimento:</label>
+                <input type="date" id="memberBirthday" name="data_nascimento" required>
+            </div>
+            <div class="form-group">
+                <label for="cep">CEP:</label>
+                <input type="text" id="cep" name="cep" required>
+            </div>
+            <div class="form-group">
+                <label for="memberNeighborhood">Bairro:</label>
+                <input type="text" id="memberNeighborhood" name="bairro" required>
+            </div>
+            <div class="form-group">
+                <label for="memberCity">Cidade:</label>
+                <input type="text" id="memberCity" name="cidade" required>
+            </div>
+            <div class="form-group">
+                <label for="memberState">Estado:</label>
+                <input type="text" id="memberState" name="estado" required>
+            </div>
+            <div class="form-group">
+                <label for="memberStatus">Status do Membro:</label>
+                <select id="memberStatus" name="status_membro">
+                    <option value="ativo">Ativo</option>
+                    <option value="inativo">Inativo</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-primary">Cadastrar</button>
+            <button type="button" id="backToOptionsCadastroMembro" class="btn-secondary" onclick="toggleForm('memberFormContainer')">Voltar</button>
+        </form>
+    </section>
+
+    <!-- Formulário de Cadastro de Acolhido -->
+    <section id="acolhidoFormContainer" class="hidden" aria-label="Formulário de Cadastro de Acolhido">
+        <h2>Cadastro de Acolhido</h2>
+        <form id="acolhidoForm" onsubmit="handleAcolhidoSubmit(event)">
+            <div class="form-group">
+                <label for="nome">Nome:</label>
+                <input type="text" id="nome" name="nome" required aria-describedby="nomeHelp">
+                <small id="nomeHelp">Digite o nome completo do acolhido.</small>
+            </div>
+            <div class="form-group">
+                <label for="telefone">Telefone:</label>
+                <input type="text" id="telefone" name="telefone" required aria-describedby="telefoneHelp">
+                <small id="telefoneHelp">Digite o número de telefone do acolhido.</small>
+            </div>
+            <div class="form-group">
+                <label for="situacao">Situação:</label>
+                <select id="situacao" name="situacao" required>
+                    <option value="reconciliado">Reconciliado(a)</option>
+                    <option value="convertido">Convertido(a)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="observacao">Observação:</label>
+                <textarea id="observacao" name="observacao" rows="4" aria-describedby="observacaoHelp"></textarea>
+                <small id="observacaoHelp">Digite observações adicionais.</small>
+            </div>
+            <button type="submit" class="btn-primary">Cadastrar</button>
+            <button type="button" id="backToOptionsCadastroAcolhido" class="btn-secondary" onclick="toggleForm('acolhidoFormContainer')">Voltar</button>
+
+        </form>
+    </section>
+
+ <!-- Log de WhatsApp -->
+    <div id="whatsappLog" class="hidden" aria-label="Log de Envio de WhatsApp">
+        <h2>Envio para WhatsApp</h2>
+        <div id="logContainer"></div>
+        <button type="button" id="backToOptionsWhatsappButton" class="btn-secondary">Voltar</button>
+    </div>
+
+ <!-- Monitoramento de Status -->
+    <div id="statusLog" class="hidden" aria-label="Monitoramento de Status de Visitantes">
+        <table id="statusTable">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="statusList">
+                <!-- Os dados serão inseridos aqui -->
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4">
+                        <button id="prevPageButton" class="btn-secondary">Anterior</button>
+                        <button id="nextPageButton" class="btn-secondary">Próximo</button>
+                        <button type="button" id="backToOptionsStatusButton" class="btn-secondary">Voltar</button>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</main>
+<footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 2.0</p>
+</footer>
+
+</body>
+</html>

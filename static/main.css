@@ -1,0 +1,311 @@
+/* Estilos Globais */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: #f4f4f4;
+}
+
+header {
+    background-color: #000;
+    color: #fff;
+    padding: 1rem;
+    text-align: center;
+    width: 100%;
+    position: relative;
+    box-sizing: border-box;
+}
+
+#logo {
+    width: 10%;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+}
+
+#logo2 {
+    width: 15%;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    overflow-y: auto; /* Permite rolagem somente vertical quando necessário */
+    overflow-x: hidden; /* Evita rolagem horizontal */
+    width: 100%;
+    max-width: 100vw; /* Limita a largura máxima ao viewport */
+    box-sizing: border-box;
+}
+
+/* Estilos de Formulários */
+form {
+    border: 1px solid #ddd;
+    padding: 2rem;
+    background-color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 600px; /* Limita a largura máxima para manter o formulário centralizado */
+    margin: 0 auto; /* Centraliza o formulário horizontalmente */
+    box-sizing: border-box;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+/* Formulário Responsivo */
+@media (min-width: 768px) {
+    .form-group {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .form-group label {
+        width: 30%;
+        margin-bottom: 0;
+        text-align: right;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 65%;
+    }
+}
+
+/* Estilos dos Inputs */
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    margin-top: 5px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: #0056b3;
+    outline: none;
+}
+
+/* Mensagens de Erro */
+.error-message {
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid red;
+    background-color: #ffe6e6;
+    border-radius: 5px;
+}
+
+/* Botões */
+button {
+    background-color: #000;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #666;
+}
+
+#sendWhatsappButton {
+    background-color: #dd6024;
+}
+
+#sendWhatsappButton:hover {
+    background-color: #e07b39;
+}
+
+button#backToOptionsCadastroButton,
+button#backToOptionsButtonWhatsapp,
+button#backToOptionsButtonStatus {
+    background-color: #ccc;
+    color: #000;
+}
+
+button#backToOptionsCadastroButton:hover,
+button#backToOptionsButtonWhatsapp:hover,
+button#backToOptionsButtonStatus:hover {
+    background-color: #bbb;
+}
+
+/* Cards de Informações */
+.info-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem; /* Espaçamento entre as linhas */
+    margin-top: 2rem;
+    padding: 0 1rem;
+}
+
+/* Linha de cards para cada categoria */
+.info-row {
+    display: flex;
+    gap: 1rem; /* Espaçamento entre os cards dentro de uma linha */
+    flex-wrap: wrap; /* Permite que os cards ajustem-se automaticamente */
+    justify-content: center; /* Centraliza os cards em cada linha */
+}
+
+/* Card de Informação */
+.info-card {
+    background-color: #c2c3c4; /* Cor de fundo diferenciada */
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1); /* Sombra suave */
+    text-align: center;
+    width: 150px; /* Largura fixa para uma organização melhor */
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Efeito de Hover */
+.info-card:hover {
+    transform: translateY(-5px); /* Elevação no hover */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2); /* Sombra mais intensa no hover */
+}
+
+/* Título dentro do Card */
+.info-card h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+    font-weight: bold;
+    color: #333;
+}
+
+/* Parágrafo dentro do Card */
+.info-card p {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #007bff;
+    margin: 0;
+}
+
+
+/* Menu de Opções */
+#buttonContainer button {
+    margin: 1rem;
+    width: 100%;
+    max-width: 300px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Responsividade para o Menu de Opções */
+@media (max-width: 768px) {
+    .info-cards {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    #buttonContainer button {
+        max-width: 100%;
+    }
+}
+
+/* Outros Ajustes de Layout */
+#loginForm, #options, #infoCardsContainer, .info-card {
+    transition: opacity 0.5s ease;
+}
+
+/* Animações */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease;
+}
+
+#statusLog {
+    max-width: 90%; /* Centraliza e limita a largura total */
+    margin: auto;
+    overflow-x: hidden;
+    display: flex;
+    justify-content: center;
+}
+
+#statusTable {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed; /* Permite ajuste automático ao espaço */
+    font-size: 13px; /* Tamanho de fonte ajustado para títulos e células */
+    text-align: center;
+}
+
+#statusTable thead, #statusTable tfoot {
+    background-color: #f5f5f5;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+#statusTable th, #statusTable td {
+    padding: 6px; /* Mesmo padding para cabeçalhos e células */
+    border: 1px solid #ddd; /* Fronteira consistente */
+    font-size: 13px; /* Tamanho de fonte uniforme */
+    text-align: center; /* Garantir alinhamento consistente */
+}
+
+/* Para garantir que os títulos não sejam mais largos que as células */
+#statusTable th {
+    font-weight: bold; /* Mantém o negrito no cabeçalho */
+}
+
+/* Ajustes finos nas larguras das colunas */
+#statusTable th:nth-child(1), #statusTable td:nth-child(1) { /* Coluna Código */
+    width: 8%;
+}
+
+#statusTable th:nth-child(2), #statusTable td:nth-child(2) { /* Coluna Nome */
+    width: 35%;
+    text-align: left;
+}
+
+#statusTable th:nth-child(3), #statusTable td:nth-child(3) { /* Coluna Telefone */
+    width: 25%;
+}
+
+#statusTable th:nth-child(4), #statusTable td:nth-child(4) { /* Coluna Status */
+    width: 20%;
+    text-align: left;
+}
+
+/* Para garantir que o conteúdo não ultrapasse e fique no mesmo tamanho */
+#statusTable th, #statusTable td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Trunca o texto se ele for muito longo */
+}
+
