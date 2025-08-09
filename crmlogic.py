@@ -21,11 +21,13 @@ jwt = JWTManager(app)
 register_routes(app)
 
 
-@app.route('/visitor_form')
-def visitor_form():
-    """Rota para retornar o formulário HTML de visitantes."""
-    return send_from_directory('templates/', 'visitor_form.html')
+@app.route('/')
+def index():
+    return redirect(url_for('login'))
 
+@app.route('/login')
+def login():
+    return send_from_directory('templates', 'login.html')
 
 # Configuração de logs
 logging.basicConfig(level=logging.DEBUG,
@@ -35,3 +37,4 @@ logging.basicConfig(level=logging.DEBUG,
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # O Heroku fornece a variável de ambiente PORT
     app.run(host='0.0.0.0', port=port, debug=True)  # Habilitar o modo debug
+
