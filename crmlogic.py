@@ -21,13 +21,13 @@ jwt = JWTManager(app)
 register_routes(app)
 
 
+@app.route('/login')
+def serve_login_page():  # ← MUDE O NOME DA FUNÇÃO
+    return send_from_directory('templates', 'login.html')
+
 @app.route('/')
 def index():
-    return redirect(url_for('login'))
-
-@app.route('/login')
-def login():
-    return send_from_directory('templates', 'login.html')
+    return redirect(url_for('serve_login_page'))  # ← ATUALIZE A REFERÊNCIA
 
 # Configuração de logs
 logging.basicConfig(level=logging.DEBUG,
@@ -37,4 +37,5 @@ logging.basicConfig(level=logging.DEBUG,
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # O Heroku fornece a variável de ambiente PORT
     app.run(host='0.0.0.0', port=port, debug=True)  # Habilitar o modo debug
+
 
