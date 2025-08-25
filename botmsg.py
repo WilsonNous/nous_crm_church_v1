@@ -21,9 +21,7 @@ auth_token = os.getenv('TWILIO_AUTH_TOKEN')
 twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
 
 # Lista de números que receberão os pedidos de oração
-numero_pedidos_oracao = ['48991915620', '48998227546', '16988198733',
-                         '48998172138', '48999607546', '48999323361',
-                         '48998367453', '48984830225', '48991915620']
+numero_pedidos_oracao = ['48984949649', '48999449961']
 
 # Número da secretaria que receberá os pedidos de "outros"
 numero_outros_secretaria = '48991553619'
@@ -37,9 +35,9 @@ client = Client(account_sid, auth_token)
 link_grupo = \
     "https://chat.whatsapp.com/DSG6r3VScxS30hJAnitTkK"
 link_discipulado = \
-    "https://docs.google.com/forms/d/e/1FAIpQLScBkNcPGGjrUNq_1_sUyEnyoc_a3EtdvFd890grmYBbKerGyQ/viewform?usp=sf_link"
+    "https://forms.gle/qdxNnPyCfKoJeseU8"
 link_discipulado_novosComec = \
-    "https://docs.google.com/forms/d/e/1FAIpQLScBkNcPGGjrUNq_1_sUyEnyoc_a3EtdvFd890grmYBbKerGyQ/viewform?usp=sf_link"
+    "https://forms.gle/Cm7d5F9Zv77fgJKDA"
 link_grupo_homens_corajosos = "https://chat.whatsapp.com/H4pFqtsruDr0QJ1NvCMjda"
 link_grupo_transformadas = "https://chat.whatsapp.com/LT0pN2SPTqf66yt3AWKIAe"
 
@@ -311,7 +309,8 @@ def detectar_saudacao(texto: str) -> bool:
     """
     Verifica se o texto contém uma saudação.
     """
-    saudacoes = ["ola", "oi", "bom dia", "boa tarde", "boa noite", "eae", "e aí", "saudações"]
+    saudacoes = ["ola", "oi", "bom dia", "boa tarde", "boa noite", "eae", "e aí", "saudações",
+                 "a paz do senhor", "a paz de cristo", "paz"]
     texto_normalizado = normalizar_texto(texto)
 
     # Verifica se alguma das saudações está presente no texto
