@@ -1,4 +1,4 @@
-const baseUrl = 'https://crmvisitanteschurch-406c6fed7f63.herokuapp.com';
+const baseUrl = 'https://nous-crm-church-v1.onrender.com';
 
 const appState = {
     currentView: 'login', // Pode ser 'login', 'options', 'form', 'whatsappLog', 'statusLog', etc.
@@ -539,3 +539,4 @@ function handleAcolhidoFormSubmission(event) {
 
 // Atualização temporizada a cada 10 segundos
 setInterval(loadDashboardData, 1200000); // 10000 ms = 60 segundos
+
