@@ -427,8 +427,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
                              "3⃣ Gostaria de receber orações.\n"
                              "4⃣ Queria saber mais sobre os horários dos cultos.\n"
                              "5⃣ Quero entrar no grupo do WhatsApp da igreja.\n"
-                             "6⃣ Outro assunto.\n"
-                             "7⃣ Atualizar meu cadastro.")
+                             "6⃣ Outro assunto.\n")
         enviar_mensagem_para_fila(numero_normalizado, resposta_saudacao)
         salvar_conversa(numero_normalizado, resposta_saudacao, tipo='enviada', sid=message_sid)
         
@@ -448,8 +447,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
                     "3⃣ Gostaria de receber orações.\n"
                     "4⃣ Queria saber mais sobre os horários dos cultos.\n"
                     "5⃣ Quero entrar no grupo do WhatsApp da igreja.\n"
-                    "6⃣ Outro assunto.\n"
-                    "7⃣ Atualizar meu cadastro.")
+                    "6⃣ Outro assunto.\n")
 
         # Atualiza o status para INICIO e envia a mensagem
         proximo_estado = EstadoVisitante.INICIO
@@ -476,8 +474,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
                             "3⃣ Gostaria de receber orações.\n"
                             "4⃣ Queria saber mais sobre os horários dos cultos.\n"
                             "5⃣ Quero entrar no grupo do WhatsApp da igreja.\n"
-                            "6⃣ Outro assunto.\n"
-                            "7⃣ Atualizar meu cadastro.\n\n"
+                            "6⃣ Outro assunto.\n\n"
                             "Nos diga qual sua escolha! 🙏")
 
         # Atualiza o status diretamente para INICIO, sem o MENU
@@ -869,8 +866,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
                     "3⃣ Gostaria de receber orações.\n"
                     "4⃣ Queria saber mais sobre os horários dos cultos.\n"
                     "5⃣ Quero entrar no grupo do WhatsApp da igreja.\n"
-                    "6⃣ Outro assunto.\n"
-                    "7⃣ Atualizar meu cadastro.")
+                    "6⃣ Outro assunto.\n")
         proximo_estado = estado_atual
 
     else:
