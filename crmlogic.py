@@ -3,7 +3,7 @@ import logging
 import os
 
 # Importações de bibliotecas externas
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, redirect, url_for  # ← CORRIGIDO
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
@@ -17,25 +17,20 @@ CORS(app)
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 jwt = JWTManager(app)
 
-
 register_routes(app)
 
-
 @app.route('/login')
-def serve_login_page():  # ← MUDE O NOME DA FUNÇÃO
+def serve_login_page():
     return send_from_directory('templates', 'login.html')
 
 @app.route('/')
 def index():
-    return redirect(url_for('serve_login_page'))  # ← ATUALIZE A REFERÊNCIA
+    return redirect(url_for('serve_login_page'))  # ← AGORA FUNCIONARÁ!
 
 # Configuração de logs
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # O Heroku fornece a variável de ambiente PORT
-    app.run(host='0.0.0.0', port=port, debug=True)  # Habilitar o modo debug
-
-
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
