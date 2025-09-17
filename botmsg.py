@@ -134,20 +134,13 @@ transicoes = {
 # Mensagens associadas aos estados
 # --- REMOVIDA A OPÇÃO "7⃣ Atualizar meu cadastro." da mensagem INICIO ---
 mensagens = {
-    EstadoVisitante.INICIO: "Escolha uma das opções:
-"
-                            "1⃣ Sou batizado em águas, e quero me tornar membro.
-"
-                            "2⃣ Não sou batizado, e quero me tornar membro.
-"
-                            "3⃣ Gostaria de receber orações.
-"
-                            "4⃣ Queria saber mais sobre os horários dos cultos.
-"
-                            "5⃣ Quero entrar no grupo do WhatsApp da igreja.
-"
-                            "6⃣ Outro assunto.
-", # <-- Removida a linha da opção 7
+    EstadoVisitante.INICIO: """Escolha uma das opções:
+1⃣ Sou batizado em águas, e quero me tornar membro.
+2⃣ Não sou batizado, e quero me tornar membro.
+3⃣ Gostaria de receber orações.
+4⃣ Queria saber mais sobre os horários dos cultos.
+5⃣ Quero entrar no grupo do WhatsApp da igreja.
+6⃣ Outro assunto.""",
     EstadoVisitante.INTERESSE_DISCIPULADO: f"Que ótimo! Como você já foi batizado, você pode participar do nosso "
                                            f"Discipulado de Novos Membros. Aqui está o link para se inscrever: "
                                            f"{link_discipulado}. Estamos muito felizes com seu interesse em se tornar "
@@ -721,3 +714,4 @@ def enviar_mensagem_manual(numero_destino, template_sid, params):  # Altere o se
             logging.info("Mensagem enviada com sucesso!")
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
+
