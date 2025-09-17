@@ -4,8 +4,7 @@ import logging
 from twilio.rest import Client
 from database import (atualizar_status, salvar_conversa, normalizar_para_recebimento,
                       normalizar_para_envio, registrar_estatistica, salvar_novo_visitante,
-                      obter_estado_atual_do_banco, obter_nome_do_visitante, obter_dados_visitante,
-                      atualizar_dado_visitante)
+                      obter_estado_atual_do_banco, obter_nome_do_visitante)
 from enum import Enum
 from datetime import datetime
 import time
@@ -44,8 +43,10 @@ link_discipulado_novosComec = \
 link_grupo_homens_corajosos = "https://chat.whatsapp.com/H4pFqtsruDr0QJ1NvCMjda"
 link_grupo_transformadas = "https://chat.whatsapp.com/LT0pN2SPTqf66yt3AWKIAe"
 
+
 # Enum para os diferentes estados do visitante
 # --- REMOVIDO TODOS OS ESTADOS DE ATUALIZAÇÃO ---
+
 class EstadoVisitante(Enum):
     INICIO = "INICIO"
     INTERESSE_DISCIPULADO = "INTERESSE_DISCIPULADO"
@@ -55,6 +56,7 @@ class EstadoVisitante(Enum):
     LINK_WHATSAPP = "LINK_WHATSAPP"
     OUTRO = "OUTRO"
     FIM = "FIM"
+
 
 # Transições - REMOVIDA A OPÇÃO "7" e qualquer referência a ATUALIZAR_CADASTRO
 transicoes = {
@@ -205,15 +207,16 @@ palavras_chave_ministerios = {
               "Você pode seguir o *_Pr Fábio Ferreira_* no Instagram: _@prfabioferreirasoficial_"
               "E a *_Pra Cláudia Ferreira_* no Instagram: _@claudiaferreiras1_",
     "mais amor": "O Ministério Mais Amor é focado em ações sociais, ajudando os necessitados da nossa comunidade.",
-    "gc":     "*Grupos de Comunhão (GC)* - _Pequenos encontros semanais nos lares para compartilhar histórias,_"
-              " _oração e comunhão._ "
-              "Participe e viva momentos de fé e crescimento espiritual!"
-              "*Inscreva-se aqui:* "
-              "https://docs.google.com/forms/d/e/1FAIpQLSdj0b3PF-3jwt9Fsw8FvOxv6rSheN7POC1e0bDzub6vEWJm2A/viewform"
+    "gc": "*Grupos de Comunhão (GC)* - _Pequenos encontros semanais nos lares para compartilhar histórias,_"
+          " _oração e comunhão._ "
+          "Participe e viva momentos de fé e crescimento espiritual!"
+          "*Inscreva-se aqui:* "
+          "https://docs.google.com/forms/d/e/1FAIpQLSdj0b3PF-3jwt9Fsw8FvOxv6rSheN7POC1e0bDzub6vEWJm2A/viewform"
 }
 
 # Fila de mensagens
 fila_mensagens = deque()
+
 
 # Função para processar a fila de mensagens
 def processar_fila_mensagens():
@@ -225,15 +228,18 @@ def processar_fila_mensagens():
         except Exception as e:
             logging.error(f"Erro ao enviar mensagem para {numero}: {e}")
 
+
 # Função para adicionar mensagens à fila
 def adicionar_na_fila(numero, mensagem):
     fila_mensagens.append((numero, mensagem))
     if len(fila_mensagens) == 1:  # Se a fila estava vazia, processa imediatamente
         threading.Thread(target=processar_fila_mensagens).start()
 
+
 # Função para capturar apenas o primeiro nome do visitante
 def obter_primeiro_nome(nome_completo: str) -> str:
     return nome_completo.split()[0]  # Captura o primeiro nome do visitante
+
 
 def detectar_palavra_chave_ministerio(texto_recebido: str):
     texto_recebido = normalizar_texto(texto_recebido).replace('ç', 'c')  # Normaliza o texto e substitui 'ç' por 'c'
@@ -241,6 +247,7 @@ def detectar_palavra_chave_ministerio(texto_recebido: str):
         if palavra in texto_recebido or palavra.rstrip('s') in texto_recebido:  # Verifica singular/plural
             return resposta
     return None
+
 
 def detectar_saudacao(texto: str) -> bool:
     """
@@ -254,6 +261,7 @@ def detectar_saudacao(texto: str) -> bool:
         if saudacao in texto_normalizado:
             return True
     return False
+
 
 # Função para enviar pedidos de oração para todos os números da lista
 def enviar_pedido_oracao(lista_intercessores, visitor_name, numero_visitante, texto_recebido):
@@ -271,9 +279,11 @@ def enviar_pedido_oracao(lista_intercessores, visitor_name, numero_visitante, te
         except Exception as e:
             logging.error(f"Erro ao enviar o pedido de oração para o número {numero}: {e}")
 
+
 # Substitua a chamada direta para `enviar_mensagem` pelo uso da fila
 def enviar_mensagem_para_fila(numero_destino, corpo_mensagem):
     adicionar_na_fila(numero_destino, corpo_mensagem)
+
 
 # Função para verificar se a mensagem contém uma expressão de agradecimento
 def detectar_agradecimento(texto):
@@ -283,6 +293,7 @@ def detectar_agradecimento(texto):
                               "gloria a deus"]
     texto_normalizado = normalizar_texto(texto)  # Usar a função de normalização de texto já existente
     return any(palavra in texto_normalizado for palavra in palavras_agradecimento)
+
 
 def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_manual=False) -> dict:
     logging.info(f"Processando mensagem: {numero}, SID: {message_sid}, Mensagem: {texto_recebido}")
@@ -578,7 +589,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
                     "2⃣ Não sou batizado, e quero me tornar membro."
                     "3⃣ Gostaria de receber orações."
                     "4⃣ Queria saber mais sobre os horários dos cultos."
-                    "5⃣ Quero entrar no grupo do WhatsApp da igreja.
+                    "5⃣ Quero entrar no grupo do WhatsApp da igreja."
                     "6⃣ Outro assunto.")
         proximo_estado = estado_atual
     else:
@@ -607,6 +618,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         "proximo_estado": proximo_estado.name
     }
 
+
 def normalizar_texto(texto):
     texto = texto.strip().lower()
     texto = ''.join(
@@ -615,12 +627,14 @@ def normalizar_texto(texto):
     )
     return texto
 
+
 def validar_data_nascimento(data: str) -> bool:
     """
     Valida se a data de nascimento está no formato DD/MM/AAAA.
     """
     padrao = r"^\d{2}/\d{2}/\d{4}$"
     return re.match(padrao, data) is not None
+
 
 def enviar_mensagem(numero_destino, corpo_mensagem):
     try:
@@ -634,6 +648,7 @@ def enviar_mensagem(numero_destino, corpo_mensagem):
         logging.info(f"Mensagem enviada: {mensagem.sid}")
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
+
 
 def enviar_mensagem_manual(numero_destino, template_sid, params):  # Altere o segundo parâmetro para template_sid
     try:
@@ -661,4 +676,3 @@ def enviar_mensagem_manual(numero_destino, template_sid, params):  # Altere o se
             logging.info("Mensagem enviada com sucesso!")
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
-
