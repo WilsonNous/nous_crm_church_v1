@@ -485,12 +485,11 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         salvar_conversa(numero_normalizado, f"Outro: {texto_recebido}", tipo='recebida', sid=message_sid)
         # Enviar a mensagem para o número da secretaria
         mensagem_outro = (
-            f"Solicitação de Atendimento (Outro):
-Visitante: {visitor_name}
-Número: {numero_normalizado}
-"
-            f"Mensagem: {texto_recebido}
-Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            f"Solicitação de Atendimento (Outro):"
+            f"Visitante: {visitor_name}"
+            f"Número: {numero_normalizado}"
+            f"Mensagem: {texto_recebido}"
+            f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
         )
         try:
             numero_normalizado_secretaria = normalizar_para_envio(numero_outros_secretaria)
@@ -662,5 +661,4 @@ def enviar_mensagem_manual(numero_destino, template_sid, params):  # Altere o se
             logging.info("Mensagem enviada com sucesso!")
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
-
 
