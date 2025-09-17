@@ -21,16 +21,8 @@ account_sid = os.getenv('TWILIO_ACCOUNT_SID')
 auth_token = os.getenv('TWILIO_AUTH_TOKEN')
 twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
 
-# Configuração do banco de dados para a IA
-db_config_ia = {
-    'host': 'localhost',  # Altere para o seu host
-    'user': 'seu_usuario',  # Altere para seu usuário
-    'password': 'sua_senha',  # Altere para sua senha
-    'database': 'seu_banco'   # Altere para seu banco
-}
-
 # Inicializa a IA (isso pode levar alguns segundos na primeira execução)
-ia_integracao = IAIntegracao(db_config_ia)
+ia_integracao = IAIntegracao()
 
 # Lista de números que receberão os pedidos de oração
 numero_pedidos_oracao = ['48984949649', '48999449961']
@@ -990,4 +982,5 @@ def enviar_mensagem_manual(numero_destino, template_sid, params):  # Altere o se
 
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
+
 
