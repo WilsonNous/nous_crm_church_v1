@@ -14,11 +14,23 @@ from collections import deque
 import json
 import requests
 import re
+from ia_integracao import IAIntegracao
 
 # Configurações Twilio
 account_sid = os.getenv('TWILIO_ACCOUNT_SID')
 auth_token = os.getenv('TWILIO_AUTH_TOKEN')
 twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
+
+# Configuração do banco de dados para a IA
+db_config_ia = {
+    'host': 'localhost',  # Altere para o seu host
+    'user': 'seu_usuario',  # Altere para seu usuário
+    'password': 'sua_senha',  # Altere para sua senha
+    'database': 'seu_banco'   # Altere para seu banco
+}
+
+# Inicializa a IA (isso pode levar alguns segundos na primeira execução)
+ia_integracao = IAIntegracao(db_config_ia)
 
 # Lista de números que receberão os pedidos de oração
 numero_pedidos_oracao = ['48984949649', '48999449961']
@@ -819,6 +831,22 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
     # Tratamento para quando nenhuma transição é encontrada
     if proximo_estado is None:
+        # --- NOVO: Consulta a IA antes de qualquer outra coisa ---
+        resposta_ia, confianca_ia = ia_integracao.responder_pergunta(texto_recebido)
+        if resposta_ia and confianca_ia > 0.3:  # Limiar de confiança configurável
+            logger.info(f"IA respondeu com confiança {confianca_ia:.2f}")
+            enviar_mensagem_para_fila(numero_normalizado, resposta_ia)
+            salvar_conversa(numero_normalizado, resposta_ia, tipo='enviada', sid=message_sid)
+            # Atualiza o estado para INICIO para manter o fluxo
+            atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
+            return {
+                "resposta": resposta_ia,
+                "estado_atual": estado_atual.name,
+                "proximo_estado": EstadoVisitante.INICIO.name
+            }
+        # --- FIM DA NOVA SEÇÃO ---
+    
+        # Se a IA não respondeu, continua com a lógica existente
         # Verifica se a mensagem contém uma palavra-chave de ministério
         resposta_ministerio = detectar_palavra_chave_ministerio(texto_recebido_normalizado)
         if resposta_ministerio:
@@ -962,3 +990,4 @@ def enviar_mensagem_manual(numero_destino, template_sid, params):  # Altere o se
 
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
+
