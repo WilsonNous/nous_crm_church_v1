@@ -1,22 +1,23 @@
 import logging
-import mysql.connector
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import re
 import unicodedata
 
+# Importa a função de conexão do seu sistema existente
+from database import get_db_connection
+
 # Configuração de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class IAIntegracao:
-    def __init__(self, db_config):
+    def __init__(self):
         """
         Inicializa a IA de Integração.
-        :param db_config: Dicionário com configuração do banco de dados (host, user, password, database)
+        Não é necessário passar configurações, pois usaremos o database.py existente.
         """
-        self.db_config = db_config
         self.vectorizer = TfidfVectorizer(
             lowercase=True,
             ngram_range=(1, 2),  # Considera palavras únicas e pares de palavras
@@ -45,46 +46,81 @@ class IAIntegracao:
 
     def carregar_dados_do_banco(self):
         """
-        Carrega os pares de pergunta e resposta do banco de dados MySQL.
-        Assume que você tem uma tabela chamada `conversas` ou similar com as colunas:
-        - `mensagem` (o texto da mensagem)
-        - `tipo` ('recebida' para pergunta do usuário, 'enviada' para resposta do bot)
-        - `telefone` (para agrupar conversas por usuário)
+        Carrega os pares de pergunta e resposta do banco de dados MySQL usando o database.py.
+        Estrutura da tabela `conversas`:
+        - `visitante_id`: Chave estrangeira para a tabela `visitantes`.
+        - `mensagem`: O conteúdo da mensagem.
+        - `tipo`: 'recebida' (usuário) ou 'enviada' (bot).
+        - `message_sid`: ID único da mensagem (opcional para este uso).
 
-        Esta função é um exemplo e DEVE ser adaptada à sua estrutura real de banco de dados.
+        Estratégia: Para cada mensagem 'recebida', tentamos encontrar a próxima mensagem 'enviada'
+        do bot como sua resposta.
         """
         perguntas = []
         respostas = []
 
         try:
-            conn = mysql.connector.connect(**self.db_config)
-            cursor = conn.cursor(dictionary=True)
+            conn = get_db_connection()
+            cursor = conn.cursor()
 
             # Consulta para obter pares de pergunta e resposta.
-            # Esta é uma lógica simplificada. Em um cenário real, você pode querer
-            # agrupar por sessão de conversa ou usar timestamps para emparelhar corretamente.
+            # Ordenamos por visitante e data_hora para manter a ordem cronológica da conversa.
             query = """
             SELECT 
+                c1.visitante_id,
                 c1.mensagem as pergunta,
-                c2.mensagem as resposta
+                c2.mensagem as resposta,
+                c1.data_hora as data_pergunta,
+                c2.data_hora as data_resposta
             FROM conversas c1
-            JOIN conversas c2 ON c1.telefone = c2.telefone 
-                AND c2.id > c1.id 
+            JOIN conversas c2 
+                ON c1.visitante_id = c2.visitante_id 
+                AND c2.data_hora > c1.data_hora
                 AND c2.tipo = 'enviada'
             WHERE c1.tipo = 'recebida'
-            ORDER BY c1.id, c2.id
-            LIMIT 1; -- Remova este LIMIT para carregar todos os dados
+            ORDER BY c1.visitante_id, c1.data_hora, c2.data_hora
             """
 
             cursor.execute(query)
             resultados = cursor.fetchall()
 
-            for row in resultados:
-                pergunta = self.normalizar_texto(row['pergunta'])
-                resposta = row['resposta']  # Mantém a resposta original, sem normalizar
+            # Dicionário para rastrear a última pergunta de cada visitante
+            ultima_pergunta_por_visitante = {}
 
-                # Filtra perguntas muito curtas ou genéricas
-                if len(pergunta.split()) > 2 and pergunta not in ["sim", "não", "nao", "obrigado", "obrigada"]:
+            for row in resultados:
+                visitante_id = row['visitante_id']
+                pergunta = self.normalizar_texto(row['pergunta'])
+                resposta = row['resposta']  # Mantém a resposta original
+
+                # Verifica se esta é a resposta mais próxima da pergunta
+                if visitante_id not in ultima_pergunta_por_visitante:
+                    ultima_pergunta_por_visitante[visitante_id] = {
+                        'pergunta': pergunta,
+                        'resposta': resposta,
+                        'data_pergunta': row['data_pergunta']
+                    }
+                else:
+                    # Se já havia uma pergunta anterior, adicionamos o par ao dataset
+                    pergunta_anterior = ultima_pergunta_por_visitante[visitante_id]['pergunta']
+                    resposta_anterior = ultima_pergunta_por_visitante[visitante_id]['resposta']
+
+                    # Filtros para evitar treinar com dados ruins
+                    if len(pergunta_anterior.split()) > 2 and pergunta_anterior not in ["sim", "não", "nao", "obrigado", "obrigada", "valeu", "ok"]:
+                        perguntas.append(pergunta_anterior)
+                        respostas.append(resposta_anterior)
+
+                    # Atualiza para a nova pergunta
+                    ultima_pergunta_por_visitante[visitante_id] = {
+                        'pergunta': pergunta,
+                        'resposta': resposta,
+                        'data_pergunta': row['data_pergunta']
+                    }
+
+            # Adiciona o último par de cada visitante
+            for item in ultima_pergunta_por_visitante.values():
+                pergunta = item['pergunta']
+                resposta = item['resposta']
+                if len(pergunta.split()) > 2 and pergunta not in ["sim", "não", "nao", "obrigado", "obrigada", "valeu", "ok"]:
                     perguntas.append(pergunta)
                     respostas.append(resposta)
 
@@ -95,22 +131,48 @@ class IAIntegracao:
 
         except Exception as e:
             logger.error(f"Erro ao carregar dados do banco: {e}")
-            # Se falhar, usamos um conjunto de dados de fallback
+            # Conjunto de fallback robusto baseado no seu botmsg.py
             perguntas = [
-                "que horas e o culto",
-                "como me cadastrar",
-                "onde fica a igreja",
-                "quero entrar no grupo de whatsapp",
-                "gostaria de receber oracoes"
+                "sou batizado", "quero me tornar membro", "batizado em aguas",
+                "nao sou batizado", "quero me tornar membro", "novo comeco",
+                "pedido de oracao", "receber oracoes", "orar por mim",
+                "horarios dos cultos", "que horas e o culto", "culto de domingo",
+                "grupo whatsapp", "entrar no grupo", "link do grupo",
+                "outro assunto", "falar com secretaria", "ajuda",
+                "atualizar cadastro", "mudar meu nome", "mudar meu email",
+                "homens corajosos", "mulheres transformadas", "ministerio jovens",
+                "pastor", "quem sao os pastores", "21 dias de oracao"
             ]
             respostas = [
-                "*Seguem nossos horários de cultos:*\n🌿 *Domingo* - Culto da Família - às 19h\n🔥 *Quinta Fé* - Culto dos Milagres - às 20h\n🎉 *Sábado* - Culto Alive - às 20h",
-                "Você pode se cadastrar respondendo ao nosso formulário: https://forms.gle/...",
-                "Estamos localizados na Rua das Flores, 123, Canasvieiras, Florianópolis/SC.",
-                "Aqui está o link para entrar no nosso grupo do WhatsApp: https://chat.whatsapp.com/...",
-                "Ficamos honrados em receber o seu pedido de oração. Sinta-se à vontade para compartilhar o que está em seu coração."
+                mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
+                mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
+                mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
+                mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
+                mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
+                mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
+                "Ficamos honrados em receber o seu pedido de oração. Sinta-se à vontade para compartilhar o que está em seu coração.",
+                "Ficamos honrados em receber o seu pedido de oração. Sinta-se à vontade para compartilhar o que está em seu coração.",
+                "Ficamos honrados em receber o seu pedido de oração. Sinta-se à vontade para compartilhar o que está em seu coração.",
+                mensagens[EstadoVisitante.HORARIOS],
+                mensagens[EstadoVisitante.HORARIOS],
+                mensagens[EstadoVisitante.HORARIOS],
+                mensagens[EstadoVisitante.LINK_WHATSAPP],
+                mensagens[EstadoVisitante.LINK_WHATSAPP],
+                mensagens[EstadoVisitante.LINK_WHATSAPP],
+                mensagens[EstadoVisitante.OUTRO],
+                mensagens[EstadoVisitante.OUTRO],
+                mensagens[EstadoVisitante.OUTRO],
+                mensagens[EstadoVisitante.ATUALIZAR_CADASTRO],
+                mensagens[EstadoVisitante.ATUALIZAR_CADASTRO],
+                mensagens[EstadoVisitante.ATUALIZAR_CADASTRO],
+                palavras_chave_ministerios["homens"],
+                palavras_chave_ministerios["mulheres"],
+                palavras_chave_ministerios["jovens"],
+                palavras_chave_ministerios["pastor"],
+                palavras_chave_ministerios["pastor"],
+                palavras_chave_ministerios["21 dias"]
             ]
-            logger.info("Usando conjunto de dados de fallback.")
+            logger.info("Usando conjunto de dados de fallback robusto.")
 
         return perguntas, respostas
 
@@ -176,26 +238,20 @@ class IAIntegracao:
         else:
             return None, confianca
 
-# --- Exemplo de Uso e Teste ---
+# --- Código de Teste (Opcional) ---
 
 if __name__ == "__main__":
-    # Substitua estas configurações pelas do seu banco de dados real
-    config_db = {
-        'host': 'localhost',
-        'user': 'seu_usuario',
-        'password': 'sua_senha',
-        'database': 'seu_banco'
-    }
-
     # Cria uma instância da IA
-    ia = IAIntegracao(config_db)
+    ia = IAIntegracao()
 
     # Testa com algumas perguntas
     testes = [
         "Que horas é o culto de domingo?",
         "Como faço para me cadastrar?",
         "Me fale sobre o grupo de whatsapp",
-        "Onde vocês ficam?"
+        "Onde vocês ficam?",
+        "Quero falar com a secretaria",
+        "Gostaria de receber orações"
     ]
 
     for pergunta in testes:
