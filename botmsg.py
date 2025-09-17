@@ -154,29 +154,20 @@ mensagens = {
                                    "Sinta-se à vontade para compartilhar o que está em seu coração. "
                                    "Estamos aqui para orar junto com você e apoiar no que for preciso. 🙏",
     EstadoVisitante.HORARIOS: (
-        "*Seguem nossos horários de cultos:*
-"
-        "🌿 *Domingo* - Culto da Família - às 19h
-"
+        "*Seguem nossos horários de cultos:*"
+        "🌿 *Domingo* - Culto da Família - às 19h"
         "Uma oportunidade de estar em comunhão com sua família, adorando a Deus e agradecendo por cada bênção. "
-        "\"Eu e a minha casa serviremos ao Senhor.\" *(Josué 24:15)*
-"
-        "🔥 *Quinta Fé* - Culto dos Milagres - às 20h
-"
+        "\"Eu e a minha casa serviremos ao Senhor.\" *(Josué 24:15)*"
+        "🔥 *Quinta Fé* - Culto dos Milagres - às 20h"
         "Um encontro de fé para vivermos o sobrenatural de Deus. "
-        "\"Tudo é possível ao que crê.\" *(Marcos 9:23)*
-"
-        "🎉 *Sábado* - Culto Alive - às 20h
-"
+        "\"Tudo é possível ao que crê.\" *(Marcos 9:23)*"
+        "🎉 *Sábado* - Culto Alive - às 20h"
         "Jovem, venha viver o melhor sábado da sua vida com muita alegria e propósito! "
-        "\"Ninguém despreze a tua mocidade, mas sê exemplo dos fiéis.\" *(1 Timóteo 4:12)*
-"
+        "\"Ninguém despreze a tua mocidade, mas sê exemplo dos fiéis.\" *(1 Timóteo 4:12)*"
         "🙏 Somos Uma Igreja Família, Vivendo os Propósitos de Deus! "
-        "\"Pois onde estiverem dois ou três reunidos em meu nome, ali estou no meio deles.\" *(Mateus 18:20)*
-"
+        "\"Pois onde estiverem dois ou três reunidos em meu nome, ali estou no meio deles.\" *(Mateus 18:20)*"
         "Gostaria de mais informações?"),
-    EstadoVisitante.LINK_WHATSAPP: f"Aqui está o link para entrar no nosso grupo do WhatsApp: {link_grupo}
-"
+    EstadoVisitante.LINK_WHATSAPP: f"Aqui está o link para entrar no nosso grupo do WhatsApp: {link_grupo}"
                                    "Agradecemos seu contato e esperamos vê-lo em breve!",
     EstadoVisitante.OUTRO: "Entendido! 😉 Fique à vontade para nos contar como podemos te ajudar. "
                            "Estamos aqui para ouvir e apoiar você!",
@@ -189,17 +180,13 @@ mensagens = {
 palavras_chave_ministerios = {
     "homens": "Paz de Cristo, somos os Homens Corajosos da Mais de Cristo Canasvieiras, "
               "nossa missão é servir a Deus com toda força e coração, nos colocando a frente dos propósitos de Deus, "
-              "para sermos, sacerdotes da nossa casa, homens de coragem e temente a Deus.
-"
-              "Venha fazer parte deste exército e ficar mais próximo do seu propósito.
-"
+              "para sermos, sacerdotes da nossa casa, homens de coragem e temente a Deus."
+              "Venha fazer parte deste exército e ficar mais próximo do seu propósito."
               "Segue link do grupo de whatsapp: " + link_grupo_homens_corajosos,
     "mulheres": "Paz de Cristo, somos o Ministério Mulheres Transformadas da Mais de Cristo Canasvieiras. "
                 "Nosso objetivo é promover o crescimento espiritual das mulheres, fortalecendo nossa fé e "
-                "nos unindo em amor e comunhão. Temos encontros mensais cheios de aprendizado e inspiração.
-"
-                "Venha fazer parte deste grupo e viver os propósitos que Deus tem para sua vida.
-"
+                "nos unindo em amor e comunhão. Temos encontros mensais cheios de aprendizado e inspiração."
+                "Venha fazer parte deste grupo e viver os propósitos que Deus tem para sua vida."
                 "Segue link do grupo de whatsapp: " + link_grupo_transformadas,
     "jovens": "O Ministério Alive é dedicado aos jovens e adolescentes, com cultos vibrantes e cheios de propósito.",
     "criancas": "Venha fazer a diferença na vida das crianças! "
@@ -212,20 +199,15 @@ palavras_chave_ministerios = {
                "Este evento acontece diariamente, das 23h às 23:30, na igreja, e seguirá até o dia 20 de novembro."
                "Será um tempo especial para buscar paz, inspiração e fortalecer a fé. "
                "Caso precise de mais informações ou queira confirmar presença, estou aqui para ajudar!",
-    "pastor": "Nossos pastores atuais são:
-"
-              "- *Pr Fábio Ferreira*
-"
-              "- *Pra Cláudia Ferreira*
-"
-              "Você pode seguir o *_Pr Fábio Ferreira_* no Instagram: _@prfabioferreirasoficial_
-"
+    "pastor": "Nossos pastores atuais são:"
+              "- *Pr Fábio Ferreira*"
+              "- *Pra Cláudia Ferreira*"
+              "Você pode seguir o *_Pr Fábio Ferreira_* no Instagram: _@prfabioferreirasoficial_"
               "E a *_Pra Cláudia Ferreira_* no Instagram: _@claudiaferreiras1_",
     "mais amor": "O Ministério Mais Amor é focado em ações sociais, ajudando os necessitados da nossa comunidade.",
     "gc":     "*Grupos de Comunhão (GC)* - _Pequenos encontros semanais nos lares para compartilhar histórias,_"
               " _oração e comunhão._ "
-              "Participe e viva momentos de fé e crescimento espiritual!
-"
+              "Participe e viva momentos de fé e crescimento espiritual!"
               "*Inscreva-se aqui:* "
               "https://docs.google.com/forms/d/e/1FAIpQLSdj0b3PF-3jwt9Fsw8FvOxv6rSheN7POC1e0bDzub6vEWJm2A/viewform"
 }
@@ -368,23 +350,14 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # Verificar se a mensagem é uma saudação
     if detectar_saudacao(texto_recebido_normalizado):
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
-        resposta_saudacao = (f"Oi! Que bom te ver por aqui,  {visitor_name}😊. 
- Como posso ajudar você hoje?
-"
-                             "Aqui estão algumas opções que você pode escolher:
-"
-                             "1⃣ Sou batizado em águas, e quero me tornar membro.
-"
-                             "2⃣ Não sou batizado, e quero me tornar membro.
-"
-                             "3⃣ Gostaria de receber orações.
-"
-                             "4⃣ Queria saber mais sobre os horários dos cultos.
-"
-                             "5⃣ Quero entrar no grupo do WhatsApp da igreja.
-"
-                             "6⃣ Outro assunto.
-")
+        resposta_saudacao = (f"Oi! Que bom te ver por aqui,  {visitor_name}😊. Como posso ajudar você hoje?"
+                             "Aqui estão algumas opções que você pode escolher:"
+                             "1⃣ Sou batizado em águas, e quero me tornar membro."
+                             "2⃣ Não sou batizado, e quero me tornar membro."
+                             "3⃣ Gostaria de receber orações."
+                             "4⃣ Queria saber mais sobre os horários dos cultos."
+                             "5⃣ Quero entrar no grupo do WhatsApp da igreja."
+                             "6⃣ Outro assunto.")
         enviar_mensagem_para_fila(numero_normalizado, resposta_saudacao)
         salvar_conversa(numero_normalizado, resposta_saudacao, tipo='enviada', sid=message_sid)
         return {
@@ -396,22 +369,14 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     if estado_atual == EstadoVisitante.FIM:
         # Responder com uma saudação de retorno ao visitante
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]  # Pegando só o primeiro nome
-        resposta = (f"Que bom ter você de volta, {visitor_name}! 😃 Estamos felizes por poder te ajudar novamente.
-"
-                    "Aqui estão algumas opções que você pode escolher:
-"
-                    "1⃣ Sou batizado em águas, e quero me tornar membro.
-"
-                    "2⃣ Não sou batizado, e quero me tornar membro.
-"
-                    "3⃣ Gostaria de receber orações.
-"
-                    "4⃣ Queria saber mais sobre os horários dos cultos.
-"
-                    "5⃣ Quero entrar no grupo do WhatsApp da igreja.
-"
-                    "6⃣ Outro assunto.
-")
+        resposta = (f"Que bom ter você de volta, {visitor_name}! 😃 Estamos felizes por poder te ajudar novamente."
+                    "Aqui estão algumas opções que você pode escolher:"
+                    "1⃣ Sou batizado em águas, e quero me tornar membro."
+                    "2⃣ Não sou batizado, e quero me tornar membro."
+                    "3⃣ Gostaria de receber orações."
+                    "4⃣ Queria saber mais sobre os horários dos cultos."
+                    "5⃣ Quero entrar no grupo do WhatsApp da igreja."
+                    "6⃣ Outro assunto.")
         # Atualiza o status para INICIO e envia a mensagem
         proximo_estado = EstadoVisitante.INICIO
         atualizar_status(numero_normalizado, proximo_estado.value)
@@ -427,24 +392,15 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # Se o estado for NULL e a ação for manual, enviar a mensagem inicial
     if not estado_str and acao_manual:
         visitor_name = obter_primeiro_nome(obter_nome_do_visitante(numero_normalizado)) or "Visitante"
-        resposta_inicial = (f"A Paz de Cristo, {visitor_name}! Tudo bem com você?
-"
-                            "Aqui é a Equipe de Integração da MAIS DE CRISTO Canasvieiras!
-"
-                            "Escolha uma das opções abaixo, respondendo com o número correspondente:
-"
-                            "1⃣ Sou batizado em águas, e quero me tornar membro.
-"
-                            "2⃣ Não sou batizado, e quero me tornar membro.
-"
-                            "3⃣ Gostaria de receber orações.
-"
-                            "4⃣ Queria saber mais sobre os horários dos cultos.
-"
-                            "5⃣ Quero entrar no grupo do WhatsApp da igreja.
-"
-                            "6⃣ Outro assunto.
-"
+        resposta_inicial = (f"A Paz de Cristo, {visitor_name}! Tudo bem com você?"
+                            "Aqui é a Equipe de Integração da MAIS DE CRISTO Canasvieiras!"
+                            "Escolha uma das opções abaixo, respondendo com o número correspondente:"
+                            "1⃣ Sou batizado em águas, e quero me tornar membro."
+                            "2⃣ Não sou batizado, e quero me tornar membro."
+                            "3⃣ Gostaria de receber orações."
+                            "4⃣ Queria saber mais sobre os horários dos cultos."
+                            "5⃣ Quero entrar no grupo do WhatsApp da igreja."
+                            "6⃣ Outro assunto."
                             "Nos diga qual sua escolha! 🙏")
         # Atualiza o status diretamente para INICIO, sem o MENU
         atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
@@ -617,22 +573,14 @@ Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
             f"com a mensagem '{texto_recebido_normalizado}'.")
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         # Mensagem de erro cordial com o menu inicial
-        resposta = (f"Desculpe, {visitor_name}, não entendi sua resposta. Por favor, tente novamente.
-"
-                    "Aqui estão algumas opções que você pode escolher:
-"
-                    "1⃣ Sou batizado em águas, e quero me tornar membro.
-"
-                    "2⃣ Não sou batizado, e quero me tornar membro.
-"
-                    "3⃣ Gostaria de receber orações.
-"
-                    "4⃣ Queria saber mais sobre os horários dos cultos.
-"
+        resposta = (f"Desculpe, {visitor_name}, não entendi sua resposta. Por favor, tente novamente."
+                    "Aqui estão algumas opções que você pode escolher:"
+                    "1⃣ Sou batizado em águas, e quero me tornar membro."
+                    "2⃣ Não sou batizado, e quero me tornar membro."
+                    "3⃣ Gostaria de receber orações."
+                    "4⃣ Queria saber mais sobre os horários dos cultos."
                     "5⃣ Quero entrar no grupo do WhatsApp da igreja.
-"
-                    "6⃣ Outro assunto.
-")
+                    "6⃣ Outro assunto.")
         proximo_estado = estado_atual
     else:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
@@ -714,4 +662,5 @@ def enviar_mensagem_manual(numero_destino, template_sid, params):  # Altere o se
             logging.info("Mensagem enviada com sucesso!")
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
+
 
