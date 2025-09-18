@@ -34,18 +34,22 @@ class IAIntegracao:
     @staticmethod
     def normalizar_texto(texto):
         """
-        Normaliza o texto para comparação (remove acentos, converte para minúsculas, etc).
+        Normaliza o texto para comparação.
         """
         if not isinstance(texto, str):
             return ""
         texto = texto.strip().lower()
+        # Remove acentos
         texto = ''.join(
             c for c in unicodedata.normalize('NFD', texto)
             if unicodedata.category(c) != 'Mn'
         )
-        # Remove caracteres especiais, mantendo apenas letras, números e espaços
+        # Remove pontuação e caracteres especiais, mantendo apenas letras, números e espaços
         texto = re.sub(r'[^a-zA-Z0-9\s]', ' ', texto)
-        return texto
+        # Remove palavras muito curtas (artigos, preposições)
+        palavras = texto.split()
+        palavras_filtradas = [p for p in palavras if len(p) > 2]
+        return ' '.join(palavras_filtradas)
 
     def carregar_dados_do_banco(self):
         """
