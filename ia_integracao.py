@@ -223,9 +223,9 @@ class IAIntegracao:
             palavras_chave_ministerios["pastor"],
             palavras_chave_ministerios["pastor"],
             palavras_chave_ministerios["21 dias"],
-            "Estamos localizados na Rua das Flores, 123, Canasvieiras, Florianópolis/SC.",
-            "Estamos localizados na Rua das Flores, 123, Canasvieiras, Florianópolis/SC.",
-            "Estamos localizados na Rua das Flores, 123, Canasvieiras, Florianópolis/SC."
+            "Estamos localizados na Rod. José Carlos Daux, 17876 - Canasvieiras, Florianópolis - SC.",
+            "Estamos localizados na Rod. José Carlos Daux, 17876 - Canasvieiras, Florianópolis - SC.",
+            "Estamos localizados na Rod. José Carlos Daux, 17876 - Canasvieiras, Florianópolis - SC."
         ]
         logger.info("Usando conjunto de dados de fallback robusto.")
         return perguntas, respostas
