@@ -1,7 +1,7 @@
 # Importações
 import logging
 import os
-
+from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager, create_access_token
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -451,6 +451,19 @@ def register_routes(app_instance: Flask) -> None:
         except Exception as e:
             logging.error(f"Erro ao obter dados do dashboard: {e}")
             return jsonify({"error": str(e)}), 500
+
+    # --- NOVA ROTA: HEALTH CHECK PARA MANTER A APLICAÇÃO ACORDADA ---
+    @app_instance.route('/health', methods=['GET'])
+    def health_check():
+        """
+        Endpoint para verificar se a aplicação está viva.
+        Usado para evitar que a instância do Render durma.
+        """
+        return jsonify({
+            "status": "alive",
+            "message": "Bot de Integração da Igreja Mais de Cristo está ativo!",
+            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }), 200
 
 
 # Chamada para registrar as rotas
