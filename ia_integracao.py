@@ -5,12 +5,14 @@ import numpy as np
 import re
 import unicodedata
 
+from botmsg import mensagens, EstadoVisitante, palavras_chave_ministerios
 # Importa a função de conexão do seu sistema existente
 from database import get_db_connection
 
 # Configuração de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class IAIntegracao:
     def __init__(self):
@@ -29,7 +31,8 @@ class IAIntegracao:
         self.modelo_treinado = None
         self.carregar_e_treinar()
 
-    def normalizar_texto(self, texto):
+    @staticmethod
+    def normalizar_texto(texto):
         """
         Normaliza o texto para comparação (remove acentos, converte para minúsculas, etc).
         """
@@ -105,7 +108,9 @@ class IAIntegracao:
                     resposta_anterior = ultima_pergunta_por_visitante[visitante_id]['resposta']
 
                     # Filtros para evitar treinar com dados ruins
-                    if len(pergunta_anterior.split()) > 2 and pergunta_anterior not in ["sim", "não", "nao", "obrigado", "obrigada", "valeu", "ok"]:
+                    if len(pergunta_anterior.split()) > 2 and pergunta_anterior not in ["sim", "não", "nao",
+                                                                                        "obrigado", "obrigada",
+                                                                                        "valeu", "ok"]:
                         perguntas.append(pergunta_anterior)
                         respostas.append(resposta_anterior)
 
@@ -120,7 +125,8 @@ class IAIntegracao:
             for item in ultima_pergunta_por_visitante.values():
                 pergunta = item['pergunta']
                 resposta = item['resposta']
-                if len(pergunta.split()) > 2 and pergunta not in ["sim", "não", "nao", "obrigado", "obrigada", "valeu", "ok"]:
+                if len(pergunta.split()) > 2 and pergunta not in ["sim", "não", "nao", "obrigado",
+                                                                  "obrigada", "valeu", "ok"]:
                     perguntas.append(pergunta)
                     respostas.append(resposta)
 
@@ -133,6 +139,9 @@ class IAIntegracao:
             logger.error(f"Erro ao carregar dados do banco: {e}")
             # Conjunto de fallback robusto baseado no seu botmsg.py
             perguntas = [
+                "sou batizado o que tem na igreja",
+                "sou batizado o que a igreja oferece",
+                "sou batizado quais atividades",
                 "sou batizado", "quero me tornar membro", "batizado em aguas",
                 "nao sou batizado", "quero me tornar membro", "novo comeco",
                 "pedido de oracao", "receber oracoes", "orar por mim",
@@ -150,9 +159,24 @@ class IAIntegracao:
                 mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
                 mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
                 mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
-                "Ficamos honrados em receber o seu pedido de oração. Sinta-se à vontade para compartilhar o que está em seu coração.",
-                "Ficamos honrados em receber o seu pedido de oração. Sinta-se à vontade para compartilhar o que está em seu coração.",
-                "Ficamos honrados em receber o seu pedido de oração. Sinta-se à vontade para compartilhar o que está em seu coração.",
+                "Ficamos honrados em receber o seu pedido de oração. "
+                "Sinta-se à vontade para compartilhar o que está em seu coração.",
+                "Ficamos honrados em receber o seu pedido de oração. "
+                "Sinta-se à vontade para compartilhar o que está em seu coração.",
+                "Ficamos honrados em receber o seu pedido de oração. "
+                "Sinta-se à vontade para compartilhar o que está em seu coração.",
+                "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
+                "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, "
+                "Mulheres Transformadas, Ministério Jovem, etc.). Aqui está o link para se inscrever "
+                "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
+                "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
+                "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, "
+                "Mulheres Transformadas, Ministério Jovem, etc.). Aqui está o link para se inscrever "
+                "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
+                "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
+                "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, "
+                "Mulheres Transformadas, Ministério Jovem, etc.). Aqui está o link para se inscrever "
+                "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
                 mensagens[EstadoVisitante.HORARIOS],
                 mensagens[EstadoVisitante.HORARIOS],
                 mensagens[EstadoVisitante.HORARIOS],
@@ -162,9 +186,6 @@ class IAIntegracao:
                 mensagens[EstadoVisitante.OUTRO],
                 mensagens[EstadoVisitante.OUTRO],
                 mensagens[EstadoVisitante.OUTRO],
-                mensagens[EstadoVisitante.ATUALIZAR_CADASTRO],
-                mensagens[EstadoVisitante.ATUALIZAR_CADASTRO],
-                mensagens[EstadoVisitante.ATUALIZAR_CADASTRO],
                 palavras_chave_ministerios["homens"],
                 palavras_chave_ministerios["mulheres"],
                 palavras_chave_ministerios["jovens"],
@@ -230,7 +251,8 @@ class IAIntegracao:
         confianca = similaridades[indice_mais_similar]
 
         logger.info(f"Pergunta do usuário: '{pergunta_usuario}'")
-        logger.info(f"Melhor correspondência: '{self.perguntas_treinadas[indice_mais_similar]}' com confiança {confianca:.2f}")
+        logger.info(f"Melhor correspondência: '{self.perguntas_treinadas[indice_mais_similar]}' com confiança"
+                    f" {confianca:.2f}")
 
         if confianca >= limiar_confianca:
             resposta = self.respostas_treinadas[indice_mais_similar]
@@ -239,6 +261,7 @@ class IAIntegracao:
             return None, confianca
 
 # --- Código de Teste (Opcional) ---
+
 
 if __name__ == "__main__":
     # Cria uma instância da IA
