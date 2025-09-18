@@ -5,8 +5,8 @@ import numpy as np
 import re
 import unicodedata
 
-from botmsg import mensagens, EstadoVisitante, palavras_chave_ministerios
-# Importa a função de conexão do seu sistema existente
+# --- IMPORTAÇÕES DE CONSTANTE ---
+from constantes import mensagens, EstadoVisitante, palavras_chave_ministerios
 from database import get_db_connection
 
 # Configuração de logging
