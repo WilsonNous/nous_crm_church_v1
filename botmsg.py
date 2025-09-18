@@ -258,18 +258,25 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # Verificar se a mensagem é uma saudação
     if detectar_saudacao(texto_recebido_normalizado):
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
-        resposta_saudacao = f"""Oi! Que bom te ver por aqui, {visitor_name}😊.
+        resposta_saudacao = f"""*Olá! Eu sou o _Integra+_ 🤖*
+    Seu Assistente Virtual do Ministério de Integração da Igreja Mais de Cristo Canasvieiras!
 
-Como posso ajudar você hoje?
+    Estou aqui para te ajudar com:
+    ✅ Informações sobre cultos e horários
+    ✅ Processo de discipulado e batismo
+    ✅ Ministérios e grupos da igreja
+    ✅ Pedidos de oração
+    ✅ E muito mais!
 
-Aqui estão algumas opções que você pode escolher:
+    Como posso te ajudar hoje, {visitor_name}?
 
-1⃣ Sou batizado em águas, e quero me tornar membro.
-2⃣ Não sou batizado, e quero me tornar membro.
-3⃣ Gostaria de receber orações.
-4⃣ Queria saber mais sobre os horários dos cultos.
-5⃣ Quero entrar no grupo do WhatsApp da igreja.
-6⃣ Outro assunto."""
+    *Escolha uma opção:*
+    1️⃣ Sou batizado e quero me tornar membro.
+    2️⃣ Não sou batizado e quero me tornar membro.
+    3️⃣ Gostaria de receber orações.
+    4️⃣ Quero saber sobre os horários dos cultos.
+    5️⃣ Quero entrar no grupo do WhatsApp.
+    6️⃣ Outro assunto."""
         enviar_mensagem_para_fila(numero_normalizado, resposta_saudacao)
         salvar_conversa(numero_normalizado, resposta_saudacao, tipo='enviada', sid=message_sid)
         return {
@@ -433,7 +440,7 @@ Nos diga qual sua escolha! 🙏"""
     if proximo_estado is None:
         # --- Consulta a IA ---
         resposta_ia, confianca_ia = ia_integracao.responder_pergunta(texto_recebido)
-        if resposta_ia and confianca_ia > 0.3:
+        if resposta_ia and confianca_ia > 0.2:
             logging.info(f"IA respondeu com confiança {confianca_ia:.2f}")
             enviar_mensagem_para_fila(numero_normalizado, resposta_ia)
             salvar_conversa(numero_normalizado, resposta_ia, tipo='enviada', sid=message_sid)
