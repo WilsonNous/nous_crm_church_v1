@@ -49,26 +49,35 @@ class IAIntegracao:
 
     def carregar_dados_do_banco(self):
         """
-        Carrega os pares de pergunta e resposta do banco de dados MySQL usando o database.py.
-        Estrutura da tabela `conversas`:
-        - `visitante_id`: Chave estrangeira para a tabela `visitantes`.
-        - `mensagem`: O conteúdo da mensagem.
-        - `tipo`: 'recebida' (usuário) ou 'enviada' (bot).
-        - `message_sid`: ID único da mensagem (opcional para este uso).
-
-        Estratégia: Para cada mensagem 'recebida', tentamos encontrar a próxima mensagem 'enviada'
-        do bot como sua resposta.
+        Carrega os pares de pergunta e resposta da tabela 'training_pairs'.
+        Se a tabela estiver vazia, extrai pares da tabela 'conversas' e os salva em 'training_pairs'.
         """
         perguntas = []
         respostas = []
 
         try:
             conn = get_db_connection()
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
 
-            # Consulta para obter pares de pergunta e resposta.
-            # Ordenamos por visitante e data_hora para manter a ordem cronológica da conversa.
-            query = """
+            # --- PASSO 1: Tenta carregar dos pares já salvos (training_pairs) ---
+            cursor.execute("SELECT pergunta, resposta FROM training_pairs ORDER BY id")
+            pares_salvos = cursor.fetchall()
+
+            if pares_salvos:
+                for row in pares_salvos:
+                    pergunta = self.normalizar_texto(row['pergunta'])
+                    resposta = row['resposta']
+                    perguntas.append(pergunta)
+                    respostas.append(resposta)
+                logger.info(f"Carregados {len(pares_salvos)} pares de treinamento da tabela 'training_pairs'.")
+                cursor.close()
+                conn.close()
+                return perguntas, respostas
+
+            # --- PASSO 2: Se 'training_pairs' estiver vazia, extrai da tabela 'conversas' ---
+            logger.info("Tabela 'training_pairs' vazia. Extraindo pares da tabela 'conversas'...")
+
+            query_conversas = """
             SELECT 
                 c1.visitante_id,
                 c1.mensagem as pergunta,
@@ -84,7 +93,7 @@ class IAIntegracao:
             ORDER BY c1.visitante_id, c1.data_hora, c2.data_hora
             """
 
-            cursor.execute(query)
+            cursor.execute(query_conversas)
             resultados = cursor.fetchall()
 
             # Dicionário para rastrear a última pergunta de cada visitante
@@ -108,9 +117,8 @@ class IAIntegracao:
                     resposta_anterior = ultima_pergunta_por_visitante[visitante_id]['resposta']
 
                     # Filtros para evitar treinar com dados ruins
-                    if len(pergunta_anterior.split()) > 2 and pergunta_anterior not in ["sim", "não", "nao",
-                                                                                        "obrigado", "obrigada",
-                                                                                        "valeu", "ok"]:
+                    if len(pergunta_anterior.split()) > 2 and pergunta_anterior not in ["sim", "não", "nao", "obrigado",
+                                                                                        "obrigada", "valeu", "ok"]:
                         perguntas.append(pergunta_anterior)
                         respostas.append(resposta_anterior)
 
@@ -125,76 +133,101 @@ class IAIntegracao:
             for item in ultima_pergunta_por_visitante.values():
                 pergunta = item['pergunta']
                 resposta = item['resposta']
-                if len(pergunta.split()) > 2 and pergunta not in ["sim", "não", "nao", "obrigado",
-                                                                  "obrigada", "valeu", "ok"]:
+                if len(pergunta.split()) > 2 and pergunta not in ["sim", "não", "nao", "obrigado", "obrigada", "valeu",
+                                                                  "ok"]:
                     perguntas.append(pergunta)
                     respostas.append(resposta)
+
+            # --- PASSO 3: Salva os pares extraídos na tabela 'training_pairs' ---
+            if perguntas:
+                for i in range(len(perguntas)):
+                    try:
+                        cursor.execute(
+                            "INSERT IGNORE INTO training_pairs (pergunta, resposta, "
+                            "fonte, categoria) VALUES (%s, %s, %s, %s)",
+                            (perguntas[i], respostas[i], 'conversa_bot', 'geral')
+                        )
+                    except Exception as e:
+                        logger.error(f"Erro ao salvar par no banco: {e}")
+
+                conn.commit()
+                logger.info(f"Salvos {len(perguntas)} novos pares de treinamento na tabela 'training_pairs'.")
 
             cursor.close()
             conn.close()
 
-            logger.info(f"Carregados {len(perguntas)} pares de treinamento do banco de dados.")
+            logger.info(f"Carregados {len(perguntas)} pares de treinamento da tabela 'conversas'.")
 
         except Exception as e:
             logger.error(f"Erro ao carregar dados do banco: {e}")
-            # Conjunto de fallback robusto baseado no seu botmsg.py
-            perguntas = [
-                "sou batizado o que tem na igreja",
-                "sou batizado o que a igreja oferece",
-                "sou batizado quais atividades",
-                "sou batizado", "quero me tornar membro", "batizado em aguas",
-                "nao sou batizado", "quero me tornar membro", "novo comeco",
-                "pedido de oracao", "receber oracoes", "orar por mim",
-                "horarios dos cultos", "que horas e o culto", "culto de domingo",
-                "grupo whatsapp", "entrar no grupo", "link do grupo",
-                "outro assunto", "falar com secretaria", "ajuda",
-                "atualizar cadastro", "mudar meu nome", "mudar meu email",
-                "homens corajosos", "mulheres transformadas", "ministerio jovens",
-                "pastor", "quem sao os pastores", "21 dias de oracao"
-            ]
-            respostas = [
-                mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
-                mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
-                mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
-                mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
-                mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
-                mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
-                "Ficamos honrados em receber o seu pedido de oração. "
-                "Sinta-se à vontade para compartilhar o que está em seu coração.",
-                "Ficamos honrados em receber o seu pedido de oração. "
-                "Sinta-se à vontade para compartilhar o que está em seu coração.",
-                "Ficamos honrados em receber o seu pedido de oração. "
-                "Sinta-se à vontade para compartilhar o que está em seu coração.",
-                "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
-                "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, "
-                "Mulheres Transformadas, Ministério Jovem, etc.). Aqui está o link para se inscrever "
-                "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
-                "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
-                "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, "
-                "Mulheres Transformadas, Ministério Jovem, etc.). Aqui está o link para se inscrever "
-                "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
-                "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
-                "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, "
-                "Mulheres Transformadas, Ministério Jovem, etc.). Aqui está o link para se inscrever "
-                "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
-                mensagens[EstadoVisitante.HORARIOS],
-                mensagens[EstadoVisitante.HORARIOS],
-                mensagens[EstadoVisitante.HORARIOS],
-                mensagens[EstadoVisitante.LINK_WHATSAPP],
-                mensagens[EstadoVisitante.LINK_WHATSAPP],
-                mensagens[EstadoVisitante.LINK_WHATSAPP],
-                mensagens[EstadoVisitante.OUTRO],
-                mensagens[EstadoVisitante.OUTRO],
-                mensagens[EstadoVisitante.OUTRO],
-                palavras_chave_ministerios["homens"],
-                palavras_chave_ministerios["mulheres"],
-                palavras_chave_ministerios["jovens"],
-                palavras_chave_ministerios["pastor"],
-                palavras_chave_ministerios["pastor"],
-                palavras_chave_ministerios["21 dias"]
-            ]
-            logger.info("Usando conjunto de dados de fallback robusto.")
+            # Conjunto de fallback robusto
+            perguntas, respostas = self.get_fallback_dataset()
 
+        return perguntas, respostas
+
+    def get_fallback_dataset(self):
+        """
+        Retorna um conjunto de dados de fallback robusto.
+        """
+        perguntas = [
+            "sou batizado o que tem na igreja",
+            "sou batizado o que a igreja oferece",
+            "sou batizado quais atividades",
+            "sou batizado", "quero me tornar membro", "batizado em aguas",
+            "nao sou batizado", "quero me tornar membro", "novo comeco",
+            "pedido de oracao", "receber oracoes", "orar por mim",
+            "horarios dos cultos", "que horas e o culto", "culto de domingo",
+            "grupo whatsapp", "entrar no grupo", "link do grupo",
+            "outro assunto", "falar com secretaria", "ajuda",
+            "homens corajosos", "mulheres transformadas", "ministerio jovens",
+            "pastor", "quem sao os pastores", "21 dias de oracao",
+            "onde fica a igreja", "qual o endereco", "localizacao da igreja"
+        ]
+        respostas = [
+            "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
+            "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, Mulheres Transformadas, "
+            "Ministério Jovem, etc.). Aqui está o link para se inscrever "
+            "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
+            "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
+            "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, Mulheres Transformadas, "
+            "Ministério Jovem, etc.). Aqui está o link para se inscrever "
+            "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
+            "Que ótimo! Como você já é batizado, você pode participar do nosso Discipulado de Novos Membros, "
+            "dos Grupos de Comunhão (GC) e de todos os ministérios da casa (Homens Corajosos, Mulheres Transformadas, "
+            "Ministério Jovem, etc.). Aqui está o link para se inscrever "
+            "no Discipulado: https://forms.gle/qdxNnPyCfKoJeseU8",
+            mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
+            mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
+            mensagens[EstadoVisitante.INTERESSE_DISCIPULADO],
+            mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
+            mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
+            mensagens[EstadoVisitante.INTERESSE_NOVO_COMEC],
+            "Ficamos honrados em receber o seu pedido de oração. "
+            "Sinta-se à vontade para compartilhar o que está em seu coração.",
+            "Ficamos honrados em receber o seu pedido de oração. "
+            "Sinta-se à vontade para compartilhar o que está em seu coração.",
+            "Ficamos honrados em receber o seu pedido de oração. "
+            "Sinta-se à vontade para compartilhar o que está em seu coração.",
+            mensagens[EstadoVisitante.HORARIOS],
+            mensagens[EstadoVisitante.HORARIOS],
+            mensagens[EstadoVisitante.HORARIOS],
+            mensagens[EstadoVisitante.LINK_WHATSAPP],
+            mensagens[EstadoVisitante.LINK_WHATSAPP],
+            mensagens[EstadoVisitante.LINK_WHATSAPP],
+            mensagens[EstadoVisitante.OUTRO],
+            mensagens[EstadoVisitante.OUTRO],
+            mensagens[EstadoVisitante.OUTRO],
+            palavras_chave_ministerios["homens"],
+            palavras_chave_ministerios["mulheres"],
+            palavras_chave_ministerios["jovens"],
+            palavras_chave_ministerios["pastor"],
+            palavras_chave_ministerios["pastor"],
+            palavras_chave_ministerios["21 dias"],
+            "Estamos localizados na Rua das Flores, 123, Canasvieiras, Florianópolis/SC.",
+            "Estamos localizados na Rua das Flores, 123, Canasvieiras, Florianópolis/SC.",
+            "Estamos localizados na Rua das Flores, 123, Canasvieiras, Florianópolis/SC."
+        ]
+        logger.info("Usando conjunto de dados de fallback robusto.")
         return perguntas, respostas
 
     def treinar_modelo(self):
@@ -260,7 +293,15 @@ class IAIntegracao:
         else:
             return None, confianca
 
-# --- Código de Teste (Opcional) ---
+    def recarregar_e_treinar(self):
+        """
+        Força a recarga dos dados do banco e retreina o modelo.
+        Útil para quando novos pares são adicionados manualmente à tabela 'training_pairs'.
+        """
+        logger.info("Recarregando dados e retreinando o modelo...")
+        self.perguntas_treinadas, self.respostas_treinadas = self.carregar_dados_do_banco()
+        self.treinar_modelo()
+        logger.info("Modelo recarregado e treinado com sucesso.")
 
 
 if __name__ == "__main__":
