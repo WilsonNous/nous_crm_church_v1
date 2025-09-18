@@ -21,6 +21,8 @@ twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
 
 # Inicializa a IA (isso pode levar alguns segundos na primeira execução)
 ia_integracao = IAIntegracao()
+# --- FORÇA A IA A RECARREGAR OS DADOS DO BANCO ---
+ia_integracao.recarregar_e_treinar()
 
 # Lista de números que receberão os pedidos de oração
 numero_pedidos_oracao = ['48984949649', '48999449961']
