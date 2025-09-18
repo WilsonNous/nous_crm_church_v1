@@ -456,6 +456,8 @@ Nos diga qual sua escolha! 🙏"""
         )
         proximo_estado = EstadoVisitante.FIM
         atualizar_status(numero_normalizado, EstadoVisitante.FIM.value)
+        # --- ADICIONE ESTA LINHA ---
+        atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)  # Força reset após atendimento
         enviar_mensagem_para_fila(numero_normalizado, resposta)
         salvar_conversa(numero_normalizado, resposta, tipo='enviada')
         registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)
@@ -510,6 +512,8 @@ Nos diga qual sua escolha! 🙏"""
                     f"e em breve entraremos em contato com você. 🙂")
         proximo_estado = EstadoVisitante.FIM
         atualizar_status(numero_normalizado, EstadoVisitante.FIM.value)
+        # --- ADICIONE ESTA LINHA ---
+        atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)  # Força reset após atendimento
         enviar_mensagem_para_fila(numero_normalizado, resposta)
         salvar_conversa(numero_normalizado, resposta, tipo='enviada')
         registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)

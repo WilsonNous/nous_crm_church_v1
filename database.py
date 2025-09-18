@@ -311,7 +311,7 @@ def obter_nome_do_visitante(telefone: str) -> str:
 
             # Busca o nome do visitante com base no telefone
             cursor.execute('''
-                SELECT nome FROM visitantes WHERE telefone = %s
+                SELECT nome FROM visitantes WHERE telefone = %s LIMIT 1
             ''', (telefone_normalizado,))
 
             resultado = cursor.fetchone()
