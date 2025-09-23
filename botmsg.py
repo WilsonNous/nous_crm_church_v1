@@ -4,7 +4,8 @@ import logging
 from twilio.rest import Client
 from database import (atualizar_status, salvar_conversa, normalizar_para_recebimento,
                       normalizar_para_envio, registrar_estatistica, salvar_novo_visitante,
-                      obter_estado_atual_do_banco, obter_nome_do_visitante)
+                      obter_estado_atual_do_banco, obter_nome_do_visitante,
+                      get_db_connection)
 from datetime import datetime
 import time
 import threading
@@ -14,6 +15,7 @@ import requests
 import re
 from ia_integracao import IAIntegracao
 from constantes import (EstadoVisitante, mensagens, palavras_chave_ministerios)
+
 # Configurações Twilio
 account_sid = os.getenv('TWILIO_ACCOUNT_SID')
 auth_token = os.getenv('TWILIO_AUTH_TOKEN')
@@ -21,8 +23,6 @@ twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
 
 # Inicializa a IA (isso pode levar alguns segundos na primeira execução)
 ia_integracao = IAIntegracao()
-# --- FORÇA A IA A RECARREGAR OS DADOS DO BANCO ---
-ia_integracao.recarregar_e_treinar()
 
 # Lista de números que receberão os pedidos de oração
 numero_pedidos_oracao = ['48984949649', '48999449961']
@@ -33,9 +33,6 @@ if not account_sid or not auth_token:
     raise EnvironmentError("Twilio SID e/ou Auth Token não definidos nas variáveis de ambiente.")
 
 client = Client(account_sid, auth_token)
-
-
-# Enum para os diferentes estados do visitante
 
 # Transições
 transicoes = {
@@ -438,16 +435,41 @@ Nos diga qual sua escolha! 🙏"""
 
     # Tratamento para quando nenhuma transição é encontrada
     if proximo_estado is None:
-        # --- Consulta a IA ---
-        resposta_ia, confianca_ia = ia_integracao.responder_pergunta(texto_recebido)
-        if resposta_ia and confianca_ia > 0.2:
-            logging.info(f"IA respondeu com confiança {confianca_ia:.2f}")
-            enviar_mensagem_para_fila(numero_normalizado, resposta_ia)
-            salvar_conversa(numero_normalizado, resposta_ia, tipo='enviada', sid=message_sid)
+        # --- NOVO: Busca a última pergunta do usuário para contexto ---
+        ultima_pergunta = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT mensagem FROM conversas 
+                WHERE visitante_id = (SELECT id FROM visitantes WHERE telefone = %s) 
+                AND tipo = 'recebida' 
+                AND message_sid != %s
+                ORDER BY data_hora DESC LIMIT 1
+            """, (numero_normalizado, message_sid))
+            result = cursor.fetchone()
+            if result:
+                ultima_pergunta = result['mensagem']
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            logging.error(f"Erro ao buscar última pergunta: {e}")
+
+        # --- NOVO: Consulta a IA Avançada (Estilo Ednna) ---
+        resultado_ia = ia_integracao.responder_pergunta(
+            pergunta_usuario=texto_recebido,
+            numero_usuario=numero_normalizado,
+            ultima_pergunta=ultima_pergunta
+        )
+
+        if resultado_ia['response'] and resultado_ia['confidence'] > 0.2:
+            logging.info(f"IA respondeu com confiança {resultado_ia['confidence']:.2f}: {resultado_ia['response']}")
+            enviar_mensagem_para_fila(numero_normalizado, resultado_ia['response'])
+            salvar_conversa(numero_normalizado, resultado_ia['response'], tipo='enviada', sid=message_sid)
             # Atualiza o estado para INICIO para manter o fluxo
             atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
             return {
-                "resposta": resposta_ia,
+                "resposta": resultado_ia['response'],
                 "estado_atual": estado_atual.name,
                 "proximo_estado": EstadoVisitante.INICIO.name
             }
