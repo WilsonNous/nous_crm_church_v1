@@ -2,11 +2,12 @@
 import logging
 import os
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session, redirect, url_for, render_template
 from flask_jwt_extended import JWTManager, create_access_token
 from werkzeug.security import generate_password_hash, check_password_hash
 from twilio.twiml.messaging_response import MessagingResponse
 import pandas as pd
+from database import get_db_connection
 
 from botmsg import processar_mensagem, enviar_mensagem_manual
 from database import (salvar_visitante, visitante_existe,
@@ -464,6 +465,86 @@ def register_routes(app_instance: Flask) -> None:
             "message": "Bot de Integração da Igreja Mais de Cristo está ativo!",
             "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }), 200
+
+    # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ ---
+
+    @app_instance.route('/admin/integra/login', methods=['GET', 'POST'])
+    def integra_admin_login():
+        if request.method == 'POST':
+            password = request.form.get('password')
+            correct_password = os.getenv('ADMIN_PASSWORD', 'sua_senha_secreta')
+            if password == correct_password:
+                session['integra_admin_logged_in'] = True
+                return redirect(url_for('integra_learn_dashboard'))
+            return '<script>alert("Senha incorreta!"); window.location="/admin/integra/login";</script>', 401
+        return '''
+            <html><body style="font-family:Arial;text-align:center;padding:50px;">
+                <h3>🔐 Login Admin - Integra+</h3>
+                <form method="post" style="display:inline-block;text-align:left;">
+                    <input type="password" name="password" placeholder="Senha" required style="padding:10px;
+                    width:300px;"><br><br>
+                    <button type="submit" style="padding:10px 20px;background:#007bff;color:white;border:none;
+                    ">Entrar</button>
+                </form>
+            </body></html>
+        '''
+
+    @app_instance.route('/admin/integra/learn')
+    def integra_learn_dashboard():
+        if not session.get('integra_admin_logged_in'):
+            return redirect(url_for('integra_admin_login'))
+
+        conn = get_db_connection()
+        if not conn:
+            return "Erro de conexão", 500
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT id, user_id, question, created_at FROM unknown_questions 
+            WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50
+        """)
+        questions = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return render_template('admin_integra_learn.html', questions=questions)
+
+    @app_instance.route('/admin/integra/teach', methods=['POST'])
+    def teach_integra():
+        if not session.get('integra_admin_logged_in'):
+            return jsonify({'error': 'Acesso negado'}), 403
+
+        data = request.get_json()
+        question = data.get('question', '').strip()
+        answer = data.get('answer', '').strip()
+        category = data.get('category', '').strip()
+
+        if not all([question, answer, category]):
+            return jsonify({"error": "Campos obrigatórios"}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"error": "Erro de conexão"}), 500
+
+        cursor = conn.cursor()
+        try:
+            # Inserir na knowledge_base
+            cursor.execute("""
+                INSERT INTO knowledge_base (question, answer, category, created_at, updated_at)
+                VALUES (%s, %s, %s, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE answer = VALUES(answer), updated_at = NOW()
+            """, (question, answer, category))
+
+            # Marcar como respondida
+            cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (question,))
+            conn.commit()
+            return jsonify({"status": "success"})
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"error": str(e)}), 500
+        finally:
+            cursor.close()
+            conn.close()
 
 
 # Chamada para registrar as rotas
