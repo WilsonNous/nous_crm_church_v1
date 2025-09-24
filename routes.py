@@ -22,6 +22,8 @@ from database import (salvar_visitante, visitante_existe,
                       obter_total_discipulados, obter_dados_genero)
 
 application = Flask(__name__)
+# Configuração da Chave Secreta para Sessões (OBRIGATÓRIO)
+application.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_para_dev')
 
 # Configuração JWT
 application.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default_secret_key')
