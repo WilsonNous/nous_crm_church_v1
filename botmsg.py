@@ -255,25 +255,19 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # Verificar se a mensagem é uma saudação
     if detectar_saudacao(texto_recebido_normalizado):
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
-        resposta_saudacao = f"""*Olá! Eu sou o _Integra+_ 🤖*
-    Seu Assistente Virtual do Ministério de Integração da Igreja Mais de Cristo Canasvieiras!
+        resposta_saudacao = f"""Olá, {visitor_name}! 😊
+    Sou o **Integra+**, seu assistente do Ministério de Integração da Mais de Cristo Canasvieiras.
 
-    Estou aqui para te ajudar com:
-    ✅ Informações sobre cultos e horários
-    ✅ Processo de discipulado e batismo
-    ✅ Ministérios e grupos da igreja
-    ✅ Pedidos de oração
-    ✅ E muito mais!
+    Como posso te ajudar hoje?
 
-    Como posso te ajudar hoje, {visitor_name}?
+    1️⃣ Sou batizado e quero me tornar membro
+    2️⃣ Não sou batizado e quero me tornar membro
+    3️⃣ Gostaria de receber orações
+    4️⃣ Quero saber os horários dos cultos
+    5️⃣ Entrar no grupo do WhatsApp
+    6️⃣ Outro assunto
 
-    *Escolha uma opção:*
-    1️⃣ Sou batizado e quero me tornar membro.
-    2️⃣ Não sou batizado e quero me tornar membro.
-    3️⃣ Gostaria de receber orações.
-    4️⃣ Quero saber sobre os horários dos cultos.
-    5️⃣ Quero entrar no grupo do WhatsApp.
-    6️⃣ Outro assunto."""
+    Estou aqui pra você! 🙌"""
         enviar_mensagem_para_fila(numero_normalizado, resposta_saudacao)
         salvar_conversa(numero_normalizado, resposta_saudacao, tipo='enviada', sid=message_sid)
         return {
