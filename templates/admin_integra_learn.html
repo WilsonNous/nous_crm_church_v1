@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Painel de Treinamento - Integra+</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .question-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        textarea, input { width: 100%; padding: 8px; margin: 5px 0; }
+        button { background: #28a745; color: white; border: none; padding: 10px 15px; cursor: pointer; }
+        button:hover { background: #218838; }
+    </style>
+</head>
+<body>
+    <h2>🧠 Treinamento do Integra+</h2>
+    <p><strong>Perguntas não respondidas:</strong> {{ questions|length }}</p>
+
+    {% for q in questions %}
+    <div class="question-card">
+        <p><strong>Pergunta:</strong> {{ q.question }}</p>
+        <p><small>Usuário: {{ q.user_id }} | {{ q.created_at }}</small></p>
+        <textarea id="answer-{{ q.id }}" placeholder="Digite a resposta..."></textarea>
+        <input type="text" id="category-{{ q.id }}" placeholder="Categoria (ex: batismo, discipulado)" />
+        <button onclick="teach({{ q.id }}, '{{ q.question|e }}')">Ensinar</button>
+    </div>
+    {% endfor %}
+
+    <script>
+        function teach(id, question) {
+            const answer = document.getElementById(`answer-${id}`).value;
+            const category = document.getElementById(`category-${id}`).value;
+            if (!answer || !category) {
+                alert('Preencha a resposta e a categoria!');
+                return;
+            }
+            fetch('/admin/integra/teach', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ question, answer, category })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('IA ensinada com sucesso!');
+                    location.reload();
+                } else {
+                    alert('Erro: ' + data.error);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
