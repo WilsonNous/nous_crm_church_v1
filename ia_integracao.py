@@ -1,6 +1,6 @@
 import logging
 import re
-import mysql.connector
+import unicodedata
 from database import get_db_connection
 
 # Configuração de logging
@@ -31,7 +31,9 @@ class IAIntegracao:
             if not conn:
                 return {'response': 'Erro de conexão com o banco de dados.', 'intent': 'error', 'confidence': 0.0}
 
-            cursor = conn.cursor(dictionary=True)
+            # Cria um cursor que retorna dicionários (compatível com pymysql)
+            cursor = conn.cursor()
+
             pergunta_normalizada = self.normalizar_texto(pergunta_usuario)
 
             # --- DETECÇÃO DE CONTEXTO ---
@@ -59,8 +61,8 @@ class IAIntegracao:
                 """, (intencao_atual, f'%{pergunta_normalizada}%', f'%{pergunta_normalizada}%'))
                 result = cursor.fetchone()
                 if result:
-                    resposta = result['answer']
-                    intent = result['category']
+                    resposta = result[0]  # answer está no índice 0
+                    intent = result[1]    # category está no índice 1
                     confidence = 0.9
 
             # --- BUSCA GERAL ---
@@ -72,28 +74,9 @@ class IAIntegracao:
                 """, (f'%{pergunta_normalizada}%', f'%{pergunta_normalizada}%'))
                 result = cursor.fetchone()
                 if result:
-                    resposta = result['answer']
-                    intent = result['category']
+                    resposta = result[0]  # answer
+                    intent = result[1]    # category
                     confidence = 0.8
-
-            # --- FULL-TEXT SEARCH (FALLBACK) ---
-            if not resposta and len(pergunta_normalizada.split()) > 1:
-                try:
-                    cursor.execute("""
-                        SELECT answer, category,
-                               MATCH(question, keywords) AGAINST(%s IN NATURAL LANGUAGE MODE) as score
-                        FROM knowledge_base
-                        WHERE MATCH(question, keywords) AGAINST(%s IN NATURAL LANGUAGE MODE) > 0.1
-                        ORDER BY score DESC
-                        LIMIT 1
-                    """, (pergunta_normalizada, pergunta_normalizada))
-                    result = cursor.fetchone()
-                    if result:
-                        resposta = result['answer']
-                        intent = result['category']
-                        confidence = result['score']
-                except Exception as e:
-                    logger.error(f"Erro na busca full-text: {e}")
 
             # --- APRENDIZADO ATIVO ---
             if not resposta:
@@ -119,7 +102,7 @@ class IAIntegracao:
         finally:
             if cursor:
                 cursor.close()
-            if conn and conn.is_connected():
+            if conn:
                 conn.close()
 
     @staticmethod
