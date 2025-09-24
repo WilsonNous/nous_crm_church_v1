@@ -1,29 +1,37 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel de Treinamento - Integra+</title>
-    <meta charset="utf-8">
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        .question-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        textarea, input { width: 100%; padding: 8px; margin: 5px 0; }
-        button { background: #28a745; color: white; border: none; padding: 10px 15px; cursor: pointer; }
-        button:hover { background: #218838; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f6f9; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; margin-bottom: 20px; }
+        .question-card { border: 1px solid #e0e0e0; padding: 15px; margin: 15px 0; border-radius: 5px; }
+        textarea, input { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #27ae60; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #219653; }
+        .back-link { display: inline-block; margin-top: 20px; color: #3498db; text-decoration: none; }
     </style>
 </head>
 <body>
-    <h2>🧠 Treinamento do Integra+</h2>
-    <p><strong>Perguntas não respondidas:</strong> {{ questions|length }}</p>
+    <div class="container">
+        <h2>🧠 Painel de Treinamento do Integra+</h2>
+        <p><strong>Perguntas não respondidas:</strong> {{ questions|length }}</p>
 
-    {% for q in questions %}
-    <div class="question-card">
-        <p><strong>Pergunta:</strong> {{ q.question }}</p>
-        <p><small>Usuário: {{ q.user_id }} | {{ q.created_at }}</small></p>
-        <textarea id="answer-{{ q.id }}" placeholder="Digite a resposta..."></textarea>
-        <input type="text" id="category-{{ q.id }}" placeholder="Categoria (ex: batismo, discipulado)" />
-        <button onclick="teach({{ q.id }}, '{{ q.question|e }}')">Ensinar</button>
+        {% for q in questions %}
+        <div class="question-card">
+            <p><strong>Pergunta:</strong> {{ q.question }}</p>
+            <p><small>Usuário: {{ q.user_id }} | {{ q.created_at }}</small></p>
+            <textarea id="answer-{{ q.id }}" placeholder="Digite a resposta..."></textarea>
+            <input type="text" id="category-{{ q.id }}" placeholder="Categoria (ex: batismo, discipulado)" />
+            <button onclick="teach({{ q.id }}, '{{ q.question|e }}')">Ensinar</button>
+        </div>
+        {% endfor %}
+
+        <a href="/admin/integra/login" class="back-link">← Voltar ao Login</a>
     </div>
-    {% endfor %}
 
     <script>
         function teach(id, question) {
@@ -46,6 +54,9 @@
                 } else {
                     alert('Erro: ' + data.error);
                 }
+            })
+            .catch(err => {
+                alert('Erro de conexão: ' + err);
             });
         }
     </script>
