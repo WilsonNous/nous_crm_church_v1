@@ -25,33 +25,13 @@ from ia_integracao import IAIntegracao
 ia_integracao = IAIntegracao()
 # --- FIM DA INSTÂNCIA GLOBAL ---
 
-application = Flask(__name__)
-
-# --- FORÇAR A DEFINIÇÃO DA SECRET KEY ---
-flask_secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_para_dev')
-if not flask_secret_key or flask_secret_key == '':
-    raise RuntimeError("FLASK_SECRET_KEY não definida! Verifique as variáveis de ambiente.")
-application.secret_key = flask_secret_key
-
-logging.info(f"✅ FLASK_SECRET_KEY definida como: {application.secret_key}")
-
-# Configuração JWT
-application.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default_secret_key')
-jwt = JWTManager(application)
-
-# --- LOG DE DEPURAÇÃO ---
-logging.info("✅ Aplicação Flask configurada com sucesso!")
-
 # Configuração de Upload
 UPLOAD_FOLDER = '/tmp/'
 ALLOWED_EXTENSIONS = {'xlsx'}
-application.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
 
 def allowed_file(filename):
     """Verifica se o arquivo tem uma extensão permitida."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
 
 def processar_excel(filepath):
     """Processa o arquivo Excel e salva os visitantes no banco de dados."""
@@ -84,7 +64,6 @@ def processar_excel(filepath):
     except Exception as e:
         logging.error(f"Erro ao processar o arquivo Excel: {e}")
         return False
-
 
 def register_routes(app_instance: Flask) -> None:
     """Função responsável por registrar todas as rotas na aplicação."""
@@ -541,7 +520,3 @@ def register_routes(app_instance: Flask) -> None:
             conn.close()
 
     # --- FIM DAS NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ ---
-
-
-# Chamada para registrar as rotas
-register_routes(application)
