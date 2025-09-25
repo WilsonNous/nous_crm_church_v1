@@ -5,6 +5,107 @@ const appState = {
     user: null, // O usuário logado
 };
 
+// --- FUNÇÕES PARA O PAINEL DE TREINAMENTO DA IA ---
+let currentTeachQuestion = null;
+
+function toggleSection(sectionId) {
+    // Oculta todas as seções
+    document.getElementById('loginContainer').classList.add('hidden');
+    document.getElementById('options').classList.add('hidden');
+    document.getElementById('formContainer').classList.add('hidden');
+    document.getElementById('memberFormContainer').classList.add('hidden');
+    document.getElementById('acolhidoFormContainer').classList.add('hidden');
+    document.getElementById('whatsappLog').classList.add('hidden');
+    document.getElementById('statusLog').classList.add('hidden');
+    document.getElementById('iaTrainingPanel').classList.add('hidden');
+
+    // Mostra a seção solicitada
+    document.getElementById(sectionId).classList.remove('hidden');
+}
+
+function loadPendingQuestions() {
+    fetch('/admin/integra/learn')
+        .then(response => response.json())
+        .then(data => {
+            const list = document.getElementById('pendingQuestionsList');
+            list.innerHTML = '';
+
+            if (data.length === 0) {
+                list.innerHTML = '<li>Nenhuma pergunta pendente.</li>';
+                document.getElementById('pendingQuestionsCount').textContent = '0';
+                return;
+            }
+
+            data.forEach(question => {
+                const li = document.createElement('li');
+                li.textContent = question.question;
+                li.dataset.id = question.id;
+                li.addEventListener('click', () => showTeachForm(question));
+                list.appendChild(li);
+            });
+
+            document.getElementById('pendingQuestionsCount').textContent = data.length;
+        })
+        .catch(error => {
+            console.error('Erro ao carregar perguntas pendentes:', error);
+            document.getElementById('pendingQuestionsList').innerHTML = '<li>Erro ao carregar dados.</li>';
+        });
+}
+
+function showTeachForm(question) {
+    currentTeachQuestion = question;
+    document.getElementById('teachQuestion').value = question.question;
+    document.getElementById('teachAnswer').value = '';
+    document.getElementById('teachCategory').value = '';
+    document.getElementById('teachForm').classList.remove('hidden');
+    document.getElementById('trainingList').classList.add('hidden');
+}
+
+function toggleTeachForm(show) {
+    document.getElementById('teachForm').classList.toggle('hidden', !show);
+    document.getElementById('trainingList').classList.toggle('hidden', show);
+}
+
+function handleTeachSubmit(event) {
+    event.preventDefault();
+
+    const answer = document.getElementById('teachAnswer').value.trim();
+    const category = document.getElementById('teachCategory').value;
+
+    if (!answer || !category) {
+        alert('Por favor, preencha a resposta e a categoria.');
+        return;
+    }
+
+    const formData = {
+        question: currentTeachQuestion.question,
+        answer: answer,
+        category: category
+    };
+
+    fetch('/admin/integra/teach', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('IA ensinada com sucesso!');
+            toggleTeachForm(false);
+            loadPendingQuestions(); // Atualiza a lista
+        } else {
+            alert('Erro: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Erro de conexão: ' + error);
+    });
+}
+// --- FIM DAS FUNÇÕES PARA O PAINEL DE TREINAMENTO DA IA ---
+
 document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
     updateUI();
@@ -84,6 +185,24 @@ function initializeEventListeners() {
     document.getElementById('visitorForm').addEventListener('submit', handleFormSubmission);
     document.getElementById('memberForm').addEventListener('submit', handleMemberFormSubmission);
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
+
+    // --- INICIALIZAÇÃO DO PAINEL DE TREINAMENTO DA IA ---
+    // Adiciona evento ao botão de Treinar IA
+    document.getElementById('showIATrainingButton').addEventListener('click', function() {
+        toggleSection('iaTrainingPanel');
+        loadPendingQuestions();
+    });
+
+    // Adiciona evento ao botão de Voltar
+    document.getElementById('backToOptionsIAButton').addEventListener('click', function() {
+        toggleSection('options');
+    });
+
+    // Adiciona evento ao botão de Cancelar no formulário de ensino
+    document.getElementById('cancelTeachButton').addEventListener('click', function() {
+        toggleTeachForm(false);
+    });
+    // --- FIM DA INICIALIZAÇÃO DO PAINEL DE TREINAMENTO DA IA ---
 }
 
 function updateUI() {
@@ -91,7 +210,7 @@ function updateUI() {
     const allSections = [
         'options', 'formContainer', 'memberFormContainer',
         'whatsappLog', 'statusLog', 'infoCardsContainer',
-        'loginContainer', 'acolhidoFormContainer'
+        'loginContainer', 'acolhidoFormContainer', 'iaTrainingPanel' // Adicionado o painel de IA
     ];
 
     allSections.forEach(sectionId => {
@@ -539,4 +658,3 @@ function handleAcolhidoFormSubmission(event) {
 
 // Atualização temporizada a cada 10 segundos
 setInterval(loadDashboardData, 1200000); // 10000 ms = 60 segundos
-
