@@ -1,14 +1,12 @@
 # --- Importações de bibliotecas padrão ---
 import logging
 import os
+from datetime import datetime
 
 # --- Importações de bibliotecas externas ---
 from flask import Flask, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-
-# --- Importações de módulos internos ---
-from routes import register_routes
 
 # --- Configurações do Flask ---
 # ⚠️ MUDANÇA CRÍTICA: Exportar como 'application' para o Render
@@ -31,6 +29,7 @@ jwt = JWTManager(application)
 logging.info("✅ Aplicação Flask configurada com sucesso!")
 
 # --- REGISTRAR AS ROTAS (de routes.py) ---
+from routes import register_routes
 register_routes(application)
 
 # --- NOVA ROTA: HEALTH CHECK PARA MANTER A APLICAÇÃO ACORDADA ---
