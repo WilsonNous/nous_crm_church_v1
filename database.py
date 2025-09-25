@@ -9,15 +9,14 @@ from typing import Optional, Dict
 # Função de Conexão com o Banco de Dados MySQL
 # =======================
 
-
 def get_db_connection():
     """Função para obter a conexão com o banco de dados MySQL"""
     try:
         conn = pymysql.connect(
-            host='108.167.132.58',      # Host do seu banco de dados MySQL
-            user='noust785_admin',               # Usuário do MySQL
-            password='M@st3rk3y',       # Senha do MySQL
-            db='noust785_crm_mdc_canasvieiras',  # Nome do banco de dados MySQL
+            host='108.167.132.58',
+            user='noust785_admin',
+            password='M@st3rk3y',
+            db='noust785_crm_mdc_canasvieiras',
             charset='utf8mb4',
             cursorclass=pymysql.cursors.DictCursor
         )
@@ -29,7 +28,6 @@ def get_db_connection():
 # =======================
 # Funções de Visitantes
 # =======================
-
 
 def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
                      estado_civil, igreja_atual, frequenta_igreja, indicacao,
@@ -61,7 +59,6 @@ def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
         logging.error(f"Erro ao salvar visitante: {e}")
         return False
 
-
 def salvar_membro(nome, telefone, email, data_nascimento, cep, bairro, cidade, estado, status_membro='ativo'):
     """Salva um membro no banco de dados."""
     try:
@@ -87,7 +84,6 @@ def salvar_membro(nome, telefone, email, data_nascimento, cep, bairro, cidade, e
         logging.error(f"Erro ao salvar membro: {e}")
         return False
 
-
 def membro_existe(telefone):
     """Verifica se um membro com o telefone fornecido já existe no banco de dados."""
     try:
@@ -95,15 +91,13 @@ def membro_existe(telefone):
             cursor = conn.cursor()
             cursor.execute("SELECT id_membro FROM membros WHERE telefone = %s", (telefone,))
             membro = cursor.fetchone()
-            return membro is not None  # Retorna True se o membro existe, caso contrário, False
+            return membro is not None
 
     except pymysql.MySQLError as e:
         logging.error(f"Erro ao verificar existência do membro: {e}")
         return False
 
-
 def salvar_novo_visitante(telefone, nome):
-    # Aqui você pode ajustar a lógica para salvar o visitante com o nome e telefone no banco de dados.
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -115,7 +109,6 @@ def salvar_novo_visitante(telefone, nome):
             logging.info(f"Novo visitante {nome} registrado com sucesso.")
     except Exception as e:
         logging.error(f"Erro ao registrar novo visitante: {e}")
-
 
 def buscar_numeros_telefone():
     """Busca os números de telefone dos visitantes no banco de dados"""
@@ -129,7 +122,6 @@ def buscar_numeros_telefone():
         logging.error(f"Erro ao buscar números de telefone: {e}")
         return []
 
-
 def visitante_existe(telefone):
     """Verifica se um visitante com o telefone especificado já existe."""
     try:
@@ -139,7 +131,7 @@ def visitante_existe(telefone):
                            'WHERE telefone = %s;', (telefone,))
             result = cursor.fetchone()
             if result is None or 'count' not in result:
-                return False  # ou o comportamento adequado para quando não existe
+                return False
             return result['count'] > 0
     except pymysql.MySQLError as e:
         logging.error(f"Erro ao verificar visitante: {e}")
@@ -148,7 +140,6 @@ def visitante_existe(telefone):
 # =======================
 # Função de Atualização de Status
 # =======================
-
 
 def atualizar_status(telefone, nova_fase):
     """Atualiza o status de um visitante no banco de dados."""
@@ -184,7 +175,6 @@ def atualizar_status(telefone, nova_fase):
 # Funções de Estatísticas e Conversas
 # =======================
 
-
 def salvar_estatistica(numero, estado_atual, proximo_estado):
     try:
         with closing(get_db_connection()) as conn:
@@ -200,7 +190,6 @@ def salvar_estatistica(numero, estado_atual, proximo_estado):
     except pymysql.MySQLError as e:
         logging.error(f"Erro ao salvar estatística para {numero}: {e}")
 
-
 def salvar_conversa(numero, mensagem, tipo='recebida', sid=None):
     """Salva a conversa de um visitante no banco de dados, incluindo o SID da mensagem."""
     try:
@@ -214,11 +203,6 @@ def salvar_conversa(numero, mensagem, tipo='recebida', sid=None):
     except pymysql.MySQLError as e:
         logging.error(f"Erro ao salvar conversa para o telefone {numero}. Detalhes: {e}")
 
-
-# =======================
-# Outras funções (como buscar_fase_id, etc.)
-# =======================
-
 def monitorar_status_visitantes():
     """Retorna o status de todos os visitantes cadastrados, excluindo a fase ID 11 (Importados)."""
     try:
@@ -230,10 +214,9 @@ def monitorar_status_visitantes():
                 LEFT JOIN status s ON v.id = s.visitante_id
                 LEFT JOIN fases f ON s.fase_id = f.id
                 WHERE f.id != 11 OR f.id IS NULL;
-            ''')  # LEFT JOIN para incluir visitantes sem status e filtrar a fase 11 (Importados)
+            ''')
             rows = cursor.fetchall()
 
-            # Verifica se há resultados
             if not rows:
                 logging.error("Nenhum status encontrado para os visitantes.")
                 return []
@@ -254,16 +237,13 @@ def monitorar_status_visitantes():
         logging.error(f"Erro ao buscar status de visitantes no banco de dados: {e}")
         return None
 
-
 def registrar_estatistica(numero, estado_atual, proximo_estado):
     try:
-        # Chama a função que salva a estatística no banco
         salvar_estatistica(numero, estado_atual, proximo_estado)
         logging.info(f"Estatística registrada para {numero}: Estado atual: {estado_atual}, "
                      f"Próximo estado: {proximo_estado}")
     except Exception as e:
         logging.error(f"Erro ao salvar a estatística para {numero}: {e}")
-
 
 def buscar_fase_id(descricao_fase):
     """Busca o ID de uma fase com base na sua descrição."""
@@ -277,11 +257,7 @@ def buscar_fase_id(descricao_fase):
         logging.error(f"Erro ao buscar fase: {e}")
         return None
 
-
 def obter_dados_visitante(telefone: str) -> Optional[Dict]:
-    """
-    Retorna os dados do visitante pelo telefone.
-    """
     query = """
         SELECT nome, email, data_nascimento, cidade, genero, estado_civil 
         FROM visitantes 
@@ -289,7 +265,7 @@ def obter_dados_visitante(telefone: str) -> Optional[Dict]:
     """
     try:
         with get_db_connection() as conn:
-            with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            with conn.cursor() as cursor:
                 cursor.execute(query, (telefone,))
                 resultado = cursor.fetchone()
                 return resultado if resultado else None
@@ -297,19 +273,13 @@ def obter_dados_visitante(telefone: str) -> Optional[Dict]:
         logging.error(f"Erro ao buscar dados do visitante: {e}")
         return None
 
-
 def obter_nome_do_visitante(telefone: str) -> str:
-    """
-    Retorna o nome do visitante com base no número de telefone.
-    """
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Normaliza o telefone para o formato correto
             telefone_normalizado = normalizar_para_recebimento(telefone)
 
-            # Busca o nome do visitante com base no telefone
             cursor.execute('''
                 SELECT nome FROM visitantes WHERE telefone = %s LIMIT 1
             ''', (telefone_normalizado,))
@@ -326,20 +296,15 @@ def obter_nome_do_visitante(telefone: str) -> str:
         logging.error(f"Erro ao buscar nome do visitante: {e}")
         return 'Sem dados!'
 
-
 # =======================
 # Funções de Conversas
 # =======================
+
 def obter_estado_atual_do_banco(telefone):
-    """
-    Obtém o estado atual do visitante no banco de dados com base no número de telefone.
-    Se o visitante não tiver fase associada, retorna 'INICIO'.
-    """
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Consulta para trazer o estado do visitante com base no telefone
             cursor.execute('''
                 SELECT COALESCE(f.descricao, 'INICIO') AS fase_atual
                 FROM visitantes v
@@ -353,17 +318,13 @@ def obter_estado_atual_do_banco(telefone):
             if resultado and resultado['fase_atual']:
                 return resultado['fase_atual']
             else:
-                return 'INICIO'  # Caso nenhum resultado seja encontrado
+                return 'INICIO'
 
     except pymysql.MySQLError as e:
         logging.error(f"Erro ao obter estado do visitante {telefone}: {e}")
-        return 'INICIO'  # Estado padrão em caso de erro
-
+        return 'INICIO'
 
 def mensagem_sid_existe(message_sid: str) -> bool:
-    """
-    Verifica se uma mensagem com o SID especificado já foi processada.
-    """
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -374,23 +335,11 @@ def mensagem_sid_existe(message_sid: str) -> bool:
         logging.error(f"Erro ao verificar SID da mensagem: {e}")
         return False
 
-
 def salvar_pedido_oracao(telefone, pedido):
-    """
-    Salva o pedido de oração de um visitante no banco de dados.
-
-    Args:
-        telefone (str): Número de telefone do visitante.
-        pedido (str): Texto do pedido de oração.
-
-    Returns:
-        bool: True se o pedido foi salvo com sucesso, False caso contrário.
-    """
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Atualiza o pedido de oração do visitante no banco de dados
             cursor.execute('''
                 UPDATE visitantes 
                 SET pedido_oracao = %s 
@@ -405,9 +354,7 @@ def salvar_pedido_oracao(telefone, pedido):
         logging.error(f"Erro ao salvar pedido de oração: {e}")
         return False
 
-
 def atualizar_dado_visitante(numero, campo, valor):
-    """Atualiza um campo específico do cadastro do visitante"""
     query = f"UPDATE visitantes SET {campo} = %s WHERE telefone = %s"
 
     with get_db_connection() as conn:
@@ -419,69 +366,40 @@ def atualizar_dado_visitante(numero, campo, valor):
 # Funções Auxiliares de Normalização
 # =======================
 
-
 def normalizar_para_envio(telefone: str) -> str:
-    """
-    Normaliza o número de telefone para envio internacional, adicionando o código do país (55)
-    e removendo o dígito 9 extra quando necessário.
-    """
-    # Remove todos os caracteres não numéricos
     telefone = ''.join(filter(lambda x: x.isdigit(), telefone))
 
-    # Verifica se o número de telefone tem pelo menos 10 dígitos após o DDD
     if len(telefone) < 10:
         raise ValueError(f"Telefone inválido: {telefone}. Número deve ter ao menos 10 dígitos.")
 
-    # Remove o código de país se já estiver presente para evitar duplicação
     if telefone.startswith('55'):
         telefone = telefone[2:]
 
     ddd, numero = telefone[:2], telefone[2:]
 
-    # Remove o '9' inicial dos números de celular com 9 dígitos (padrão no Brasil)
     if len(numero) == 9 and numero[0] == '9':
         numero = numero[1:]
 
-    # Retorna o número no formato internacional com o código do país (55)
     return f"55{ddd}{numero}"
 
-
 def normalizar_para_recebimento(telefone: str) -> str:
-    """
-    Normaliza o número de telefone para o formato dd9nnnnnnnnn.
-
-    Args:
-        telefone (str): O número de telefone a ser normalizado.
-
-    Returns:
-        str: O número de telefone normalizado no formato dd9nnnnnnnnn.
-
-    Raises:
-        ValueError: Se o número de telefone não for válido após a normalização.
-    """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
-    # Remove o prefixo "whatsapp:"
     if telefone.startswith('whatsapp:'):
         telefone = telefone.replace('whatsapp:', '')
         logging.info(f"Prefixo 'whatsapp:' removido, número agora é: {telefone}")
 
-    # Remove caracteres não numéricos
     telefone = ''.join(filter(lambda x: x.isdigit(), telefone))
 
-    # Remove o código do país, se presente
     if telefone.startswith('55'):
         telefone = telefone[2:]
 
-    # Captura DDD e o número
     ddd = telefone[:2]
     numero = telefone[2:]
 
-    # Adiciona '9' para números com 8 dígitos
     if len(numero) == 8:
-        numero = '9' + numero  # Adiciona o '9' para números com 8 dígitos
+        numero = '9' + numero
 
-    # Verifica se o número resultante tem o comprimento correto
     if len(ddd) != 2 or len(numero) != 9:
         logging.error(f"Número de telefone inválido após normalização: {telefone}")
         raise ValueError(f"Número de telefone inválido: {telefone}")
@@ -491,13 +409,11 @@ def normalizar_para_recebimento(telefone: str) -> str:
 
     return telefone_normalizado
 
-
 # =======================
 # Funções de Status e Fases
 # =======================
 
 def visitantes_listar_fases():
-    """Lista as fases atuais dos visitantes."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -512,9 +428,7 @@ def visitantes_listar_fases():
         logging.error(f"Erro ao buscar fases dos visitantes: {e}")
         return {"error": "Erro ao listar fases."}
 
-
 def visitantes_listar_estatisticas():
-    """Lista estatísticas de visitas e interações dos visitantes."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -524,9 +438,7 @@ def visitantes_listar_estatisticas():
         logging.error(f"Erro ao buscar estatísticas: {e}")
         return {"error": "Erro ao listar estatísticas."}
 
-
 def visitantes_monitorar_status():
-    """Retorna o status de todos os visitantes cadastrados."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -541,14 +453,11 @@ def visitantes_monitorar_status():
         logging.error(f"Erro ao buscar status de visitantes no banco de dados: {e}")
         return None
 
-
 def listar_todos_visitantes():
-    """Retorna uma lista com todos os visitantes cadastrados, incluindo status, fases e interações."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Consulta para trazer todas as informações relacionadas ao visitante
             cursor.execute('''
                 SELECT v.id AS visitante_id, v.nome, v.telefone, v.email, v.data_nascimento, v.cidade, 
                        v.genero, v.estado_civil, v.igreja_atual, v.frequenta_igreja, v.indicacao, 
@@ -564,26 +473,21 @@ def listar_todos_visitantes():
             visitantes = cursor.fetchall()
 
             if visitantes:
-                # Transformar a lista de visitantes em dicionários para JSON
                 colunas = [desc[0] for desc in cursor.description]
                 visitantes_list = [dict(zip(colunas, visitante)) for visitante in visitantes]
                 return visitantes_list
 
-            # Retorna uma lista vazia ao invés de None se não houver visitantes
             return []
 
     except pymysql.MySQLError as e:
         logging.error(f"Erro ao buscar visitantes no banco de dados: {e}")
         return {"error": "Erro ao listar visitantes."}
 
-
 def listar_visitantes_fase_null():
-    """Retorna todos os visitantes que não têm fase associada (fase NULL)."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Consulta SQL para selecionar visitantes onde não há fase associada
             cursor.execute('''
                 SELECT v.id, v.nome, v.telefone 
                 FROM visitantes v
@@ -595,24 +499,21 @@ def listar_visitantes_fase_null():
             visitantes = cursor.fetchall()
 
             if visitantes:
-                # Transformar os resultados em uma lista de dicionários
                 visitantes_list = [{"id": row["id"], "name": row["nome"],
                                     "phone": row["telefone"]} for row in visitantes]
                 return visitantes_list
 
-            return []  # Retorna uma lista vazia se não houver visitantes
+            return []
 
     except pymysql.MySQLError as e:
         logging.error(f"Erro ao listar visitantes com fase NULL: {e}")
         return {"error": "Erro ao listar visitantes com fase NULL"}
-
 
 # =======================
 # Funções de Contagem e Estatísticas
 # =======================
 
 def visitantes_contar_novos():
-    """Conta quantos visitantes foram cadastrados com data de nascimento."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -622,9 +523,7 @@ def visitantes_contar_novos():
         logging.error(f"Erro ao contar novos visitantes: {e}")
         return 0
 
-
 def visitantes_contar_membros_interessados():
-    """Conta quantos visitantes estão interessados em se tornar membros."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -635,9 +534,7 @@ def visitantes_contar_membros_interessados():
         logging.error(f"Erro ao contar membros interessados: {e}")
         return 0
 
-
 def visitantes_contar_sem_retorno():
-    """Conta quantos visitantes não deram retorno ao contato."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -647,9 +544,7 @@ def visitantes_contar_sem_retorno():
         logging.error(f"Erro ao contar visitantes sem retorno: {e}")
         return 0
 
-
 def visitantes_contar_discipulado_enviado():
-    """Conta quantos visitantes foram enviados ao discipulado."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -660,9 +555,7 @@ def visitantes_contar_discipulado_enviado():
         logging.error(f"Erro ao contar visitantes enviados ao discipulado: {e}")
         return 0
 
-
 def visitantes_contar_sem_interesse_discipulado():
-    """Conta quantos visitantes não têm interesse no discipulado."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -673,9 +566,7 @@ def visitantes_contar_sem_interesse_discipulado():
         logging.error(f"Erro ao contar visitantes sem interesse no discipulado: {e}")
         return 0
 
-
 def visitantes_contar_sem_retorno_total():
-    """Conta quantos visitantes não deram nenhum tipo de retorno."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -685,14 +576,11 @@ def visitantes_contar_sem_retorno_total():
         logging.error(f"Erro ao contar visitantes sem retorno total: {e}")
         return 0
 
-
-# Função para obter a conversa do banco de dados
 def obter_conversa_por_visitante(visitante_id):
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Consulta SQL com a sintaxe correta para MySQL
             consulta_sql = """
             SELECT 
                 CASE 
@@ -710,7 +598,6 @@ def obter_conversa_por_visitante(visitante_id):
             cursor.execute(consulta_sql, (visitante_id,))
             conversas = cursor.fetchall()
 
-            # Estruturar o resultado para retornar como HTML
             resultado = "<div class='chat-conversa'>"
             for conversa in conversas:
                 resultado += (f"<p><strong>{conversa['remetente']}:</strong>"
@@ -722,9 +609,7 @@ def obter_conversa_por_visitante(visitante_id):
         logging.error(f"Erro ao buscar conversa para o visitante {visitante_id}: {e}")
         return "<p>Erro ao obter conversa.</p>"
 
-
 def obter_total_visitantes():
-    """Consulta o total de visitantes com número de telefone registrado no banco de dados."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -734,7 +619,6 @@ def obter_total_visitantes():
 
             logging.debug(f"Resultado de fetchone(): {result}")
 
-            # Garantir que o resultado seja tratado corretamente
             if result:
                 total_visitantes_com_telefone = result['COUNT(*)']
                 logging.info(f"Total de visitantes com telefone registrado: {total_visitantes_com_telefone}")
@@ -742,22 +626,18 @@ def obter_total_visitantes():
                 total_visitantes_com_telefone = 0
                 logging.warning("Nenhum visitante com telefone encontrado, retornando 0.")
 
-            # Retornar o total formatado
             return formatar_com_pontos(total_visitantes_com_telefone)
 
     except Exception as e:
         logging.error(f"Erro ao obter total de visitantes com telefone: {e}")
         return 0
 
-
 def obter_total_membros():
-    """Consulta o total de membros, total de homens e total de mulheres no banco de dados."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
             logging.info("Iniciando a consulta para o total de membros...")
 
-            # Consulta o total de membros, total de homens e total de mulheres
             cursor.execute("""
                 SELECT 
                     COUNT(*) AS total_membros,
@@ -769,7 +649,6 @@ def obter_total_membros():
 
             logging.debug(f"Resultado de fetchone(): {result}")
 
-            # Garantir que o resultado seja tratado corretamente
             if result:
                 total_membros = result['total_membros'] or 0
                 total_homensmembro = result['total_homensmembro'] or 0
@@ -780,40 +659,33 @@ def obter_total_membros():
                 total_membros = total_homensmembro = total_mulheresmembro = 0
                 logging.warning("Nenhum membro encontrado, retornando 0.")
 
-            # Retornar os valores como uma tupla
             return total_membros, total_homensmembro, total_mulheresmembro
 
     except Exception as e:
         logging.error(f"Erro ao obter total de membros: {e}")
         return 0, 0, 0
 
-
 def obter_total_discipulados():
-    """Consulta o total de discipulados e membros, incluindo a distribuição por gênero."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
             logging.info("Iniciando a consulta para total de discipulados...")
 
-            # Consulta para contar telefones distintos de interessados em discipulado ou membros, e por gênero
             cursor.execute("""
                 SELECT 
                     (
-                        -- Total de telefones distintos para discipulado
                         (SELECT COUNT(DISTINCT v.telefone) 
                          FROM conversas c
                          INNER JOIN visitantes v ON v.id = c.visitante_id
                          WHERE c.mensagem LIKE '%Discipulado%'
                         )
                         +
-                        -- Total de telefones distintos que se tornaram membros
                         (SELECT COUNT(DISTINCT telefone) 
                          FROM visitantes
                          WHERE membro = 1
                         )
                     ) AS total_discipulado,
 
-                    -- Contagem de homens interessados em discipulado ou membros
                     (
                         (SELECT COUNT(DISTINCT v.telefone) 
                          FROM conversas c
@@ -827,7 +699,6 @@ def obter_total_discipulados():
                         )
                     ) AS total_homens,
 
-                    -- Contagem de mulheres interessadas em discipulado ou membros
                     (
                         (SELECT COUNT(DISTINCT v.telefone) 
                          FROM conversas c
@@ -845,7 +716,6 @@ def obter_total_discipulados():
 
             logging.debug(f"Resultado de fetchone(): {result}")
 
-            # Extrai os valores do resultado da consulta
             total_discipulado = result['total_discipulado'] if result else 0
             total_homens = result['total_homens'] if result else 0
             total_mulheres = result['total_mulheres'] if result else 0
@@ -859,42 +729,12 @@ def obter_total_discipulados():
         logging.error(f"Erro ao obter total de discipulados: {e}")
         return 0, 0, 0
 
-
-def obter_total_grupos_comunhao():
-    """Consulta o total de grupos de comunhão no banco de dados."""
-    try:
-        with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
-            logging.info("Iniciando a consulta para grupos de comunhão...")
-            cursor.execute("SELECT COUNT(*) FROM gc;")
-            result = cursor.fetchone()
-
-            logging.debug(f"Resultado de fetchone(): {result}")
-
-            # Garantir que o resultado seja tratado corretamente
-            if result:
-                grupos_comunhao = result['COUNT(*)']  # Acessando a chave correta no dicionário
-                logging.info(f"Grupos de comunhão: {grupos_comunhao}")
-            else:
-                grupos_comunhao = 0
-                logging.warning("Nenhum grupo de comunhão encontrado, retornando 0.")
-
-            # Retornar o total formatado
-            return formatar_com_pontos(grupos_comunhao)
-
-    except Exception as e:
-        logging.error(f"Erro ao obter total de grupos de comunhão: {e}")
-        return 0
-
-
 def obter_dados_genero():
-    """Consulta o total e percentual de homens e mulheres no banco de dados."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
             logging.info("Iniciando a consulta para dados de gênero...")
 
-            # Executa a consulta para obter os dados
             cursor.execute("""
                            SELECT 
                                SUM(CASE WHEN genero = 'masculino' THEN 1 ELSE 0 END) AS Homens,
@@ -909,7 +749,6 @@ def obter_dados_genero():
             result = cursor.fetchone()
             logging.debug(f"Resultado de fetchone(): {result}")
 
-            # Converte os valores de Decimal para int ou float
             if result:
                 dados_genero = {
                     "Homens": int(result['Homens']) if result['Homens'] else 0,
@@ -921,9 +760,9 @@ def obter_dados_genero():
             else:
                 dados_genero = {
                     "Homens": 0,
-                    "Homens_Percentual": 0.0,
+                    "Homens_Percentual": 0,
                     "Mulheres": 0,
-                    "Mulheres_Percentual": 0.0
+                    "Mulheres_Percentual": 0
                 }
                 logging.warning("Nenhum dado de gênero encontrado, retornando valores padrão.")
 
@@ -933,23 +772,18 @@ def obter_dados_genero():
         logging.error(f"Erro ao obter dados de gênero: {str(e)}")
         return {
             "Homens": 0,
-            "Homens_Percentual": 0.0,
+            "Homens_Percentual": 0,
             "Mulheres": 0,
-            "Mulheres_Percentual": 0.0
+            "Mulheres_Percentual": 0
         }
-
 
 def formatar_com_pontos(numero):
     """Formata o número com ponto como separador de milhar."""
     return "{:,.0f}".format(numero).replace(',', '.')
 
-
 # --- NOVAS FUNÇÕES PARA TREINAMENTO DA IA ---
 
 def salvar_par_treinamento(pergunta: str, resposta: str, categoria: str = 'geral', fonte: str = 'manual'):
-    """
-    Salva um novo par de pergunta e resposta para treinar a IA.
-    """
     try:
         conn = get_db_connection()
         if not conn:
@@ -969,17 +803,16 @@ def salvar_par_treinamento(pergunta: str, resposta: str, categoria: str = 'geral
         logging.error(f"Erro ao salvar par de treinamento: {e}")
         return False
 
-
 def obter_pares_treinamento():
     """
-    Retorna todos os pares de pergunta e resposta da tabela 'training_pairs'.
+    CORREÇÃO: Removido dictionary=True - PyMySQL já retorna dicionários
     """
     try:
         conn = get_db_connection()
         if not conn:
             return []
 
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()  # CORREÇÃO APLICADA
         cursor.execute("""
             SELECT question, answer FROM training_pairs 
             ORDER BY id DESC LIMIT 1000
@@ -992,17 +825,16 @@ def obter_pares_treinamento():
         logging.error(f"Erro ao obter pares de treinamento: {e}")
         return []
 
-
 def obter_perguntas_pendentes():
     """
-    Retorna as últimas perguntas não respondidas da IA.
+    CORREÇÃO: Removido dictionary=True - PyMySQL já retorna dicionários
     """
     try:
         conn = get_db_connection()
         if not conn:
             return []
 
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()  # CORREÇÃO APLICADA
         cursor.execute("""
             SELECT id, user_id, question, created_at FROM unknown_questions 
             WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50
@@ -1015,11 +847,7 @@ def obter_perguntas_pendentes():
         logging.error(f"Erro ao obter perguntas pendentes: {e}")
         return []
 
-
 def marcar_pergunta_como_respondida(pergunta: str):
-    """
-    Marca uma pergunta como respondida.
-    """
     try:
         conn = get_db_connection()
         if not conn:
@@ -1034,5 +862,3 @@ def marcar_pergunta_como_respondida(pergunta: str):
     except Exception as e:
         logging.error(f"Erro ao marcar pergunta como respondida: {e}")
         return False
-
-# --- FIM DAS NOVAS FUNÇÕES PARA TREINAMENTO DA IA ---
