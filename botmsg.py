@@ -176,4 +176,416 @@ def detectar_agradecimento(texto):
     palavras_agradecimento = ["obrigado", "obrigada", "grato", "grata",
                               "agradecido", "agradecida", "muito obrigado",
                               "muito obrigada", "amem", "amém", "aleluia",
-                              "gloria
+                              "gloria a deus"]
+    texto_normalizado = normalizar_texto(texto)
+    return any(palavra in texto_normalizado for palavra in palavras_agradecimento)
+
+def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_manual=False) -> dict:
+    logging.info(f"Processando mensagem: {numero}, SID: {message_sid}, Mensagem: {texto_recebido}")
+    numero_normalizado = normalizar_para_recebimento(numero)
+    texto_recebido_normalizado = normalizar_texto(texto_recebido)
+
+    # Buscar estado atual do visitante no banco de dados
+    estado_str = obter_estado_atual_do_banco(numero_normalizado)
+    logging.debug(f"Estado atual do visitante no Banco: {estado_str}, Mensagem: {texto_recebido}")
+
+    # Estado atual é validado e fluxo normal continua
+    estado_atual = EstadoVisitante[estado_str] if estado_str in EstadoVisitante.__members__ \
+        else EstadoVisitante.INICIO
+    logging.debug(f"Estado atual: {estado_atual.name}, Texto recebido: {texto_recebido_normalizado}")
+
+    # Se o estado for NULL, ou seja, o visitante não está registrado no sistema
+    if not estado_str:
+        # Verificar se o estado atual é "PEDIR_NOME" (já foi pedido o nome)
+        if estado_str == 'PEDIR_NOME':
+            # Salvar o nome e registrar o visitante
+            salvar_novo_visitante(numero_normalizado, texto_recebido_normalizado)
+            resposta = f"Obrigado, {texto_recebido_normalizado}! Agora podemos continuar com o atendimento."
+            atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
+            proximo_estado = EstadoVisitante.INICIO
+        else:
+            # Pedir o nome do visitante
+            resposta = ("Olá! Parece que você ainda não está cadastrado no nosso sistema. "
+                        "Para começar, por favor, me diga o seu nome completo.")
+            atualizar_status(numero_normalizado, 'PEDIR_NOME')
+            proximo_estado = 'PEDIR_NOME'
+
+        # Enviar a mensagem e salvar a conversa
+        enviar_mensagem_para_fila(numero_normalizado, resposta)
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada', sid=message_sid)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_str or "PEDIR_NOME",
+            "proximo_estado": proximo_estado
+        }
+
+    # Verifica se o texto contém uma palavra-chave de ministério
+    resposta_ministerio = detectar_palavra_chave_ministerio(texto_recebido_normalizado)
+    if resposta_ministerio:
+        enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio)
+        salvar_conversa(numero_normalizado, resposta_ministerio, tipo='enviada', sid=message_sid)
+        return {
+            "resposta": resposta_ministerio,
+            "estado_atual": "MINISTERIO",
+            "proximo_estado": "INICIO"
+        }
+
+    # Verificar se a mensagem é um agradecimento
+    if detectar_agradecimento(texto_recebido_normalizado):
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        resposta_agradecimento = (f"Ficamos felizes em poder ajudar, {visitor_name}! "
+                                  f"Se precisar de algo mais, estamos à disposição.")
+        enviar_mensagem_para_fila(numero_normalizado, resposta_agradecimento)
+        salvar_conversa(numero_normalizado, resposta_agradecimento, tipo='enviada', sid=message_sid)
+        return {
+            "resposta": resposta_agradecimento,
+            "estado_atual": "AGRADACIMENTO",
+            "proximo_estado": "INICIO"
+        }
+
+    # Verificar se a mensagem é uma saudação
+    if detectar_saudacao(texto_recebido_normalizado):
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        resposta_saudacao = f"""Olá, {visitor_name}! 😊
+    Sou o **Integra+**, seu assistente do Ministério de Integração da Mais de Cristo Canasvieiras.
+
+    Como posso te ajudar hoje?
+
+    1️⃣ Sou batizado e quero me tornar membro
+    2️⃣ Não sou batizado e quero me tornar membro
+    3️⃣ Gostaria de receber orações
+    4️⃣ Quero saber os horários dos cultos
+    5️⃣ Entrar no grupo do WhatsApp
+    6️⃣ Outro assunto
+
+    Estou aqui pra você! 🙌"""
+        enviar_mensagem_para_fila(numero_normalizado, resposta_saudacao)
+        salvar_conversa(numero_normalizado, resposta_saudacao, tipo='enviada', sid=message_sid)
+        return {
+            "resposta": resposta_saudacao,
+            "estado_atual": "SAUDACAO",
+            "proximo_estado": estado_str or "INICIO"
+        }
+
+    if estado_atual == EstadoVisitante.FIM:
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        resposta = f"""Que bom ter você de volta, {visitor_name}! 😃 Estamos felizes por poder te ajudar novamente.
+
+Aqui estão algumas opções que você pode escolher:
+
+1⃣ Sou batizado em águas, e quero me tornar membro.
+2⃣ Não sou batizado, e quero me tornar membro.
+3⃣ Gostaria de receber orações.
+4⃣ Queria saber mais sobre os horários dos cultos.
+5⃣ Quero entrar no grupo do WhatsApp da igreja.
+6⃣ Outro assunto."""
+        # Atualiza o status para INICIO e envia a mensagem
+        proximo_estado = EstadoVisitante.INICIO
+        atualizar_status(numero_normalizado, proximo_estado.value)
+        enviar_mensagem_para_fila(numero_normalizado, resposta)
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada')
+        registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": proximo_estado.name
+        }
+
+    # Se o estado for NULL e a ação for manual, enviar a mensagem inicial
+    if not estado_str and acao_manual:
+        visitor_name = obter_primeiro_nome(obter_nome_do_visitante(numero_normalizado)) or "Visitante"
+        resposta_inicial = f"""A Paz de Cristo, {visitor_name}! Tudo bem com você?
+Aqui é a Equipe de Integração da MAIS DE CRISTO Canasvieiras!
+Escolha uma das opções abaixo, respondendo com o número correspondente:
+1⃣ Sou batizado em águas, e quero me tornar membro.
+2⃣ Não sou batizado, e quero me tornar membro.
+3⃣ Gostaria de receber orações.
+4⃣ Queria saber mais sobre os horários dos cultos.
+5⃣ Quero entrar no grupo do WhatsApp da igreja.
+6⃣ Outro assunto.
+Nos diga qual sua escolha! 🙏"""
+        # Atualiza o status diretamente para INICIO, sem o MENU
+        atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
+        enviar_mensagem_para_fila(numero_normalizado, resposta_inicial)
+        salvar_conversa(numero_normalizado, resposta_inicial, tipo='enviada', sid=message_sid)
+        return {
+            "resposta": resposta_inicial,
+            "estado_atual": EstadoVisitante.INICIO.name,
+            "proximo_estado": EstadoVisitante.INICIO.name
+        }
+
+    # Verifica se a mensagem recebida foi a mensagem inicial e não a processa
+    if texto_recebido_normalizado.startswith("a paz de cristo") and not acao_manual:
+        logging.info(f"Mensagem inicial detectada. Ignorando processamento de resposta "
+                     f"para o número {numero_normalizado}")
+        return {
+            "resposta": None,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": estado_atual.name
+        }
+
+    salvar_conversa(numero_normalizado, texto_recebido, tipo='recebida', sid=message_sid)
+
+    # Procurar o próximo estado baseado na resposta numérica ou palavra-chave
+    proximo_estado = transicoes.get(estado_atual, {}).get(texto_recebido_normalizado)
+
+    if estado_atual == EstadoVisitante.PEDIDO_ORACAO:
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        # Salvando o pedido de oração no banco
+        salvar_conversa(numero_normalizado, f"Pedido de oração: {texto_recebido}", tipo='recebida', sid=message_sid)
+        # Enviar o pedido de oração para a lista de intercessores usando o template
+        enviar_pedido_oracao(
+            numero_pedidos_oracao,
+            visitor_name,
+            numero_normalizado,
+            texto_recebido
+        )
+        # Responder ao visitante que o pedido foi recebido e estamos orando por ele
+        resposta = (
+            f"Seu pedido de oração foi recebido, {visitor_name}. "
+            f"Nossa equipe de intercessão já está orando por você, "
+            f"confiamos que Deus está ouvindo. "
+            f"Se precisar de mais orações ou apoio, estamos aqui para você. 🙏"
+        )
+        proximo_estado = EstadoVisitante.FIM
+        atualizar_status(numero_normalizado, EstadoVisitante.FIM.value)
+        # --- ADICIONE ESTA LINHA ---
+        atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)  # Força reset após atendimento
+        enviar_mensagem_para_fila(numero_normalizado, resposta)
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada')
+        registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": EstadoVisitante.FIM.name
+        }
+
+    if estado_atual == EstadoVisitante.OUTRO:
+        resposta_ministerio = detectar_palavra_chave_ministerio(texto_recebido_normalizado)
+        if resposta_ministerio:
+            enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio)
+            salvar_conversa(numero_normalizado, resposta_ministerio, tipo='enviada', sid=message_sid)
+            return {
+                "resposta": resposta_ministerio,
+                "estado_atual": "MINISTERIO",
+                "proximo_estado": "INICIO"
+            }
+        # Verificar se a mensagem é um agradecimento
+        if detectar_agradecimento(texto_recebido_normalizado):
+            resposta_agradecimento = ("Ficamos felizes em poder ajudar! "
+                                      "Se precisar de algo mais, estamos à disposição.")
+            enviar_mensagem_para_fila(numero_normalizado, resposta_agradecimento)
+            salvar_conversa(numero_normalizado, resposta_agradecimento, tipo='enviada', sid=message_sid)
+            return {
+                "resposta": resposta_agradecimento,
+                "estado_atual": "AGRADACIMENTO",
+                "proximo_estado": "INICIO"
+            }
+        logging.warning(
+            f"Nenhuma transição encontrada para o estado {estado_atual.name} "
+            f"com a mensagem '{texto_recebido_normalizado}'.")
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        # Salvando a mensagem de "outro" no banco de dados
+        salvar_conversa(numero_normalizado, f"Outro: {texto_recebido}", tipo='recebida', sid=message_sid)
+        # Enviar a mensagem para o número da secretaria
+        mensagem_outro = (
+            f"Solicitação de Atendimento (Outro):\n"
+            f"Visitante: {visitor_name}\n"
+            f"Número: {numero_normalizado}\n"
+            f"Mensagem: {texto_recebido}\n"
+            f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        )
+        try:
+            numero_normalizado_secretaria = normalizar_para_envio(numero_outros_secretaria)
+            adicionar_na_fila(numero_normalizado_secretaria, mensagem_outro)
+        except Exception as e:
+            logging.error(f"Erro ao enviar a mensagem 'Outro' para o número da secretaria: {e}")
+        # Responder ao visitante
+        resposta = (f"Entendido, {visitor_name}. Sua solicitação foi encaminhada para a nossa secretaria, "
+                    f"e em breve entraremos em contato com você. 🙂")
+        proximo_estado = EstadoVisitante.FIM
+        atualizar_status(numero_normalizado, EstadoVisitante.FIM.value)
+        # --- ADICIONE ESTA LINHA ---
+        atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)  # Força reset após atendimento
+        enviar_mensagem_para_fila(numero_normalizado, resposta)
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada')
+        registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": EstadoVisitante.FIM.name
+        }
+
+    logging.info(f"O Próximo estado é: {proximo_estado}.")
+
+    # Tratamento para quando nenhuma transição é encontrada
+    if proximo_estado is None:
+        # --- NOVO: Busca a última pergunta do usuário para contexto ---
+        ultima_pergunta = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT mensagem FROM conversas 
+                WHERE visitante_id = (SELECT id FROM visitantes WHERE telefone = %s) 
+                AND tipo = 'recebida' 
+                AND message_sid != %s
+                ORDER BY data_hora DESC LIMIT 1
+            """, (numero_normalizado, message_sid))
+            result = cursor.fetchone()
+            if result:
+                ultima_pergunta = result['mensagem']
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            logging.error(f"Erro ao buscar última pergunta: {e}")
+
+        # --- CORRIGIDO: Chamada correta da IA ---
+        resultado_ia = ia_integracao.responder_pergunta(
+            pergunta_usuario=texto_recebido
+        )
+
+        if resultado_ia[0] and resultado_ia[1] > 0.2:  # resultado_ia[0] = resposta, resultado_ia[1] = confiança
+            logging.info(f"IA respondeu com confiança {resultado_ia[1]:.2f}: {resultado_ia[0]}")
+            enviar_mensagem_para_fila(numero_normalizado, resultado_ia[0])
+            salvar_conversa(numero_normalizado, resultado_ia[0], tipo='enviada', sid=message_sid)
+            # Atualiza o estado para INICIO para manter o fluxo
+            atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
+            return {
+                "resposta": resultado_ia[0],
+                "estado_atual": estado_atual.name,
+                "proximo_estado": EstadoVisitante.INICIO.name
+            }
+
+        # Se a IA não respondeu, continua com a lógica existente
+        # Verifica se a mensagem contém uma palavra-chave de ministério
+        resposta_ministerio = detectar_palavra_chave_ministerio(texto_recebido_normalizado)
+        if resposta_ministerio:
+            enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio)
+            salvar_conversa(numero_normalizado, resposta_ministerio, tipo='enviada', sid=message_sid)
+            return {
+                "resposta": resposta_ministerio,
+                "estado_atual": "MINISTERIO",
+                "proximo_estado": "INICIO"
+            }
+
+        # Verificar se a mensagem é uma saudação
+        if detectar_saudacao(texto_recebido_normalizado):
+            resposta_saudacao = "Oi! Que bom te ver por aqui 😊. Como posso ajudar você hoje?"
+            enviar_mensagem_para_fila(numero_normalizado, resposta_saudacao)
+            salvar_conversa(numero_normalizado, resposta_saudacao, tipo='enviada', sid=message_sid)
+            return {
+                "resposta": resposta_saudacao,
+                "estado_atual": "SAUDACAO",
+                "proximo_estado": estado_str or "INICIO"
+            }
+
+        # Verificar se a mensagem é um agradecimento
+        if detectar_agradecimento(texto_recebido_normalizado):
+            resposta_agradecimento = ("Ficamos felizes em poder ajudar! "
+                                      "Se precisar de algo mais, estamos à disposição.")
+            enviar_mensagem_para_fila(numero_normalizado, resposta_agradecimento)
+            salvar_conversa(numero_normalizado, resposta_agradecimento, tipo='enviada', sid=message_sid)
+            return {
+                "resposta": resposta_agradecimento,
+                "estado_atual": "AGRADACIMENTO",
+                "proximo_estado": "INICIO"
+            }
+
+        logging.warning(
+            f"Nenhuma transição encontrada para o estado {estado_atual.name} "
+            f"com a mensagem '{texto_recebido_normalizado}'.")
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        # Mensagem de erro cordial com o menu inicial
+        resposta = f"""Desculpe, {visitor_name}, não entendi sua resposta. Por favor, tente novamente.
+
+Aqui estão algumas opções que você pode escolher:
+
+1⃣ Sou batizado em águas, e quero me tornar membro.
+2⃣ Não sou batizado, e quero me tornar membro.
+3⃣ Gostaria de receber orações.
+4⃣ Queria saber mais sobre os horários dos cultos.
+5⃣ Quero entrar no grupo do WhatsApp da igreja.
+6⃣ Outro assunto."""
+        proximo_estado = estado_atual
+    else:
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        resposta = mensagens.get(proximo_estado, f"Desculpe, {visitor_name}, não entendi sua resposta.")
+
+    # Atualizar o status se houver mudança de estado
+    if proximo_estado != estado_atual:
+        atualizar_status(numero_normalizado, proximo_estado.value)
+        logging.info(f"Estado atualizado para {proximo_estado.name} no banco de dados para o "
+                     f"número {numero_normalizado}")
+    else:
+        logging.info(f"Estado mantido como {estado_atual.name} para o número {numero_normalizado}")
+
+    # Enviar mensagem de resposta e registrar estatísticas
+    try:
+        enviar_mensagem_para_fila(numero, resposta)
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada')
+        registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)
+    except Exception as e:
+        logging.error(f"Erro ao enviar ou salvar mensagem para {numero_normalizado}: {e}")
+
+    return {
+        "resposta": resposta,
+        "estado_atual": estado_atual.name,
+        "proximo_estado": proximo_estado.name
+    }
+
+def normalizar_texto(texto):
+    texto = texto.strip().lower()
+    texto = ''.join(
+        c for c in unicodedata.normalize('NFD', texto)
+        if unicodedata.category(c) != 'Mn'
+    )
+    return texto
+
+def validar_data_nascimento(data: str) -> bool:
+    """
+    Valida se a data de nascimento está no formato DD/MM/AAAA.
+    """
+    padrao = r"^\d{2}/\d{2}/\d{4}$"
+    return re.match(padrao, data) is not None
+
+def enviar_mensagem(numero_destino, corpo_mensagem):
+    try:
+        numero_normalizado = normalizar_para_envio(numero_destino)
+        logging.info(f"Enviando mensagem para o número normalizado: whatsapp:+{numero_normalizado}")
+        mensagem = client.messages.create(
+            body=corpo_mensagem,
+            from_=f"whatsapp:{twilio_phone_number}",
+            to=f"whatsapp:+{numero_normalizado}"
+        )
+        logging.info(f"Mensagem enviada: {mensagem.sid}")
+    except Exception as e:
+        logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
+
+def enviar_mensagem_manual(numero_destino, template_sid, params):
+    try:
+        numero_normalizado = normalizar_para_envio(numero_destino)
+        logging.info(f"Enviando mensagem para o número normalizado: whatsapp:+{numero_normalizado}")
+        if 'visitor_name' not in params:
+            logging.error("A variável 'visitor_name' não foi encontrada em params.")
+            return
+        logging.info(f"Conteúdo das variáveis: {params}")
+        # --- URL CORRIGIDA: Removido o espaço extra ---
+        url = f"https://api.twilio.com/2010-04-01/Accounts/{os.environ['TWILIO_ACCOUNT_SID']}/Messages.json"
+        data = {
+            "To": f"whatsapp:+{numero_normalizado}",
+            "From": f"whatsapp:{twilio_phone_number}",
+            "ContentSid": template_sid,
+            "ContentVariables": json.dumps(params)
+        }
+        response = requests.post(
+            url,
+            data=data,
+            auth=(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"])
+        )
+        if response.status_code != 201:
+            logging.error(f"Erro no envio: {response.status_code} - {response.text}")
+        if response.status_code == 201:
+            logging.info("Mensagem enviada com sucesso!")
+    except Exception as e:
+        logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
