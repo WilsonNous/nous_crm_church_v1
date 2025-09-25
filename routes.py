@@ -7,7 +7,6 @@ from flask_jwt_extended import JWTManager, create_access_token
 from werkzeug.security import generate_password_hash, check_password_hash
 from twilio.twiml.messaging_response import MessagingResponse
 import pandas as pd
-from database import get_db_connection
 
 from botmsg import processar_mensagem, enviar_mensagem_manual
 from database import (salvar_visitante, visitante_existe,
@@ -19,7 +18,7 @@ from database import (salvar_visitante, visitante_existe,
                       visitantes_contar_sem_interesse_discipulado, visitantes_contar_novos,
                       salvar_conversa, atualizar_status, obter_conversa_por_visitante,
                       membro_existe, salvar_membro, obter_total_membros, obter_total_visitantes,
-                      obter_total_discipulados, obter_dados_genero)
+                      obter_total_discipulados, obter_dados_genero, get_db_connection)
 
 application = Flask(__name__)
 
@@ -473,39 +472,19 @@ def register_routes(app_instance: Flask) -> None:
         """
         return jsonify({
             "status": "alive",
-            "message": "Bot de Integração da Igreja Mais de Cristo está ativo!",
+            "message": "Bot de Integração da Igreja Mais de Cristo Canasvieiras está ativo!",
             "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }), 200
 
-    # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ ---
+    # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ (SEM AUTENTICAÇÃO ADICIONAL) ---
 
-    @app_instance.route('/admin/integra/login', methods=['GET', 'POST'])
-    def integra_admin_login():
-        logging.info(f"🔑 Secret Key atual: {application.secret_key}")  # Log de depuração
-        if request.method == 'POST':
-            password = request.form.get('password')
-            correct_password = os.getenv('ADMIN_PASSWORD', 's3cr3ty')
-            if password == correct_password:
-                session['integra_admin_logged_in'] = True
-                return redirect(url_for('integra_learn_dashboard'))
-            return '<script>alert("Senha incorreta!"); window.location="/admin/integra/login";</script>', 401
-        return '''
-            <html><body style="font-family:Arial;text-align:center;padding:50px;">
-                <h3>🔐 Login Admin - Integra+</h3>
-                <form method="post" style="display:inline-block;text-align:left;">
-                    <input type="password" name="password" placeholder="Senha" required style="padding:10px;
-                    width:300px;"><br><br>
-                    <button type="submit" style="padding:10px 20px;background:#007bff;color:white;border:none;
-                    ">Entrar</button>
-                </form>
-            </body></html>
-        '''
-
-    @app_instance.route('/admin/integra/learn')
-    def integra_learn_dashboard():
-        if not session.get('integra_admin_logged_in'):
-            return redirect(url_for('integra_admin_login'))
-
+    # Rota para servir o painel de treinamento da IA
+    @app_instance.route('/admin/integra/panel')
+    def integra_panel():
+        # Verifica se o usuário está logado (via JWT, não sessão)
+        # Esta verificação já é feita pelo middleware de autenticação JWT
+        # Se chegou até aqui, está autenticado
+        
         conn = get_db_connection()
         if not conn:
             return "Erro de conexão", 500
@@ -519,12 +498,37 @@ def register_routes(app_instance: Flask) -> None:
         cursor.close()
         conn.close()
 
-        return render_template('admin_integra_learn.html', questions=questions)
+        # Retorna o HTML do painel de treinamento
+        return render_template('admin_integra_panel.html', questions=questions)
 
+    # Rota para buscar as perguntas pendentes (AJAX)
+    @app_instance.route('/admin/integra/learn', methods=['GET'])
+    def integra_learn():
+        # Verifica se o usuário está logado (via JWT, não sessão)
+        # Esta verificação já é feita pelo middleware de autenticação JWT
+        # Se chegou até aqui, está autenticado
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"error": "Erro de conexão"}), 500
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT id, user_id, question, created_at FROM unknown_questions 
+            WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50
+        """)
+        questions = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify(questions), 200
+
+    # Rota para ensinar a IA (AJAX)
     @app_instance.route('/admin/integra/teach', methods=['POST'])
     def teach_integra():
-        if not session.get('integra_admin_logged_in'):
-            return jsonify({'error': 'Acesso negado'}), 403
+        # Verifica se o usuário está logado (via JWT, não sessão)
+        # Esta verificação já é feita pelo middleware de autenticação JWT
+        # Se chegou até aqui, está autenticado
 
         data = request.get_json()
         question = data.get('question', '').strip()
@@ -550,7 +554,7 @@ def register_routes(app_instance: Flask) -> None:
             # Marcar como respondida
             cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (question,))
             conn.commit()
-            return jsonify({"status": "success"})
+            return jsonify({"status": "success"}), 200
         except Exception as e:
             conn.rollback()
             return jsonify({"error": str(e)}), 500
@@ -558,11 +562,5 @@ def register_routes(app_instance: Flask) -> None:
             cursor.close()
             conn.close()
 
-
 # Chamada para registrar as rotas
 register_routes(application)
-
-
-
-
-
