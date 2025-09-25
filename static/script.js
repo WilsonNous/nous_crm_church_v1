@@ -31,6 +31,11 @@ function loadPendingQuestions() {
     fetch(`${baseUrl}/api/ia/pending-questions`, { credentials: 'include' })
         .then(response => {
             if (!response.ok) {
+                // Se não for JSON, provavelmente é um redirect para login
+                if (response.headers.get('content-type')?.includes('text/html')) {
+                    window.location.href = '/admin/integra/login';
+                    return;
+                }
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
@@ -178,7 +183,7 @@ function initializeEventListeners() {
             toggleButtons(false); // Exibe todos os botões
         },
         'backToOptionsWhatsappButton': () => { appState.currentView = 'options'; updateUI(); },
-        'acolhidoForm': handleAcolhidoFormSubmission,
+        'acolhidoForm': handleAcolhidoFormSubmission, // Novo evento
         'sendWhatsappButton': handleWhatsappButtonClick,
         'monitorStatusButton': monitorStatus,
         'visitorForm': handleFormSubmission,
@@ -187,13 +192,12 @@ function initializeEventListeners() {
         
         // --- NOVOS EVENTOS PARA O PAINEL DE IA ---
         'showIATrainingButton': () => {
-            appState.currentView = 'iaTrainingPanel';
-            updateUI();
-            loadPendingQuestions(); // Carrega as perguntas ao abrir o painel
+            toggleSection('iaTrainingPanel');
+            loadPendingQuestions();
         },
-        'backToOptionsIAButton': () => { appState.currentView = 'options'; updateUI(); },
+        'backToOptionsIAButton': () => { toggleSection('options'); },
         'cancelTeachButton': () => { toggleTeachForm(false); },
-        'teachIAForm': handleTeachSubmit // Adiciona o listener para o submit do form
+        'teachForm': handleTeachSubmit // Adiciona o listener para o submit do form
         // --- FIM DOS NOVOS EVENTOS ---
     };
 
@@ -461,7 +465,7 @@ function collectFormData() {
         gender: document.querySelector('#gender')?.value || '',
         maritalStatus: document.getElementById('maritalStatus').value,
         currentChurch: document.getElementById('currentChurch').value,
-        attendingChurch: document.getElementById('attendingChurch').value,
+        attendingChurch: document.getElementById('attendingChurch').checked,
         referral: document.getElementById('referral').value,
         membership: document.getElementById('membership').checked,
         prayerRequest: document.getElementById('prayerRequest').value,
