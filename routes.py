@@ -2,7 +2,7 @@
 import logging
 import os
 from datetime import datetime
-from flask import Flask, request, jsonify, session, redirect, url_for, render_template
+from flask import Flask, request, jsonify, render_template
 from flask_jwt_extended import JWTManager, create_access_token
 from werkzeug.security import generate_password_hash, check_password_hash
 from twilio.twiml.messaging_response import MessagingResponse
@@ -484,7 +484,7 @@ def register_routes(app_instance: Flask) -> None:
         # Verifica se o usuário está logado (via JWT, não sessão)
         # Esta verificação já é feita pelo middleware de autenticação JWT
         # Se chegou até aqui, está autenticado
-        
+
         conn = get_db_connection()
         if not conn:
             return "Erro de conexão", 500
@@ -522,6 +522,72 @@ def register_routes(app_instance: Flask) -> None:
         conn.close()
 
         return jsonify(questions), 200
+
+    # --- NOVAS ROTAS PARA O PAINEL DE TREINAMENTO DA IA ---
+
+    @app_instance.route('/api/ia/pending-questions', methods=['GET'])
+    def get_pending_questions():
+        """Retorna as últimas perguntas não respondidas da IA."""
+        try:
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({"error": "Erro de conexão"}), 500
+
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT id, user_id, question, created_at FROM unknown_questions 
+                WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50
+            """)
+            questions = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
+            return jsonify({"questions": questions}), 200
+        except Exception as e:
+            logging.error(f"Erro ao buscar perguntas pendentes: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    @app_instance.route('/api/ia/teach', methods=['POST'])
+    def teach_ia():
+        """Ensina a IA com um novo par de pergunta e resposta."""
+        try:
+            data = request.get_json()
+            question = data.get('question', '').strip()
+            answer = data.get('answer', '').strip()
+            category = data.get('category', '').strip()
+
+            if not all([question, answer, category]):
+                return jsonify({"error": "Campos obrigatórios"}), 400
+
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({"error": "Erro de conexão"}), 500
+
+            cursor = conn.cursor()
+            try:
+                # Inserir na knowledge_base
+                cursor.execute("""
+                    INSERT INTO knowledge_base (question, answer, category, created_at, updated_at)
+                    VALUES (%s, %s, %s, NOW(), NOW())
+                    ON DUPLICATE KEY UPDATE answer = VALUES(answer), updated_at = NOW()
+                """, (question, answer, category))
+
+                # Marcar como respondida
+                cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (question,))
+                conn.commit()
+                return jsonify({"status": "success"}), 200
+            except Exception as e:
+                conn.rollback()
+                logging.error(f"Erro ao ensinar IA: {e}")
+                return jsonify({"error": str(e)}), 500
+            finally:
+                cursor.close()
+                conn.close()
+        except Exception as e:
+            logging.error(f"Erro ao ensinar IA: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    # --- FIM DAS NOVAS ROTAS PARA O PAINEL DE TREINAMENTO DA IA ---
 
     # Rota para ensinar a IA (AJAX)
     @app_instance.route('/admin/integra/teach', methods=['POST'])
@@ -561,6 +627,7 @@ def register_routes(app_instance: Flask) -> None:
         finally:
             cursor.close()
             conn.close()
+
 
 # Chamada para registrar as rotas
 register_routes(application)
