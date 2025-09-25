@@ -174,8 +174,8 @@ function initializeEventListeners() {
         'backToOptionsCadastroAcolhido': () => { appState.currentView = 'options'; updateUI(); },
         'backToOptionsStatusButton': () => {
             appState.currentView = 'options';
-            document.getElementById('statusLog')?.classList.add('hidden');
-            toggleButtons(false);
+            document.getElementById('statusLog')?.classList.add('hidden'); // Esconde a tabela
+            toggleButtons(false); // Exibe todos os botões
         },
         'backToOptionsWhatsappButton': () => { appState.currentView = 'options'; updateUI(); },
         'acolhidoForm': handleAcolhidoFormSubmission,
@@ -193,7 +193,7 @@ function initializeEventListeners() {
         },
         'backToOptionsIAButton': () => { appState.currentView = 'options'; updateUI(); },
         'cancelTeachButton': () => { toggleTeachForm(false); },
-        'teachForm': handleTeachSubmit // Adiciona o listener para o submit do form
+        'teachIAForm': handleTeachSubmit // Adiciona o listener para o submit do form
         // --- FIM DOS NOVOS EVENTOS ---
     };
 
@@ -219,54 +219,53 @@ function updateUI() {
         if (element) element.classList.add('hidden');
     });
 
-    // Ocultar botões, se necessário
-    const buttonsToHide = [
-        'showFormButton', 'monitorStatusButton', 'sendWhatsappButton',
-        'showMemberFormButton', 'infoCardsContainer', 'showAcolhidoFormButton'
-    ];
-    buttonsToHide.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) element.classList.add('hidden');
-    });
+    // Ocultar botões, se necessário (por exemplo, em views de formulário ou detalhes)
+    document.getElementById('showFormButton').classList.add('hidden');
+    document.getElementById('monitorStatusButton').classList.add('hidden');
+    document.getElementById('sendWhatsappButton').classList.add('hidden');
+    document.getElementById('showMemberFormButton').classList.add('hidden');
+    document.getElementById('infoCardsContainer').classList.add('hidden');
+    document.getElementById('showAcolhidoFormButton').classList.add('hidden');
 
     // Atualiza a exibição conforme o estado atual
     switch (appState.currentView) {
         case 'login':
-            document.getElementById('loginContainer')?.classList.remove('hidden');
+            document.getElementById('loginContainer').classList.remove('hidden');
             break;
         case 'options':
-            document.getElementById('options')?.classList.remove('hidden');
-            document.getElementById('showFormButton')?.classList.remove('hidden');
-            document.getElementById('monitorStatusButton')?.classList.remove('hidden');
-            document.getElementById('sendWhatsappButton')?.classList.remove('hidden');
-            document.getElementById('showMemberFormButton')?.classList.remove('hidden');
-            document.getElementById('showAcolhidoFormButton')?.classList.remove('hidden');
-            document.getElementById('infoCardsContainer')?.classList.remove('hidden');
+            document.getElementById('options').classList.remove('hidden');
+            document.getElementById('showFormButton').classList.remove('hidden');
+            document.getElementById('monitorStatusButton').classList.remove('hidden');
+            document.getElementById('sendWhatsappButton').classList.remove('hidden');
+            document.getElementById('showMemberFormButton').classList.remove('hidden');
+            document.getElementById('showAcolhidoFormButton').classList.remove('hidden');
+            document.getElementById('infoCardsContainer').classList.remove('hidden');
             break;
         case 'form':
-            document.getElementById('formContainer')?.classList.remove('hidden');
+            document.getElementById('formContainer').classList.remove('hidden');
             break;
         case 'memberForm':
-            document.getElementById('memberFormContainer')?.classList.remove('hidden');
+            document.getElementById('memberFormContainer').classList.remove('hidden');
             break;
         case 'whatsappLog':
-            document.getElementById('whatsappLog')?.classList.remove('hidden');
+            document.getElementById('whatsappLog').classList.remove('hidden');
             break;
         case 'acolhidoForm':
-            document.getElementById('acolhidoFormContainer')?.classList.remove('hidden');
+            document.getElementById('acolhidoFormContainer').classList.remove('hidden');
             break;
         case 'statusLog':
-            document.getElementById('statusLog')?.classList.remove('hidden');
+            document.getElementById('statusLog').classList.remove('hidden');
             break;
         // --- NOVO ESTADO: Painel de Treinamento da IA ---
         case 'iaTrainingPanel':
-            document.getElementById('iaTrainingPanel')?.classList.remove('hidden');
+            document.getElementById('iaTrainingPanel').classList.remove('hidden');
             break;
         // --- FIM DO NOVO ESTADO ---
         default:
             console.log('Visão não reconhecida:', appState.currentView);
     }
 }
+
 
 function handleLogin(event) {
     event.preventDefault();
@@ -276,7 +275,9 @@ function handleLogin(event) {
 
     fetch(`${baseUrl}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ username, password }),
     })
     .then(response => {
@@ -287,12 +288,15 @@ function handleLogin(event) {
     })
     .then(data => {
         if (data.status === 'success') {
+            // Armazenando o token no localStorage (ou sessionStorage)
             localStorage.setItem('jwt_token', data.token);
+
             appState.user = data.username;
             appState.currentView = 'options';
-            updateUI();
+            console.log('Estado após login:', appState.currentView);
+            updateUI();  // Atualiza a interface para mostrar as opções
         } else {
-            showLoginError(data.message);
+            showLoginError(data.message); // Exibe a mensagem de erro
         }
     })
     .catch(error => {
@@ -303,9 +307,12 @@ function handleLogin(event) {
 
 function handleWhatsappButtonClick() {
     if (confirm('Você tem certeza que deseja enviar a mensagem via WhatsApp?')) {
+        // Atualiza a UI para mostrar o log de WhatsApp
         appState.currentView = 'whatsappLog';
         updateUI();
-        fetchVisitorsAndSendMessagesManual();
+
+        // Chama a função para buscar os visitantes e enviar a mensagem manualmente
+        fetchVisitorsAndSendMessagesManual();  // Função modificada para lidar com o envio manual
     }
 }
 
@@ -314,29 +321,35 @@ function fetchVisitorsAndSendMessagesManual() {
         .then(data => {
             if (data.status === 'success') {
                 const visitors = data.visitors;
+
                 if (visitors.length === 0) {
                     alert('Nenhum visitante encontrado.');
                     return;
                 }
+
                 const messages = visitors.map(visitor => ({
                     phone: visitor.phone,
-                    ContentSid: "HX45ac2c911363fad7a701f72b3ff7a2ce",
-                    template_name: "boasvindasvisitantes",
-                    params: { visitor_name: visitor.name }
+                    ContentSid: "HX45ac2c911363fad7a701f72b3ff7a2ce",  // ID do template
+                    template_name: "boasvindasvisitantes",            // Nome do template
+                    params: {
+                        visitor_name: visitor.name
+                    }
                 }));
+
                 sendMessagesManual(messages);
             } else {
                 throw new Error('Erro ao buscar visitantes.');
             }
         })
-        .catch(error => showError(`Erro ao buscar visitantes: ${error.message}`));
+        .catch(error => showError(`Erro ao buscar visitantes: ${error.message}`));  // Correção aqui
 }
+
 
 function sendMessagesManual(messages) {
     messages.forEach(visitor => {
         apiRequest('send-message-manual', 'POST', {
             numero: visitor.phone,
-            ContentSid: "HX45ac2c911363fad7a701f72b3ff7a2ce",
+            ContentSid: "HX45ac2c911363fad7a701f72b3ff7a2ce",  // SID do template Twilio
             params: visitor.params
         })
         .then(data => {
@@ -352,15 +365,17 @@ function sendMessagesManual(messages) {
 
 let currentPage = 1;
 const itemsPerPage = 10;
-let statusData = [];
+let statusData = []; // Array para armazenar todos os dados de status
 
+// Função para carregar os dados da página atual
 function loadPageData(page) {
     const startIndex = (page - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const paginatedItems = statusData.slice(startIndex, endIndex);
 
+    console.log('Itens para a página atual:', paginatedItems); // Verifica os itens da página atual
+
     const statusList = document.getElementById('statusList');
-    if (!statusList) return;
     statusList.innerHTML = '';
 
     paginatedItems.forEach(item => {
@@ -377,7 +392,9 @@ function loadPageData(page) {
 function monitorStatus() {
     fetch(`${baseUrl}/monitor-status`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+            'Content-Type': 'application/json'
+        }
     })
     .then(response => {
         if (!response.ok) {
@@ -387,21 +404,28 @@ function monitorStatus() {
     })
     .then(data => {
         statusData = data;
+        console.log(statusData);
+
+        // Exibe apenas o botão "Monitorar Status"
         toggleButtons(true);
-        document.getElementById('statusLog')?.classList.remove('hidden');
-        loadPageData(currentPage);
+
+        // Remove a classe 'hidden' para garantir que a tabela seja visível
+        document.getElementById('statusLog').classList.remove('hidden');
+
+        loadPageData(currentPage); // Carrega a primeira página
     })
     .catch(error => showError(`Erro ao buscar status: ${error.message}`));
 }
 
-document.getElementById('nextPageButton')?.addEventListener('click', () => {
+// Eventos de paginação
+document.getElementById('nextPageButton').addEventListener('click', () => {
     if ((currentPage * itemsPerPage) < statusData.length) {
         currentPage++;
         loadPageData(currentPage);
     }
 });
 
-document.getElementById('prevPageButton')?.addEventListener('click', () => {
+document.getElementById('prevPageButton').addEventListener('click', () => {
     if (currentPage > 1) {
         currentPage--;
         loadPageData(currentPage);
@@ -458,29 +482,38 @@ function registerVisitor(visitorData) {
     apiRequest('register', 'POST', visitorData)
         .then(data => {
             alert(data.message || 'Registro bem-sucedido!');
+            // Limpar o formulário após o cadastro bem-sucedido
             document.getElementById('visitorForm').reset();
+            // Limpar mensagens de erro, se houver
             clearError();
         })
         .catch(error => showError(`Erro ao registrar: ${error.message}`, 'registerErrorContainer'));
 }
 
 function showError(message, containerId) {
+    // Seleciona o container onde a mensagem de erro será exibida
     const errorContainer = document.getElementById(containerId);
-    if (!errorContainer) return;
+
+    // Cria um elemento para a mensagem de erro
     const errorElement = document.createElement('div');
-    errorElement.className = 'error-message';
+    errorElement.className = 'error-message'; // Adicione uma classe para estilização
     errorElement.textContent = message;
+
+    // Limpa qualquer mensagem de erro anterior
     errorContainer.innerHTML = '';
+
+    // Adiciona a mensagem de erro ao container
     errorContainer.appendChild(errorElement);
 }
 
 function clearError() {
+    // Limpa a mensagem de erro, se houver
     const errorContainer = document.getElementById('registerErrorContainer');
-    if (errorContainer) errorContainer.innerHTML = '';
+    errorContainer.innerHTML = '';
 }
-
 function handleMemberFormSubmission(event) {
     event.preventDefault();
+
     const formData = new FormData(event.target);
     const data = {
         name: formData.get('name'),
@@ -489,15 +522,18 @@ function handleMemberFormSubmission(event) {
         membershipDate: formData.get('membershipDate'),
     };
 
+    // Enviar dados do formulário de membro (substitua com sua lógica real)
     fetch(`${baseUrl}/api/membros`, {
         method: 'POST',
         body: JSON.stringify(data),
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+            'Content-Type': 'application/json',
+        },
     })
     .then(response => response.json())
     .then(result => {
         alert('Membro cadastrado com sucesso!');
-        appState.currentView = 'options';
+        appState.currentView = 'options'; // Redireciona para as opções após envio
         updateUI();
     })
     .catch(error => {
@@ -517,7 +553,10 @@ function loadDashboardData() {
             document.getElementById('discipuladosAtivos').textContent = data.discipuladosAtivos || '0';
             document.getElementById("totalHomensDiscipulado").textContent = data.totalHomensDiscipulado || '0';
             document.getElementById("totalMulheresDiscipulado").textContent = data.totalMulheresDiscipulado || '0';
+
             document.getElementById('grupos_comunhao').textContent = data.grupos_comunhao || '0';
+
+            // Exibir dados de gênero
             document.getElementById('totalHomens').textContent = data.Homens || '0';
             document.getElementById('percentualHomens').textContent = data.Homens_Percentual + '%' || '0%';
             document.getElementById('totalMulheres').textContent = data.Mulheres || '0';
@@ -528,23 +567,28 @@ function loadDashboardData() {
         });
 }
 
+
+// Chamar a função para carregar os dados assim que a página estiver pronta
+document.addEventListener("DOMContentLoaded", loadDashboardData);
+
 function toggleButtons(showOnlyMonitorStatus) {
     const buttons = document.querySelectorAll('#buttonContainer button');
-    const infoCards = document.getElementById('infoCardsContainer');
     buttons.forEach(button => {
         if (showOnlyMonitorStatus && button.id !== 'monitorStatusButton') {
-            button.classList.add('hidden');
-            if (infoCards) infoCards.classList.add('hidden');
+            button.classList.add('hidden'); // Esconde todos os botões, exceto "Monitorar Status"
+            document.getElementById('infoCardsContainer').classList.add('hidden');
         } else {
-            button.classList.remove('hidden');
-            if (infoCards) infoCards.classList.remove('hidden');
+            button.classList.remove('hidden'); // Mostra o botão
+            document.getElementById('infoCardsContainer').classList.remove('hidden');
         }
     });
 }
 
 // --- CORRIGIDO: Removido localStorage.getItem('token') ---
 function apiRequest(endpoint, method = 'GET', body = null) {
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = {
+        'Content-Type': 'application/json'
+    };
     const options = { method, headers };
     if (body) options.body = JSON.stringify(body);
 
@@ -563,38 +607,51 @@ function apiRequest(endpoint, method = 'GET', body = null) {
         });
 }
 
+// Função para limpar os campos do formulário de Acolhido
 function clearAcolhidoForm() {
     document.getElementById('nome').value = '';
     document.getElementById('telefone').value = '';
-    document.getElementById('situacao').value = '';
+    document.getElementById('situacao').value = ''; // Limpa o campo de situação
     document.getElementById('observacao').value = '';
 }
 
+// Função para tratar a submissão do formulário de Acolhido
 function handleAcolhidoFormSubmission(event) {
     event.preventDefault();
 
+    // Coleta os dados do formulário de Acolhido
     const nome = document.getElementById('nome').value;
     const telefone = document.getElementById('telefone').value;
     const situacao = document.getElementById('situacao').value;
     const observacao = document.getElementById('observacao').value;
-    const dataCadastro = new Date().toISOString();
+    const dataCadastro = new Date().toISOString(); // Data atual
 
+    // Validação básica
     if (!nome || !telefone || !situacao) {
         alert("Por favor, preencha todos os campos obrigatórios.");
         return;
     }
 
+    // Envia os dados para o servidor
     fetch(`${baseUrl}/api/acolhido`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, telefone, situacao, observacao, data_cadastro: dataCadastro })
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            nome,
+            telefone,
+            situacao,
+            observacao,
+            data_cadastro: dataCadastro,
+        }),
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             alert("Acolhido cadastrado com sucesso!");
-            clearAcolhidoForm();
-            appState.currentView = 'options';
+            clearAcolhidoForm(); // Limpa o formulário após o cadastro
+            appState.currentView = 'options'; // Volta para a tela de opções
             updateUI();
         } else {
             alert("Erro ao cadastrar acolhido.");
@@ -606,4 +663,5 @@ function handleAcolhidoFormSubmission(event) {
     });
 }
 
-setInterval(loadDashboardData, 1200000);
+// Atualização temporizada a cada 10 segundos
+setInterval(loadDashboardData, 1200000); // 10000 ms = 60 segundos
