@@ -309,3 +309,79 @@ button#backToOptionsButtonStatus:hover {
     text-overflow: ellipsis; /* Trunca o texto se ele for muito longo */
 }
 
+/* Estilos para o Painel de Treinamento da IA */
+#iaTrainingPanel {
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#iaTrainingPanel .info-cards {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+#iaTrainingPanel .info-card {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 6px;
+    text-align: center;
+    flex: 1;
+}
+
+#iaTrainingPanel h3 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+#iaTrainingPanel ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#iaTrainingPanel li {
+    background: #f8f9fa;
+    padding: 10px;
+    margin: 5px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+#iaTrainingPanel li:hover {
+    background: #e9ecef;
+}
+
+#iaTrainingPanel .form-container {
+    margin-top: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+#iaTrainingPanel .form-group {
+    margin-bottom: 15px;
+}
+
+#iaTrainingPanel label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+#iaTrainingPanel input[type="text"],
+#iaTrainingPanel textarea,
+#iaTrainingPanel select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+#iaTrainingPanel button {
+    margin-right: 10px;
+}
