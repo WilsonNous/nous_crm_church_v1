@@ -8,6 +8,7 @@ const appState = {
 
 // --- FUNÇÕES PARA O PAINEL DE TREINAMENTO DA IA ---
 let currentTeachQuestion = null;
+let perguntasPendentes = []; // Cache das perguntas pendentes
 
 function toggleSection(sectionId) {
     // Oculta todas as seções
@@ -25,52 +26,52 @@ function toggleSection(sectionId) {
     if (targetSection) targetSection.classList.remove('hidden');
 }
 
-// --- CORRIGIDO: fetch com credentials: 'include' ---
+// --- NOVA FUNÇÃO: Carregar Perguntas Pendentes da IA ---
 function loadPendingQuestions() {
-    fetch('/admin/integra/learn', { credentials: 'include' }) // <-- ADICIONADO
+    fetch(`${baseUrl}/api/ia/pending-questions`, { credentials: 'include' })
         .then(response => {
             if (!response.ok) {
-                // Se não for JSON, provavelmente é um redirect para login
-                if (response.headers.get('content-type')?.includes('text/html')) {
-                    window.location.href = '/admin/integra/login';
-                    return;
-                }
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
+            perguntasPendentes = data.questions || [];
             const list = document.getElementById('pendingQuestionsList');
-            if (!list) return; // Proteção contra elementos não encontrados
-            list.innerHTML = '';
+            const countEl = document.getElementById('pendingQuestionsCount');
+            
+            if (!list || !countEl) return;
 
-            if (data.length === 0) {
+            list.innerHTML = '';
+            countEl.textContent = perguntasPendentes.length;
+
+            if (perguntasPendentes.length === 0) {
                 list.innerHTML = '<li>Nenhuma pergunta pendente.</li>';
-                const countEl = document.getElementById('pendingQuestionsCount');
-                if (countEl) countEl.textContent = '0';
                 return;
             }
 
-            data.forEach(question => {
+            perguntasPendentes.forEach((question, index) => {
                 const li = document.createElement('li');
                 li.textContent = question.question;
-                li.dataset.id = question.id;
-                li.addEventListener('click', () => showTeachForm(question));
+                li.dataset.index = index;
+                li.addEventListener('click', () => showTeachForm(index));
                 list.appendChild(li);
             });
-
-            const countEl = document.getElementById('pendingQuestionsCount');
-            if (countEl) countEl.textContent = data.length;
         })
         .catch(error => {
-            console.error('Erro ao carregar perguntas pendentes:', error);
+            console.error('Erro ao carregar perguntas pendentes da IA:', error);
             const list = document.getElementById('pendingQuestionsList');
             if (list) list.innerHTML = '<li>Erro ao carregar dados.</li>';
         });
 }
 
-function showTeachForm(question) {
+// --- NOVA FUNÇÃO: Mostrar Formulário de Ensino da IA ---
+function showTeachForm(index) {
+    const question = perguntasPendentes[index];
+    if (!question) return;
+
     currentTeachQuestion = question;
+    
     const questionEl = document.getElementById('teachQuestion');
     const answerEl = document.getElementById('teachAnswer');
     const categoryEl = document.getElementById('teachCategory');
@@ -84,6 +85,7 @@ function showTeachForm(question) {
     if (listEl) listEl.classList.add('hidden');
 }
 
+// --- NOVA FUNÇÃO: Toggle Formulário de Ensino da IA ---
 function toggleTeachForm(show) {
     const formEl = document.getElementById('teachForm');
     const listEl = document.getElementById('trainingList');
@@ -91,7 +93,7 @@ function toggleTeachForm(show) {
     if (listEl) listEl.classList.toggle('hidden', show);
 }
 
-// --- CORRIGIDO: fetch com credentials: 'include' ---
+// --- NOVA FUNÇÃO: Submeter Ensino da IA ---
 function handleTeachSubmit(event) {
     event.preventDefault();
 
@@ -109,21 +111,18 @@ function handleTeachSubmit(event) {
         category: category
     };
 
-    // --- CORRIGIDO: fetch com credentials: 'include' ---
-    fetch('/admin/integra/teach', {
+    fetch(`${baseUrl}/api/ia/teach`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
-        credentials: 'include' // <-- ADICIONADO
+        credentials: 'include'
     })
     .then(response => response.json())
     .then(data => {
         if (data.status === 'success') {
             alert('IA ensinada com sucesso!');
             toggleTeachForm(false);
-            loadPendingQuestions(); // Atualiza a lista
+            loadPendingQuestions(); // Recarrega a lista
         } else {
             alert('Erro: ' + (data.error || 'Desconhecido'));
         }
@@ -175,8 +174,7 @@ function initializeEventListeners() {
         'backToOptionsCadastroAcolhido': () => { appState.currentView = 'options'; updateUI(); },
         'backToOptionsStatusButton': () => {
             appState.currentView = 'options';
-            const statusLog = document.getElementById('statusLog');
-            if (statusLog) statusLog.classList.add('hidden');
+            document.getElementById('statusLog')?.classList.add('hidden');
             toggleButtons(false);
         },
         'backToOptionsWhatsappButton': () => { appState.currentView = 'options'; updateUI(); },
@@ -189,11 +187,13 @@ function initializeEventListeners() {
         
         // --- NOVOS EVENTOS PARA O PAINEL DE IA ---
         'showIATrainingButton': () => {
-            toggleSection('iaTrainingPanel');
-            loadPendingQuestions();
+            appState.currentView = 'iaTrainingPanel';
+            updateUI();
+            loadPendingQuestions(); // Carrega as perguntas ao abrir o painel
         },
-        'backToOptionsIAButton': () => { toggleSection('options'); },
-        'cancelTeachButton': () => { toggleTeachForm(false); }
+        'backToOptionsIAButton': () => { appState.currentView = 'options'; updateUI(); },
+        'cancelTeachButton': () => { toggleTeachForm(false); },
+        'teachForm': handleTeachSubmit // Adiciona o listener para o submit do form
         // --- FIM DOS NOVOS EVENTOS ---
     };
 
@@ -211,7 +211,7 @@ function updateUI() {
     const allSections = [
         'options', 'formContainer', 'memberFormContainer',
         'whatsappLog', 'statusLog', 'infoCardsContainer',
-        'loginContainer', 'acolhidoFormContainer', 'iaTrainingPanel'
+        'loginContainer', 'acolhidoFormContainer', 'iaTrainingPanel' // Adicionado o painel de IA
     ];
 
     allSections.forEach(sectionId => {
@@ -258,6 +258,11 @@ function updateUI() {
         case 'statusLog':
             document.getElementById('statusLog')?.classList.remove('hidden');
             break;
+        // --- NOVO ESTADO: Painel de Treinamento da IA ---
+        case 'iaTrainingPanel':
+            document.getElementById('iaTrainingPanel')?.classList.remove('hidden');
+            break;
+        // --- FIM DO NOVO ESTADO ---
         default:
             console.log('Visão não reconhecida:', appState.currentView);
     }
@@ -271,9 +276,7 @@ function handleLogin(event) {
 
     fetch(`${baseUrl}/login`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
     })
     .then(response => {
@@ -377,7 +380,9 @@ function monitorStatus() {
         headers: { 'Content-Type': 'application/json' }
     })
     .then(response => {
-        if (!response.ok) throw new Error(`Erro ao buscar status: ${response.statusText}`);
+        if (!response.ok) {
+            throw new Error(`Erro ao buscar status: ${response.statusText}`);
+        }
         return response.json();
     })
     .then(data => {
@@ -406,6 +411,7 @@ document.getElementById('prevPageButton')?.addEventListener('click', () => {
 function handleFormSubmission(event) {
     event.preventDefault();
     const visitorData = collectFormData();
+
     if (validateForm(visitorData)) {
         registerVisitor(visitorData);
     } else {
@@ -414,7 +420,7 @@ function handleFormSubmission(event) {
 }
 
 function collectFormData() {
-    const phoneInput = document.getElementById('phone')?.value || '';
+    const phoneInput = document.getElementById('phone').value;
     const validPhone = validatePhoneNumber(phoneInput);
 
     if (validPhone === null) {
@@ -423,18 +429,18 @@ function collectFormData() {
     }
 
     return {
-        name: document.getElementById('name')?.value || '',
+        name: document.getElementById('name').value,
         phone: validPhone,
-        email: document.getElementById('email')?.value || '',
-        birthdate: document.getElementById('birthdate')?.value || '',
-        city: document.getElementById('city')?.value || '',
+        email: document.getElementById('email').value,
+        birthdate: document.getElementById('birthdate').value,
+        city: document.getElementById('city').value,
         gender: document.querySelector('#gender')?.value || '',
-        maritalStatus: document.getElementById('maritalStatus')?.value || '',
-        currentChurch: document.getElementById('currentChurch')?.value || '',
-        attendingChurch: document.getElementById('attendingChurch')?.value || '',
-        referral: document.getElementById('referral')?.value || '',
-        membership: document.getElementById('membership')?.checked || false,
-        prayerRequest: document.getElementById('prayerRequest')?.value || '',
+        maritalStatus: document.getElementById('maritalStatus').value,
+        currentChurch: document.getElementById('currentChurch').value,
+        attendingChurch: document.getElementById('attendingChurch').value,
+        referral: document.getElementById('referral').value,
+        membership: document.getElementById('membership').checked,
+        prayerRequest: document.getElementById('prayerRequest').value,
         contactTime: document.querySelector('input[name="contactTime"]:checked')?.value || ''
     };
 }
@@ -452,7 +458,7 @@ function registerVisitor(visitorData) {
     apiRequest('register', 'POST', visitorData)
         .then(data => {
             alert(data.message || 'Registro bem-sucedido!');
-            document.getElementById('visitorForm')?.reset();
+            document.getElementById('visitorForm').reset();
             clearError();
         })
         .catch(error => showError(`Erro ao registrar: ${error.message}`, 'registerErrorContainer'));
@@ -461,7 +467,11 @@ function registerVisitor(visitorData) {
 function showError(message, containerId) {
     const errorContainer = document.getElementById(containerId);
     if (!errorContainer) return;
-    errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
+    const errorElement = document.createElement('div');
+    errorElement.className = 'error-message';
+    errorElement.textContent = message;
+    errorContainer.innerHTML = '';
+    errorContainer.appendChild(errorElement);
 }
 
 function clearError() {
