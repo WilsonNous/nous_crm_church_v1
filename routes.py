@@ -8,7 +8,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from twilio.twiml.messaging_response import MessagingResponse
 import pandas as pd
 
-from ia_integracao import IAIntegracao
 from botmsg import processar_mensagem, enviar_mensagem_manual
 from database import (salvar_visitante, visitante_existe,
                       normalizar_para_recebimento, listar_todos_visitantes,
@@ -21,7 +20,10 @@ from database import (salvar_visitante, visitante_existe,
                       membro_existe, salvar_membro, obter_total_membros, obter_total_visitantes,
                       obter_total_discipulados, obter_dados_genero, get_db_connection)
 
+# --- INSTÂNCIA GLOBAL DA IA DE INTEGRAÇÃO ---
+from ia_integracao import IAIntegracao
 ia_integracao = IAIntegracao()
+# --- FIM DA INSTÂNCIA GLOBAL ---
 
 application = Flask(__name__)
 
@@ -479,14 +481,34 @@ def register_routes(app_instance: Flask) -> None:
             "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }), 200
 
-        # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ (SEM AUTENTICAÇÃO ADICIONAL) ---
+    # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ ---
 
-    # Rota para servir o painel de treinamento da IA
-    @app_instance.route('/admin/integra/panel')
-    def integra_panel():
-        # Verifica se o usuário está logado (via JWT, não sessão)
-        # Esta verificação já é feita pelo middleware de autenticação JWT
-        # Se chegou até aqui, está autenticado
+    @app_instance.route('/admin/integra/login', methods=['GET', 'POST'])
+    def integra_admin_login():
+        logging.info(f"🔑 Secret Key atual: {application.secret_key}")  # Log de depuração
+        if request.method == 'POST':
+            password = request.form.get('password')
+            correct_password = os.getenv('ADMIN_PASSWORD', 's3cr3ty')
+            if password == correct_password:
+                session['integra_admin_logged_in'] = True
+                return redirect(url_for('integra_learn_dashboard'))
+            return '<script>alert("Senha incorreta!"); window.location="/admin/integra/login";</script>', 401
+        return '''
+            <html><body style="font-family:Arial;text-align:center;padding:50px;">
+                <h3>🔐 Login Admin - Integra+</h3>
+                <form method="post" style="display:inline-block;text-align:left;">
+                    <input type="password" name="password" placeholder="Senha" required style="padding:10px;
+                    width:300px;"><br><br>
+                    <button type="submit" style="padding:10px 20px;background:#007bff;color:white;border:none;
+                    ">Entrar</button>
+                </form>
+            </body></html>
+        '''
+
+    @app_instance.route('/admin/integra/learn')
+    def integra_learn_dashboard():
+        if not session.get('integra_admin_logged_in'):
+            return redirect(url_for('integra_admin_login'))
 
         conn = get_db_connection()
         if not conn:
@@ -501,69 +523,12 @@ def register_routes(app_instance: Flask) -> None:
         cursor.close()
         conn.close()
 
-        # Retorna o HTML do painel de treinamento
-        return render_template('admin_integra_panel.html', questions=questions)
+        return render_template('admin_integra_learn.html', questions=questions)
 
-    # Rota para buscar as perguntas pendentes (AJAX)
-    @app_instance.route('/admin/integra/learn', methods=['GET'])
-    def integra_learn():
-        # Verifica se o usuário está logado (via JWT, não sessão)
-        # Esta verificação já é feita pelo middleware de autenticação JWT
-        # Se chegou até aqui, está autenticado
-
-        conn = get_db_connection()
-        if not conn:
-            return jsonify({"error": "Erro de conexão"}), 500
-
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT id, user_id, question, created_at FROM unknown_questions 
-            WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50
-        """)
-        questions = cursor.fetchall()
-        cursor.close()
-        conn.close()
-
-        return jsonify(questions), 200
-
-    @app_instance.route('/api/ia/pending-questions', methods=['GET'])
-    def get_pending_questions():
-        """Retorna as perguntas pendentes para treinamento da IA."""
-        try:
-            questions = ia_integracao.obter_perguntas_pendentes()
-            return jsonify({"questions": questions}), 200
-        except Exception as e:
-            logging.error(f"Erro ao obter perguntas pendentes: {e}")
-            return jsonify({"error": str(e)}), 500
-
-    @app_instance.route('/api/ia/teach', methods=['POST'])
-    def teach_ia():
-        """Ensina a IA com um novo par de pergunta e resposta."""
-        try:
-            data = request.get_json()
-            pergunta = data.get('question', '').strip()
-            resposta = data.get('answer', '').strip()
-            categoria = data.get('category', '').strip()
-
-            if not all([pergunta, resposta, categoria]):
-                return jsonify({"error": "Campos obrigatórios"}), 400
-
-            if ia_integracao.ensinar_ia(pergunta, resposta, categoria):
-                return jsonify({"status": "success"}), 200
-            else:
-                return jsonify({"error": "Erro ao ensinar IA"}), 500
-        except Exception as e:
-            logging.error(f"Erro ao ensinar IA: {e}")
-            return jsonify({"error": str(e)}), 500
-
-    # --- FIM DAS NOVAS ROTAS PARA O PAINEL DE TREINAMENTO DA IA ---
-
-    # Rota para ensinar a IA (AJAX)
     @app_instance.route('/admin/integra/teach', methods=['POST'])
     def teach_integra():
-        # Verifica se o usuário está logado (via JWT, não sessão)
-        # Esta verificação já é feita pelo middleware de autenticação JWT
-        # Se chegou até aqui, está autenticado
+        if not session.get('integra_admin_logged_in'):
+            return jsonify({'error': 'Acesso negado'}), 403
 
         data = request.get_json()
         question = data.get('question', '').strip()
@@ -597,6 +562,7 @@ def register_routes(app_instance: Flask) -> None:
             cursor.close()
             conn.close()
 
+    # --- FIM DAS NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ ---
 
 # Chamada para registrar as rotas
 register_routes(application)
