@@ -22,15 +22,21 @@ from database import (salvar_visitante, visitante_existe,
                       obter_total_discipulados, obter_dados_genero)
 
 application = Flask(__name__)
-# Configuração da Chave Secreta para Sessões (OBRIGATÓRIO)
-application.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback-secret-key-12345')
-application.config['SESSION_TYPE'] = 'filesystem'  # Adicione esta linha
 
-logging.info(f"FLASK_SECRET_KEY definida como: {application.secret_key}")
+# --- FORÇAR A DEFINIÇÃO DA SECRET KEY ---
+flask_secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_para_dev')
+if not flask_secret_key or flask_secret_key == '':
+    raise RuntimeError("FLASK_SECRET_KEY não definida! Verifique as variáveis de ambiente.")
+application.secret_key = flask_secret_key
+
+logging.info(f"✅ FLASK_SECRET_KEY definida como: {application.secret_key}")
 
 # Configuração JWT
 application.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default_secret_key')
 jwt = JWTManager(application)
+
+# --- LOG DE DEPURAÇÃO ---
+logging.info("✅ Aplicação Flask configurada com sucesso!")
 
 # Configuração de Upload
 UPLOAD_FOLDER = '/tmp/'
@@ -475,6 +481,7 @@ def register_routes(app_instance: Flask) -> None:
 
     @app_instance.route('/admin/integra/login', methods=['GET', 'POST'])
     def integra_admin_login():
+        logging.info(f"🔑 Secret Key atual: {application.secret_key}")  # Log de depuração
         if request.method == 'POST':
             password = request.form.get('password')
             correct_password = os.getenv('ADMIN_PASSWORD', 's3cr3ty')
@@ -554,6 +561,7 @@ def register_routes(app_instance: Flask) -> None:
 
 # Chamada para registrar as rotas
 register_routes(application)
+
 
 
 
