@@ -2,7 +2,7 @@
 import logging
 import os
 from datetime import datetime
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 from flask_jwt_extended import JWTManager, create_access_token
 from werkzeug.security import generate_password_hash, check_password_hash
 from twilio.twiml.messaging_response import MessagingResponse
@@ -483,28 +483,6 @@ def register_routes(app_instance: Flask) -> None:
 
     # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ ---
 
-    @app_instance.route('/admin/integra/login', methods=['GET', 'POST'])
-    def integra_admin_login():
-        logging.info(f"🔑 Secret Key atual: {application.secret_key}")  # Log de depuração
-        if request.method == 'POST':
-            password = request.form.get('password')
-            correct_password = os.getenv('ADMIN_PASSWORD', 's3cr3ty')
-            if password == correct_password:
-                session['integra_admin_logged_in'] = True
-                return redirect(url_for('integra_learn_dashboard'))
-            return '<script>alert("Senha incorreta!"); window.location="/admin/integra/login";</script>', 401
-        return '''
-            <html><body style="font-family:Arial;text-align:center;padding:50px;">
-                <h3>🔐 Login Admin - Integra+</h3>
-                <form method="post" style="display:inline-block;text-align:left;">
-                    <input type="password" name="password" placeholder="Senha" required style="padding:10px;
-                    width:300px;"><br><br>
-                    <button type="submit" style="padding:10px 20px;background:#007bff;color:white;border:none;
-                    ">Entrar</button>
-                </form>
-            </body></html>
-        '''
-
     @app_instance.route('/admin/integra/learn')
     def integra_learn_dashboard():
         if not session.get('integra_admin_logged_in'):
@@ -563,6 +541,7 @@ def register_routes(app_instance: Flask) -> None:
             conn.close()
 
     # --- FIM DAS NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ ---
+
 
 # Chamada para registrar as rotas
 register_routes(application)
