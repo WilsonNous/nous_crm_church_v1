@@ -9,7 +9,6 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
 # --- Configurações do Flask ---
-# ⚠️ MUDANÇA CRÍTICA: Exportar como 'application' para o Render
 application = Flask(__name__)
 CORS(application)
 
@@ -32,22 +31,9 @@ logging.info("✅ Aplicação Flask configurada com sucesso!")
 from routes import register_routes
 register_routes(application)
 
-# --- NOVA ROTA: HEALTH CHECK PARA MANTER A APLICAÇÃO ACORDADA ---
-@application.route('/health', methods=['GET'])
-def health_check():
-    """
-    Endpoint para verificar se a aplicação está viva.
-    Usado para evitar que a instância do Render durma.
-    """
-    return {
-        "status": "alive",
-        "message": "Bot de Integração da Igreja Mais de Cristo Canasvieiras está ativo!",
-        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    }, 200
+# --- REMOVER A ROTA /health DAQUI - ELA JÁ EXISTE EM routes.py ---
+# A rota /health deve ficar APENAS em routes.py
 
 # --- CONFIGURAÇÃO DE LOGS ---
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
-
-# --- REMOVIDO: if __name__ == "__main__": ---
-# O Render não executa este bloco. Ele procura por 'application' no arquivo 'crmlogic.py'.
