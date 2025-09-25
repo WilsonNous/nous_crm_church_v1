@@ -526,39 +526,6 @@ def register_routes(app_instance: Flask) -> None:
 
         return jsonify(questions), 200
 
-    # --- NOVAS ROTAS PARA O PAINEL DE TREINAMENTO DA IA ---
-
-    @app_instance.route('/api/ia/teach', methods=['POST'])
-    def teach_ia():
-        """
-        Ensina a IA com um novo par de pergunta e resposta.
-        """
-        try:
-            data = request.get_json()
-            if not data:
-                return jsonify({"error": "Nenhum dado JSON foi enviado."}), 400
-
-            pergunta = data.get('question', '').strip()
-            resposta = data.get('answer', '').strip()
-            categoria = data.get('category', '').strip()
-
-            if not all([pergunta, resposta, categoria]):
-                return jsonify({"error": "Campos 'question', 'answer' e 'category' são obrigatórios."}), 400
-
-            # --- CHAMADA CORRIGIDA: Usando a instância GLOBAL da IA ---
-            if ia_integracao.ensinar_ia(pergunta, resposta, categoria):
-                logging.info(f"IA ensinada com sucesso: {pergunta}")
-                return jsonify({"status": "success", "message": "IA ensinada com sucesso!"}), 200
-            else:
-                logging.error(f"Erro ao salvar par de treinamento: {pergunta}")
-                return jsonify({"error": "Erro ao salvar par de treinamento."}), 500
-
-        except Exception as e:
-            logging.error(f"Erro ao ensinar IA: {e}")
-            return jsonify({"error": f"Erro interno do servidor: {str(e)}"}), 500
-
-    # --- ROTAS PARA TREINAMENTO DA IA ---
-
     @app_instance.route('/api/ia/pending-questions', methods=['GET'])
     def get_pending_questions():
         """Retorna as perguntas pendentes para treinamento da IA."""
