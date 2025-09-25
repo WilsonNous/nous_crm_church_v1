@@ -362,8 +362,8 @@ def register_routes(app_instance: Flask) -> None:
                 logging.error("Template não fornecido.")
                 return jsonify({"error": "Template não fornecido"}), 400
             if params is None:
-                logging.error("Parâmetros não fornecidos.")
-                return jsonify({"error": "Parâmetros não fornecidos"}), 400
+                logging.error("Parámetros não fornecidos.")
+                return jsonify({"error": "Parámetros não fornecidos"}), 400
 
             logging.info(f"Número normalizado antes de envio: {numero}")
 
@@ -471,7 +471,8 @@ def register_routes(app_instance: Flask) -> None:
         if not conn:
             return "Erro de conexão", 500
 
-        cursor = conn.cursor(dictionary=True)
+        # CORREÇÃO: Removido dictionary=True - PyMySQL já retorna dicionários
+        cursor = conn.cursor()
         cursor.execute("""
             SELECT id, user_id, question, created_at FROM unknown_questions 
             WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50
