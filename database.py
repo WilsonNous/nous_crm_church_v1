@@ -942,3 +942,97 @@ def obter_dados_genero():
 def formatar_com_pontos(numero):
     """Formata o número com ponto como separador de milhar."""
     return "{:,.0f}".format(numero).replace(',', '.')
+
+
+# --- NOVAS FUNÇÕES PARA TREINAMENTO DA IA ---
+
+def salvar_par_treinamento(pergunta: str, resposta: str, categoria: str = 'geral', fonte: str = 'manual'):
+    """
+    Salva um novo par de pergunta e resposta para treinar a IA.
+    """
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO training_pairs (question, answer, category, fonte, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, NOW(), NOW())
+            ON DUPLICATE KEY UPDATE answer = VALUES(answer), updated_at = NOW()
+        """, (pergunta, resposta, categoria, fonte))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        logging.error(f"Erro ao salvar par de treinamento: {e}")
+        return False
+
+
+def obter_pares_treinamento():
+    """
+    Retorna todos os pares de pergunta e resposta da tabela 'training_pairs'.
+    """
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return []
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT question, answer FROM training_pairs 
+            ORDER BY id DESC LIMIT 1000
+        """)
+        pares = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return pares
+    except Exception as e:
+        logging.error(f"Erro ao obter pares de treinamento: {e}")
+        return []
+
+
+def obter_perguntas_pendentes():
+    """
+    Retorna as últimas perguntas não respondidas da IA.
+    """
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return []
+
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT id, user_id, question, created_at FROM unknown_questions 
+            WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50
+        """)
+        perguntas = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return perguntas
+    except Exception as e:
+        logging.error(f"Erro ao obter perguntas pendentes: {e}")
+        return []
+
+
+def marcar_pergunta_como_respondida(pergunta: str):
+    """
+    Marca uma pergunta como respondida.
+    """
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return False
+
+        cursor = conn.cursor()
+        cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (pergunta,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+    except Exception as e:
+        logging.error(f"Erro ao marcar pergunta como respondida: {e}")
+        return False
+
+# --- FIM DAS NOVAS FUNÇÕES PARA TREINAMENTO DA IA ---

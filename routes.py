@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from twilio.twiml.messaging_response import MessagingResponse
 import pandas as pd
 
+from ia_integracao import IAIntegracao
 from botmsg import processar_mensagem, enviar_mensagem_manual
 from database import (salvar_visitante, visitante_existe,
                       normalizar_para_recebimento, listar_todos_visitantes,
@@ -19,6 +20,8 @@ from database import (salvar_visitante, visitante_existe,
                       salvar_conversa, atualizar_status, obter_conversa_por_visitante,
                       membro_existe, salvar_membro, obter_total_membros, obter_total_visitantes,
                       obter_total_discipulados, obter_dados_genero, get_db_connection)
+
+ia_integracao = IAIntegracao()
 
 application = Flask(__name__)
 
@@ -476,6 +479,21 @@ def register_routes(app_instance: Flask) -> None:
             "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }), 200
 
+    # --- NOVO ENDPOINT: HEALTH CHECK PARA MANTER A APLICAÇÃO ACORDADA ---
+    @application.route('/health', methods=['GET'])
+    def health_check():
+        """
+        Endpoint para verificar se a aplicação está viva.
+        Usado para evitar que a instância do Render durma.
+        """
+        return jsonify({
+            "status": "alive",
+            "message": "Bot de Integração da Igreja Mais de Cristo Canasvieiras está ativo!",
+            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }), 200
+
+    # --- FIM DO ENDPOINT HEALTH CHECK ---
+
     # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ (SEM AUTENTICAÇÃO ADICIONAL) ---
 
     # Rota para servir o painel de treinamento da IA
@@ -549,40 +567,61 @@ def register_routes(app_instance: Flask) -> None:
 
     @app_instance.route('/api/ia/teach', methods=['POST'])
     def teach_ia():
+        """
+        Ensina a IA com um novo par de pergunta e resposta.
+        """
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "Nenhum dado JSON foi enviado."}), 400
+
+            pergunta = data.get('question', '').strip()
+            resposta = data.get('answer', '').strip()
+            categoria = data.get('category', '').strip()
+
+            if not all([pergunta, resposta, categoria]):
+                return jsonify({"error": "Campos 'question', 'answer' e 'category' são obrigatórios."}), 400
+
+            # --- CHAMADA CORRIGIDA: Usando a instância GLOBAL da IA ---
+            if ia_integracao.ensinar_ia(pergunta, resposta, categoria):
+                logging.info(f"IA ensinada com sucesso: {pergunta}")
+                return jsonify({"status": "success", "message": "IA ensinada com sucesso!"}), 200
+            else:
+                logging.error(f"Erro ao salvar par de treinamento: {pergunta}")
+                return jsonify({"error": "Erro ao salvar par de treinamento."}), 500
+
+        except Exception as e:
+            logging.error(f"Erro ao ensinar IA: {e}")
+            return jsonify({"error": f"Erro interno do servidor: {str(e)}"}), 500
+
+    # --- ROTAS PARA TREINAMENTO DA IA ---
+
+    @app_instance.route('/api/ia/pending-questions', methods=['GET'])
+    def get_pending_questions():
+        """Retorna as perguntas pendentes para treinamento da IA."""
+        try:
+            questions = ia_integracao.obter_perguntas_pendentes()
+            return jsonify({"questions": questions}), 200
+        except Exception as e:
+            logging.error(f"Erro ao obter perguntas pendentes: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    @app_instance.route('/api/ia/teach', methods=['POST'])
+    def teach_ia():
         """Ensina a IA com um novo par de pergunta e resposta."""
         try:
             data = request.get_json()
-            question = data.get('question', '').strip()
-            answer = data.get('answer', '').strip()
-            category = data.get('category', '').strip()
+            pergunta = data.get('question', '').strip()
+            resposta = data.get('answer', '').strip()
+            categoria = data.get('category', '').strip()
 
-            if not all([question, answer, category]):
+            if not all([pergunta, resposta, categoria]):
                 return jsonify({"error": "Campos obrigatórios"}), 400
 
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({"error": "Erro de conexão"}), 500
-
-            cursor = conn.cursor()
-            try:
-                # Inserir na knowledge_base
-                cursor.execute("""
-                    INSERT INTO knowledge_base (question, answer, category, created_at, updated_at)
-                    VALUES (%s, %s, %s, NOW(), NOW())
-                    ON DUPLICATE KEY UPDATE answer = VALUES(answer), updated_at = NOW()
-                """, (question, answer, category))
-
-                # Marcar como respondida
-                cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (question,))
-                conn.commit()
+            if ia_integracao.ensinar_ia(pergunta, resposta, categoria):
                 return jsonify({"status": "success"}), 200
-            except Exception as e:
-                conn.rollback()
-                logging.error(f"Erro ao ensinar IA: {e}")
-                return jsonify({"error": str(e)}), 500
-            finally:
-                cursor.close()
-                conn.close()
+            else:
+                return jsonify({"error": "Erro ao ensinar IA"}), 500
         except Exception as e:
             logging.error(f"Erro ao ensinar IA: {e}")
             return jsonify({"error": str(e)}), 500
