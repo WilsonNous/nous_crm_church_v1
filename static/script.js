@@ -144,26 +144,34 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDashboardData();
 });
 
-document.getElementById('cep').addEventListener('blur', () => {
-    const cep = document.getElementById('cep').value.replace(/\D/g, ''); // Remove caracteres não numéricos
+// Adicionar evento CEP apenas se o elemento existir
+const cepElement = document.getElementById('cep');
+if (cepElement) {
+    cepElement.addEventListener('blur', () => {
+        const cep = cepElement.value.replace(/\D/g, ''); // Remove caracteres não numéricos
 
-    if (cep.length === 8) {
-        fetch(`https://viacep.com.br/ws/${cep}/json/`)
-            .then(response => response.json())
-            .then(data => {
-                if (!data.erro) {
-                    document.getElementById('bairro').value = data.bairro || '';
-                    document.getElementById('cidade').value = data.localidade || '';
-                    document.getElementById('estado').value = data.uf || '';
-                } else {
-                    alert("CEP não encontrado.");
-                }
-            })
-            .catch(error => console.error("Erro ao buscar CEP:", error));
-    } else {
-        alert("Digite um CEP válido.");
-    }
-});
+        if (cep.length === 8) {
+            fetch(`https://viacep.com.br/ws/${cep}/json/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.erro) {
+                        const bairroEl = document.getElementById('bairro');
+                        const cidadeEl = document.getElementById('cidade');
+                        const estadoEl = document.getElementById('estado');
+                        
+                        if (bairroEl) bairroEl.value = data.bairro || '';
+                        if (cidadeEl) cidadeEl.value = data.localidade || '';
+                        if (estadoEl) estadoEl.value = data.uf || '';
+                    } else {
+                        alert("CEP não encontrado.");
+                    }
+                })
+                .catch(error => console.error("Erro ao buscar CEP:", error));
+        } else {
+            alert("Digite um CEP válido.");
+        }
+    });
+}
 
 function initializeEventListeners() {
     const listeners = {
@@ -197,7 +205,7 @@ function initializeEventListeners() {
         },
         'backToOptionsIAButton': () => { toggleSection('options'); },
         'cancelTeachButton': () => { toggleTeachForm(false); },
-        'teachForm': handleTeachSubmit // Adiciona o listener para o submit do form
+        'teachIAForm': handleTeachSubmit // Adiciona o listener para o submit do form
         // --- FIM DOS NOVOS EVENTOS ---
     };
 
@@ -224,12 +232,21 @@ function updateUI() {
     });
 
     // Ocultar botões, se necessário (por exemplo, em views de formulário ou detalhes)
-    document.getElementById('showFormButton').classList.add('hidden');
-    document.getElementById('monitorStatusButton').classList.add('hidden');
-    document.getElementById('sendWhatsappButton').classList.add('hidden');
-    document.getElementById('showMemberFormButton').classList.add('hidden');
-    document.getElementById('infoCardsContainer').classList.add('hidden');
-    document.getElementById('showAcolhidoFormButton').classList.add('hidden');
+    const showFormButton = document.getElementById('showFormButton');
+    const monitorStatusButton = document.getElementById('monitorStatusButton');
+    const sendWhatsappButton = document.getElementById('sendWhatsappButton');
+    const showMemberFormButton = document.getElementById('showMemberFormButton');
+    const infoCardsContainer = document.getElementById('infoCardsContainer');
+    const showAcolhidoFormButton = document.getElementById('showAcolhidoFormButton');
+    const showIATrainingButton = document.getElementById('showIATrainingButton');
+
+    if (showFormButton) showFormButton.classList.add('hidden');
+    if (monitorStatusButton) monitorStatusButton.classList.add('hidden');
+    if (sendWhatsappButton) sendWhatsappButton.classList.add('hidden');
+    if (showMemberFormButton) showMemberFormButton.classList.add('hidden');
+    if (infoCardsContainer) infoCardsContainer.classList.add('hidden');
+    if (showAcolhidoFormButton) showAcolhidoFormButton.classList.add('hidden');
+    if (showIATrainingButton) showIATrainingButton.classList.add('hidden');
 
     // Atualiza a exibição conforme o estado atual
     switch (appState.currentView) {
@@ -238,12 +255,13 @@ function updateUI() {
             break;
         case 'options':
             document.getElementById('options').classList.remove('hidden');
-            document.getElementById('showFormButton').classList.remove('hidden');
-            document.getElementById('monitorStatusButton').classList.remove('hidden');
-            document.getElementById('sendWhatsappButton').classList.remove('hidden');
-            document.getElementById('showMemberFormButton').classList.remove('hidden');
-            document.getElementById('showAcolhidoFormButton').classList.remove('hidden');
-            document.getElementById('infoCardsContainer').classList.remove('hidden');
+            if (showFormButton) showFormButton.classList.remove('hidden');
+            if (monitorStatusButton) monitorStatusButton.classList.remove('hidden');
+            if (sendWhatsappButton) sendWhatsappButton.classList.remove('hidden');
+            if (showMemberFormButton) showMemberFormButton.classList.remove('hidden');
+            if (infoCardsContainer) infoCardsContainer.classList.remove('hidden');
+            if (showAcolhidoFormButton) showAcolhidoFormButton.classList.remove('hidden');
+            if (showIATrainingButton) showIATrainingButton.classList.remove('hidden');
             break;
         case 'form':
             document.getElementById('formContainer').classList.remove('hidden');
@@ -269,7 +287,6 @@ function updateUI() {
             console.log('Visão não reconhecida:', appState.currentView);
     }
 }
-
 
 function handleLogin(event) {
     event.preventDefault();
@@ -348,7 +365,6 @@ function fetchVisitorsAndSendMessagesManual() {
         .catch(error => showError(`Erro ao buscar visitantes: ${error.message}`));  // Correção aqui
 }
 
-
 function sendMessagesManual(messages) {
     messages.forEach(visitor => {
         apiRequest('send-message-manual', 'POST', {
@@ -380,6 +396,8 @@ function loadPageData(page) {
     console.log('Itens para a página atual:', paginatedItems); // Verifica os itens da página atual
 
     const statusList = document.getElementById('statusList');
+    if (!statusList) return;
+    
     statusList.innerHTML = '';
 
     paginatedItems.forEach(item => {
@@ -414,7 +432,8 @@ function monitorStatus() {
         toggleButtons(true);
 
         // Remove a classe 'hidden' para garantir que a tabela seja visível
-        document.getElementById('statusLog').classList.remove('hidden');
+        const statusLog = document.getElementById('statusLog');
+        if (statusLog) statusLog.classList.remove('hidden');
 
         loadPageData(currentPage); // Carrega a primeira página
     })
@@ -422,19 +441,26 @@ function monitorStatus() {
 }
 
 // Eventos de paginação
-document.getElementById('nextPageButton').addEventListener('click', () => {
-    if ((currentPage * itemsPerPage) < statusData.length) {
-        currentPage++;
-        loadPageData(currentPage);
-    }
-});
+const nextPageButton = document.getElementById('nextPageButton');
+const prevPageButton = document.getElementById('prevPageButton');
 
-document.getElementById('prevPageButton').addEventListener('click', () => {
-    if (currentPage > 1) {
-        currentPage--;
-        loadPageData(currentPage);
-    }
-});
+if (nextPageButton) {
+    nextPageButton.addEventListener('click', () => {
+        if ((currentPage * itemsPerPage) < statusData.length) {
+            currentPage++;
+            loadPageData(currentPage);
+        }
+    });
+}
+
+if (prevPageButton) {
+    prevPageButton.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            loadPageData(currentPage);
+        }
+    });
+}
 
 function handleFormSubmission(event) {
     event.preventDefault();
@@ -487,7 +513,8 @@ function registerVisitor(visitorData) {
         .then(data => {
             alert(data.message || 'Registro bem-sucedido!');
             // Limpar o formulário após o cadastro bem-sucedido
-            document.getElementById('visitorForm').reset();
+            const visitorForm = document.getElementById('visitorForm');
+            if (visitorForm) visitorForm.reset();
             // Limpar mensagens de erro, se houver
             clearError();
         })
@@ -497,6 +524,7 @@ function registerVisitor(visitorData) {
 function showError(message, containerId) {
     // Seleciona o container onde a mensagem de erro será exibida
     const errorContainer = document.getElementById(containerId);
+    if (!errorContainer) return;
 
     // Cria um elemento para a mensagem de erro
     const errorElement = document.createElement('div');
@@ -513,8 +541,16 @@ function showError(message, containerId) {
 function clearError() {
     // Limpa a mensagem de erro, se houver
     const errorContainer = document.getElementById('registerErrorContainer');
-    errorContainer.innerHTML = '';
+    if (errorContainer) errorContainer.innerHTML = '';
 }
+
+function showLoginError(message) {
+    const errorContainer = document.getElementById('loginErrorContainer');
+    if (!errorContainer) return;
+    
+    errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
+}
+
 function handleMemberFormSubmission(event) {
     event.preventDefault();
 
@@ -550,40 +586,51 @@ function loadDashboardData() {
     fetch(`${baseUrl}/get-dashboard-data`)
         .then(response => response.json())
         .then(data => {
-            document.getElementById('totalVisitantes').textContent = data.totalVisitantes || '0';
-            document.getElementById('totalMembros').innerText = data.totalMembros;
-            document.getElementById('totalhomensMembro').innerText = data.totalhomensMembro;
-            document.getElementById('totalmulheresMembro').innerText = data.totalmulheresMembro;
-            document.getElementById('discipuladosAtivos').textContent = data.discipuladosAtivos || '0';
-            document.getElementById("totalHomensDiscipulado").textContent = data.totalHomensDiscipulado || '0';
-            document.getElementById("totalMulheresDiscipulado").textContent = data.totalMulheresDiscipulado || '0';
+            const totalVisitantes = document.getElementById('totalVisitantes');
+            const totalMembros = document.getElementById('totalMembros');
+            const totalhomensMembro = document.getElementById('totalhomensMembro');
+            const totalmulheresMembro = document.getElementById('totalmulheresMembro');
+            const discipuladosAtivos = document.getElementById('discipuladosAtivos');
+            const totalHomensDiscipulado = document.getElementById('totalHomensDiscipulado');
+            const totalMulheresDiscipulado = document.getElementById('totalMulheresDiscipulado');
+            const gruposComunhao = document.getElementById('grupos_comunhao');
+            const totalHomens = document.getElementById('totalHomens');
+            const percentualHomens = document.getElementById('percentualHomens');
+            const totalMulheres = document.getElementById('totalMulheres');
+            const percentualMulheres = document.getElementById('percentualMulheres');
 
-            document.getElementById('grupos_comunhao').textContent = data.grupos_comunhao || '0';
-
-            // Exibir dados de gênero
-            document.getElementById('totalHomens').textContent = data.Homens || '0';
-            document.getElementById('percentualHomens').textContent = data.Homens_Percentual + '%' || '0%';
-            document.getElementById('totalMulheres').textContent = data.Mulheres || '0';
-            document.getElementById('percentualMulheres').textContent = data.Mulheres_Percentual + '%' || '0%';
+            if (totalVisitantes) totalVisitantes.textContent = data.totalVisitantes || '0';
+            if (totalMembros) totalMembros.textContent = data.totalMembros || '0';
+            if (totalhomensMembro) totalhomensMembro.textContent = data.totalhomensMembro || '0';
+            if (totalmulheresMembro) totalmulheresMembro.textContent = data.totalmulheresMembro || '0';
+            if (discipuladosAtivos) discipuladosAtivos.textContent = data.discipuladosAtivos || '0';
+            if (totalHomensDiscipulado) totalHomensDiscipulado.textContent = data.totalHomensDiscipulado || '0';
+            if (totalMulheresDiscipulado) totalMulheresDiscipulado.textContent = data.totalMulheresDiscipulado || '0';
+            if (gruposComunhao) gruposComunhao.textContent = data.grupos_comunhao || '0';
+            if (totalHomens) totalHomens.textContent = data.Homens || '0';
+            if (percentualHomens) percentualHomens.textContent = (data.Homens_Percentual || '0') + '%';
+            if (totalMulheres) totalMulheres.textContent = data.Mulheres || '0';
+            if (percentualMulheres) percentualMulheres.textContent = (data.Mulheres_Percentual || '0') + '%';
         })
         .catch(error => {
             console.error('Erro ao carregar dados do dashboard:', error);
         });
 }
 
-
 // Chamar a função para carregar os dados assim que a página estiver pronta
 document.addEventListener("DOMContentLoaded", loadDashboardData);
 
 function toggleButtons(showOnlyMonitorStatus) {
     const buttons = document.querySelectorAll('#buttonContainer button');
+    const infoCardsContainer = document.getElementById('infoCardsContainer');
+    
     buttons.forEach(button => {
         if (showOnlyMonitorStatus && button.id !== 'monitorStatusButton') {
             button.classList.add('hidden'); // Esconde todos os botões, exceto "Monitorar Status"
-            document.getElementById('infoCardsContainer').classList.add('hidden');
+            if (infoCardsContainer) infoCardsContainer.classList.add('hidden');
         } else {
             button.classList.remove('hidden'); // Mostra o botão
-            document.getElementById('infoCardsContainer').classList.remove('hidden');
+            if (infoCardsContainer) infoCardsContainer.classList.remove('hidden');
         }
     });
 }
@@ -613,10 +660,15 @@ function apiRequest(endpoint, method = 'GET', body = null) {
 
 // Função para limpar os campos do formulário de Acolhido
 function clearAcolhidoForm() {
-    document.getElementById('nome').value = '';
-    document.getElementById('telefone').value = '';
-    document.getElementById('situacao').value = ''; // Limpa o campo de situação
-    document.getElementById('observacao').value = '';
+    const nome = document.getElementById('nome');
+    const telefone = document.getElementById('telefone');
+    const situacao = document.getElementById('situacao');
+    const observacao = document.getElementById('observacao');
+    
+    if (nome) nome.value = '';
+    if (telefone) telefone.value = '';
+    if (situacao) situacao.value = ''; // Limpa o campo de situação
+    if (observacao) observacao.value = '';
 }
 
 // Função para tratar a submissão do formulário de Acolhido
@@ -667,5 +719,5 @@ function handleAcolhidoFormSubmission(event) {
     });
 }
 
-// Atualização temporizada a cada 10 segundos
-setInterval(loadDashboardData, 1200000); // 10000 ms = 60 segundos
+// Atualização temporizada a cada 20 minutos
+setInterval(loadDashboardData, 1200000); // 1200000 ms = 20 minutos
