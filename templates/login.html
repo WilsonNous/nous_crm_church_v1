@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="CRM para a gestão de visitantes e membros da Igreja Mais de Cristo">
+    <meta name="description" content="CRM para a gestão de visitantes e membros da Igreja Mais de Cristo Canasvieiras">
     <meta name="keywords" content="igreja, CRM, visitantes, membros, cadastro, WhatsApp">
     <meta name="author" content="Igreja Mais de Cristo">
     <title>CRM - Gestão de Relacionamento Church</title>
@@ -116,7 +116,7 @@
         </div>
     </section>
 
-    <!-- Formulário de Cadastro de Visitantes -->
+     <!-- Formulário de Cadastro de Visitantes -->
     <section id="formContainer" class="hidden" aria-label="Formulário de Cadastro de Visitantes">
         <h2>Cadastro de Visitantes</h2>
         <form id="visitorForm" method="POST" action="/register">
@@ -239,7 +239,7 @@
     <!-- Formulário de Cadastro de Acolhido -->
     <section id="acolhidoFormContainer" class="hidden" aria-label="Formulário de Cadastro de Acolhido">
         <h2>Cadastro de Acolhido</h2>
-        <form id="acolhidoForm" onsubmit="handleAcolhidoSubmit(event)">
+        <form id="acolhidoForm" onsubmit="handleAcolhidoFormSubmission(event)">
             <div class="form-group">
                 <label for="nome">Nome:</label>
                 <input type="text" id="nome" name="nome" required aria-describedby="nomeHelp">
@@ -268,14 +268,14 @@
         </form>
     </section>
 
-    <!-- Log de WhatsApp -->
+ <!-- Log de WhatsApp -->
     <div id="whatsappLog" class="hidden" aria-label="Log de Envio de WhatsApp">
         <h2>Envio para WhatsApp</h2>
         <div id="logContainer"></div>
         <button type="button" id="backToOptionsWhatsappButton" class="btn-secondary">Voltar</button>
     </div>
 
-    <!-- Monitoramento de Status -->
+ <!-- Monitoramento de Status -->
     <div id="statusLog" class="hidden" aria-label="Monitoramento de Status de Visitantes">
         <table id="statusTable">
             <thead>
@@ -303,52 +303,54 @@
 
     <!-- Novo Painel de Treinamento da IA -->
     <section id="iaTrainingPanel" class="hidden" aria-label="Painel de Treinamento da IA">
-        <h2>🧠 Treinamento da IA - Integra+</h2>
-        <div id="trainingStats" class="info-cards">
-            <div class="info-card">
-                <h3>Perguntas Não Respondidas</h3>
-                <p id="pendingQuestionsCount">0</p>
+        <div class="container">
+            <h2>🧠 Painel de Treinamento do Integra+</h2>
+            <div class="info-cards">
+                <div class="info-card">
+                    <h3>Perguntas Pendentes</h3>
+                    <p id="pendingQuestionsCount">0</p>
+                </div>
+                <div class="info-card">
+                    <h3>Total de Conhecimento</h3>
+                    <p id="knowledgeBaseCount">0</p>
+                </div>
             </div>
-            <div class="info-card">
-                <h3>Total de Conhecimento</h3>
-                <p id="knowledgeBaseCount">0</p>
+
+            <div id="trainingList">
+                <h3>Perguntas Pendentes (Clique para ensinar)</h3>
+                <ul id="pendingQuestionsList"></ul>
             </div>
-        </div>
 
-        <div id="trainingList">
-            <h3>Perguntas Pendentes (Clique para ensinar)</h3>
-            <ul id="pendingQuestionsList"></ul>
-        </div>
+            <div id="teachForm" class="form-container hidden">
+                <h3>Ensinar a IA</h3>
+                <form id="teachIAForm" onsubmit="handleTeachSubmit(event)">
+                    <div class="form-group">
+                        <label for="teachQuestion">Pergunta:</label>
+                        <input type="text" id="teachQuestion" name="question" readonly required>
+                    </div>
+                    <div class="form-group">
+                        <label for="teachAnswer">Resposta:</label>
+                        <textarea id="teachAnswer" name="answer" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="teachCategory">Categoria:</label>
+                        <select id="teachCategory" name="category" required>
+                            <option value="">Selecione uma categoria</option>
+                            <option value="batismo">Batismo</option>
+                            <option value="discipulado">Discipulado</option>
+                            <option value="horarios">Horários dos Cultos</option>
+                            <option value="ministerios">Ministérios</option>
+                            <option value="oracao">Pedido de Oração</option>
+                            <option value="geral">Geral</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary">Salvar e Ensinar IA</button>
+                    <button type="button" id="cancelTeachButton" class="btn-secondary">Cancelar</button>
+                </form>
+            </div>
 
-        <div id="teachForm" class="form-container hidden">
-            <h3>Ensinar a IA</h3>
-            <form id="teachIAForm" onsubmit="handleTeachSubmit(event)">
-                <div class="form-group">
-                    <label for="teachQuestion">Pergunta:</label>
-                    <input type="text" id="teachQuestion" name="question" readonly required>
-                </div>
-                <div class="form-group">
-                    <label for="teachAnswer">Resposta:</label>
-                    <textarea id="teachAnswer" name="answer" required></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="teachCategory">Categoria:</label>
-                    <select id="teachCategory" name="category" required>
-                        <option value="">Selecione uma categoria</option>
-                        <option value="batismo">Batismo</option>
-                        <option value="discipulado">Discipulado</option>
-                        <option value="horarios">Horários dos Cultos</option>
-                        <option value="ministerios">Ministérios</option>
-                        <option value="oracao">Pedido de Oração</option>
-                        <option value="geral">Geral</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn-primary">Salvar e Ensinar IA</button>
-                <button type="button" id="cancelTeachButton" class="btn-secondary" onclick="toggleTeachForm(false)">Cancelar</button>
-            </form>
+            <button type="button" id="backToOptionsIAButton" class="btn-secondary">← Voltar ao Menu</button>
         </div>
-
-        <button type="button" id="backToOptionsIAButton" class="btn-secondary" onclick="toggleSection('options')">Voltar ao Menu</button>
     </section>
 </main>
 <footer>
