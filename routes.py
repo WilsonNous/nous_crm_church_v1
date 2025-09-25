@@ -528,28 +528,6 @@ def register_routes(app_instance: Flask) -> None:
 
     # --- NOVAS ROTAS PARA O PAINEL DE TREINAMENTO DA IA ---
 
-    @app_instance.route('/api/ia/pending-questions', methods=['GET'])
-    def get_pending_questions():
-        """Retorna as últimas perguntas não respondidas da IA."""
-        try:
-            conn = get_db_connection()
-            if not conn:
-                return jsonify({"error": "Erro de conexão"}), 500
-
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("""
-                SELECT id, user_id, question, created_at FROM unknown_questions 
-                WHERE status = 'pending' ORDER BY created_at DESC LIMIT 50
-            """)
-            questions = cursor.fetchall()
-            cursor.close()
-            conn.close()
-
-            return jsonify({"questions": questions}), 200
-        except Exception as e:
-            logging.error(f"Erro ao buscar perguntas pendentes: {e}")
-            return jsonify({"error": str(e)}), 500
-
     @app_instance.route('/api/ia/teach', methods=['POST'])
     def teach_ia():
         """
