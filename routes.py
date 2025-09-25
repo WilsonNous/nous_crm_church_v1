@@ -474,7 +474,7 @@ def register_routes(app_instance: Flask) -> None:
     def integra_admin_login():
         if request.method == 'POST':
             password = request.form.get('password')
-            correct_password = os.getenv('ADMIN_PASSWORD', 'sua_senha_secreta')
+            correct_password = os.getenv('ADMIN_PASSWORD', 's3cr3ty')
             if password == correct_password:
                 session['integra_admin_logged_in'] = True
                 return redirect(url_for('integra_learn_dashboard'))
@@ -551,3 +551,4 @@ def register_routes(app_instance: Flask) -> None:
 
 # Chamada para registrar as rotas
 register_routes(application)
+
