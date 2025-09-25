@@ -479,22 +479,7 @@ def register_routes(app_instance: Flask) -> None:
             "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }), 200
 
-    # --- NOVO ENDPOINT: HEALTH CHECK PARA MANTER A APLICAÇÃO ACORDADA ---
-    @application.route('/health', methods=['GET'])
-    def health_check():
-        """
-        Endpoint para verificar se a aplicação está viva.
-        Usado para evitar que a instância do Render durma.
-        """
-        return jsonify({
-            "status": "alive",
-            "message": "Bot de Integração da Igreja Mais de Cristo Canasvieiras está ativo!",
-            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }), 200
-
-    # --- FIM DO ENDPOINT HEALTH CHECK ---
-
-    # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ (SEM AUTENTICAÇÃO ADICIONAL) ---
+        # --- NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ (SEM AUTENTICAÇÃO ADICIONAL) ---
 
     # Rota para servir o painel de treinamento da IA
     @app_instance.route('/admin/integra/panel')
