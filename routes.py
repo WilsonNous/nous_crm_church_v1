@@ -24,6 +24,7 @@ from database import (salvar_visitante, visitante_existe,
 application = Flask(__name__)
 # Configuração da Chave Secreta para Sessões (OBRIGATÓRIO)
 application.secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_para_dev')
+logging.info(f"FLASK_SECRET_KEY definida como: {application.secret_key}")
 
 # Configuração JWT
 application.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default_secret_key')
@@ -551,4 +552,5 @@ def register_routes(app_instance: Flask) -> None:
 
 # Chamada para registrar as rotas
 register_routes(application)
+
 
