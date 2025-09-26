@@ -2,6 +2,8 @@
 import logging
 import os
 from datetime import datetime
+import base64
+import requests
 from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 
 # --- JWT compatibility shim ---
@@ -343,29 +345,65 @@ def register_routes(app_instance: Flask) -> None:
             data = request.json
             evento_nome = data.get("evento_nome")
             mensagem = data.get("mensagem")
-            imagem_url = data.get("imagem_url")
+            imagem_url = data.get("imagem_url")  # pode ser um caminho base64
             visitantes = data.get("visitantes")  # lista de visitantes [{id, nome, telefone}]
     
             if not visitantes or not evento_nome or not mensagem:
                 return jsonify({"status": "error", "message": "Dados incompletos para envio"}), 400
+    
+            # Configuração Z-API
+            ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
+            ZAPI_TOKEN = os.getenv("ZAPI_TOKEN")
+            ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN")
+            headers = {"Client-Token": ZAPI_CLIENT_TOKEN, "Content-Type": "application/json"}
     
             enviados = []
             for v in visitantes:
                 visitante_id = v.get("id")
                 telefone = v.get("telefone")
     
-                # aqui você pode integrar a chamada da Z-API
-                # exemplo (mock):
-                logging.info(f"📢 Enviando campanha '{evento_nome}' para {telefone}")
+                # Normalizar número: garantir formato internacional 55DDDNÚMERO
+                telefone_envio = f"55{telefone}" if not telefone.startswith("55") else telefone
     
-                salvar_envio_evento(
-                    visitante_id=visitante_id,
-                    evento_nome=evento_nome,
-                    mensagem=mensagem,
-                    imagem_url=imagem_url,
-                    status="enviado"
-                )
-                enviados.append({"id": visitante_id, "telefone": telefone})
+                payload = {
+                    "phone": telefone_envio,
+                    "caption": mensagem,
+                }
+    
+                if imagem_url:
+                    # Se a imagem for base64 já pronta
+                    payload["image"] = imagem_url  
+                    url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-image"
+                else:
+                    # Apenas texto
+                    payload = {"phone": telefone_envio, "message": mensagem}
+                    url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
+    
+                try:
+                    response = requests.post(url, json=payload, headers=headers, timeout=15)
+                    if response.ok:
+                        status = "enviado"
+                    else:
+                        status = f"falha: {response.status_code}"
+    
+                    salvar_envio_evento(
+                        visitante_id=visitante_id,
+                        evento_nome=evento_nome,
+                        mensagem=mensagem,
+                        imagem_url=imagem_url,
+                        status=status
+                    )
+                    enviados.append({"id": visitante_id, "telefone": telefone_envio, "status": status})
+    
+                except Exception as e:
+                    logging.error(f"Erro ao enviar para {telefone_envio}: {e}")
+                    salvar_envio_evento(
+                        visitante_id=visitante_id,
+                        evento_nome=evento_nome,
+                        mensagem=mensagem,
+                        imagem_url=imagem_url,
+                        status="erro"
+                    )
     
             return jsonify({"status": "success", "enviados": enviados}), 200
     
