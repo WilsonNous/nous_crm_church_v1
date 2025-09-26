@@ -281,3 +281,34 @@ def register_routes(app_instance: Flask) -> None:
         except Exception as e:
             logging.error(f"Erro: {e}")
             return jsonify({"error": str(e)}), 500
+
+
+    @app_instance.route('/api/ia/teach', methods=['POST'])
+    def ia_teach():
+        try:
+            data = request.get_json()
+            question = data.get('question', '').strip()
+            answer = data.get('answer', '').strip()
+            category = data.get('category', '').strip()
+    
+            if not all([question, answer, category]):
+                return jsonify({"error": "Campos obrigatórios"}), 400
+    
+            conn = get_db_connection()
+            cursor = conn.cursor()
+    
+            cursor.execute("""
+                INSERT INTO training_pairs (question, answer, category, fonte, created_at, updated_at)
+                VALUES (%s, %s, %s, 'manual', NOW(), NOW())
+                ON DUPLICATE KEY UPDATE answer = VALUES(answer), updated_at = NOW()
+            """, (question, answer, category))
+    
+            cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (question,))
+            conn.commit()
+            cursor.close(); conn.close()
+    
+            return jsonify({"status": "success"}), 200
+        except Exception as e:
+            logging.error(f"Erro em /api/ia/teach: {e}")
+            return jsonify({"error": str(e)}), 500
+
