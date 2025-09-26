@@ -206,6 +206,17 @@ function initializeEventListeners() {
         'backToOptionsIAButton': () => { toggleSection('options'); },
         'cancelTeachButton': () => { toggleTeachForm(false); },
         'teachIAForm': handleTeachSubmit // Adiciona o listener para o submit do form
+
+        'showCampaignButton': () => { 
+            appState.currentView = 'campaignPanel'; 
+            updateUI(); 
+        },
+        'backToOptionsCampaignButton': () => { 
+            appState.currentView = 'options'; 
+            updateUI(); 
+        },
+        'campaignForm': handleCampaignSubmit
+
         // --- FIM DOS NOVOS EVENTOS ---
     };
 
@@ -281,6 +292,9 @@ function updateUI() {
         // --- NOVO ESTADO: Painel de Treinamento da IA ---
         case 'iaTrainingPanel':
             document.getElementById('iaTrainingPanel').classList.remove('hidden');
+            break;
+        case 'campaignPanel':
+            document.getElementById('campaignPanel').classList.remove('hidden');
             break;
         // --- FIM DO NOVO ESTADO ---
         default:
@@ -718,7 +732,74 @@ function handleAcolhidoFormSubmission(event) {
         alert("Erro ao tentar cadastrar o acolhido.");
     });
 }
+// --- FUNÇÃO: Submeter filtro de campanha ---
+function handleCampaignSubmit(event) {
+    event.preventDefault();
+
+    const dataInicio = document.getElementById('campaignStartDate').value;
+    const dataFim = document.getElementById('campaignEndDate').value;
+    const idadeMin = document.getElementById('campaignAgeMin').value;
+    const idadeMax = document.getElementById('campaignAgeMax').value;
+    const genero = document.getElementById('campaignGender').value;
+    const eventoNome = document.getElementById('campaignName').value;
+    const mensagem = document.getElementById('campaignMessage').value;
+    const imagemUrl = document.getElementById('campaignImageUrl').value;
+
+    if (!eventoNome || !mensagem) {
+        alert("Preencha pelo menos o nome do evento e a mensagem.");
+        return;
+    }
+
+    fetch(`${baseUrl}/api/eventos/filtrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_inicio: dataInicio, data_fim: dataFim, idade_min: idadeMin, idade_max: idadeMax, genero })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            const visitantes = data.visitantes;
+            if (visitantes.length === 0) {
+                alert("Nenhum visitante encontrado com esses filtros.");
+                return;
+            }
+
+            // envia a campanha
+            enviarCampanha(visitantes, eventoNome, mensagem, imagemUrl);
+        } else {
+            alert("Erro ao filtrar visitantes: " + data.message);
+        }
+    })
+    .catch(error => {
+        console.error("Erro ao filtrar:", error);
+        alert("Erro ao buscar visitantes.");
+    });
+}
+
+// --- FUNÇÃO: Enviar campanha ---
+function enviarCampanha(visitantes, eventoNome, mensagem, imagemUrl) {
+    fetch(`${baseUrl}/api/eventos/enviar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visitantes, evento_nome: eventoNome, mensagem, imagem_url: imagemUrl })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            alert(`Campanha enviada para ${data.enviados.length} visitantes.`);
+            appState.currentView = 'options';
+            updateUI();
+        } else {
+            alert("Erro ao enviar campanha: " + data.message);
+        }
+    })
+    .catch(error => {
+        console.error("Erro ao enviar campanha:", error);
+        alert("Erro de conexão ao enviar campanha.");
+    });
+}
 
 // Atualização temporizada a cada 20 minutos
 setInterval(loadDashboardData, 1200000); // 1200000 ms = 20 minutos
+
 
