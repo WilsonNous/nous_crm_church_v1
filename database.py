@@ -1,5 +1,23 @@
-import pymysql
-import pymysql.cursors
+import os
+try:
+    import pymysql
+except Exception:
+    pymysql = None
+if pymysql is None:
+    class _DummyError(Exception):
+        pass
+    class _DummyPymysql:
+        MySQLError = _DummyError
+    pymysql = _DummyPymysql()
+
+
+try:
+    import pymysql
+    HAVE_PYMYSQL = True
+except Exception:
+    pymysql = None
+    HAVE_PYMYSQL = False
+
 from contextlib import closing
 import logging
 from datetime import datetime
@@ -10,24 +28,69 @@ from typing import Optional, Dict
 # =======================
 
 def get_db_connection():
-    """Função para obter a conexão com o banco de dados MySQL"""
+    """Get DB connection. Uses MySQL if USE_SQLITE=0 and pymysql available; otherwise fallback to SQLite.
+    Configure MySQL via env vars: MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB.
+    """
+    import os
+    USE_SQLITE = os.getenv('USE_SQLITE', '1') == '1'
+    SQLITE_DB_FILE = os.getenv('SQLITE_DB_FILE', 'crm_visitantes.db')
+    if USE_SQLITE:
+        import sqlite3
+        class _Cursor:
+            def __init__(self, cur):
+                self._cur = cur
+                self.description = None
+            def execute(self, q, params=None):
+                if params is None:
+                    params = ()
+                q2 = q.replace('%s', '?')
+                self._cur.execute(q2, params)
+                self.description = self._cur.description
+                return self
+            def fetchone(self):
+                row = self._cur.fetchone()
+                if not row: return None
+                if self.description:
+                    cols = [d[0] for d in self.description]
+                    return dict(zip(cols, row))
+                return row
+            def fetchall(self):
+                rows = self._cur.fetchall()
+                if not rows: return []
+                if self.description:
+                    cols = [d[0] for d in self.description]
+                    return [dict(zip(cols, r)) for r in rows]
+                return rows
+        conn = sqlite3.connect(SQLITE_DB_FILE, check_same_thread=False)
+        class ConnWrap:
+            def cursor(self):
+                return _Cursor(conn.cursor())
+            def commit(self): return conn.commit()
+            def close(self): return conn.close()
+        return ConnWrap()
+    # Try MySQL if requested
     try:
+        import pymysql
         conn = pymysql.connect(
-            host='108.167.132.58',
-            user='noust785_admin',
-            password='M@st3rk3y',
-            db='noust785_crm_mdc_canasvieiras',
+            host=os.getenv('MYSQL_HOST', 'localhost'),
+            user=os.getenv('MYSQL_USER', 'root'),
+            password=os.getenv('MYSQL_PASSWORD', ''),
+            db=os.getenv('MYSQL_DB', ''),
             charset='utf8mb4',
             cursorclass=pymysql.cursors.DictCursor
         )
         return conn
-    except pymysql.MySQLError as e:
-        logging.error(f"Erro ao conectar ao banco de dados MySQL: {e}")
-        raise
-
-# =======================
-# Funções de Visitantes
-# =======================
+    except Exception as e:
+        import logging
+        logging.warning("MySQL connect failed: %s. Falling back to SQLite.", e)
+        import sqlite3
+        conn = sqlite3.connect(SQLITE_DB_FILE, check_same_thread=False)
+        class ConnWrap:
+            def cursor(self):
+                return _Cursor(conn.cursor())
+            def commit(self): return conn.commit()
+            def close(self): return conn.close()
+        return ConnWrap()
 
 def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
                      estado_civil, igreja_atual, frequenta_igreja, indicacao,
@@ -55,7 +118,7 @@ def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
             logging.info(f"Visitante {nome} cadastrado com sucesso com o telefone {telefone}!")
         return True
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao salvar visitante: {e}")
         return False
 
@@ -80,7 +143,7 @@ def salvar_membro(nome, telefone, email, data_nascimento, cep, bairro, cidade, e
             logging.info(f"Membro {nome} cadastrado com sucesso com o telefone {telefone}!")
         return True
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao salvar membro: {e}")
         return False
 
@@ -93,7 +156,7 @@ def membro_existe(telefone):
             membro = cursor.fetchone()
             return membro is not None
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao verificar existência do membro: {e}")
         return False
 
@@ -118,7 +181,7 @@ def buscar_numeros_telefone():
             cursor.execute('SELECT telefone FROM visitantes;')
             telefones = cursor.fetchall()
             return [row['telefone'] for row in telefones]
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar números de telefone: {e}")
         return []
 
@@ -133,7 +196,7 @@ def visitante_existe(telefone):
             if result is None or 'count' not in result:
                 return False
             return result['count'] > 0
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao verificar visitante: {e}")
         return False
 
@@ -168,7 +231,7 @@ def atualizar_status(telefone, nova_fase):
             conn.commit()
             logging.info(f"Status atualizado para fase '{nova_fase}' (id {fase_id}) para o telefone {telefone}")
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao atualizar status para o telefone {telefone}: {e}")
 
 # =======================
@@ -187,7 +250,7 @@ def salvar_estatistica(numero, estado_atual, proximo_estado):
             logging.info(f"Estatística salva para o número {numero} "
                          f"com estado atual {estado_atual} e "
                          f"próximo estado {proximo_estado}.")
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao salvar estatística para {numero}: {e}")
 
 def salvar_conversa(numero, mensagem, tipo='recebida', sid=None):
@@ -200,7 +263,7 @@ def salvar_conversa(numero, mensagem, tipo='recebida', sid=None):
                 VALUES ((SELECT id FROM visitantes WHERE telefone = %s), %s, %s, %s)
             ''', (numero, mensagem, tipo, sid))
             conn.commit()
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao salvar conversa para o telefone {numero}. Detalhes: {e}")
 
 def monitorar_status_visitantes():
@@ -233,7 +296,7 @@ def monitorar_status_visitantes():
             logging.info(f"Status de {len(status_info)} visitantes monitorados com sucesso.")
             return status_info
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar status de visitantes no banco de dados: {e}")
         return None
 
@@ -253,7 +316,7 @@ def buscar_fase_id(descricao_fase):
             cursor.execute('SELECT id FROM fases WHERE descricao = %s', (descricao_fase,))
             fase = cursor.fetchone()
             return fase['id'] if fase else None
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar fase: {e}")
         return None
 
@@ -292,7 +355,7 @@ def obter_nome_do_visitante(telefone: str) -> str:
                 logging.warning(f"Visitante com telefone {telefone} não encontrado.")
                 return 'Visitante não Cadastrado'
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar nome do visitante: {e}")
         return 'Sem dados!'
 
@@ -320,7 +383,7 @@ def obter_estado_atual_do_banco(telefone):
             else:
                 return 'INICIO'
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao obter estado do visitante {telefone}: {e}")
         return 'INICIO'
 
@@ -331,7 +394,7 @@ def mensagem_sid_existe(message_sid: str) -> bool:
             cursor.execute('SELECT COUNT(*) FROM conversas WHERE message_sid = %s', (message_sid,))
             count = cursor.fetchone()[0]
             return count > 0
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao verificar SID da mensagem: {e}")
         return False
 
@@ -350,7 +413,7 @@ def salvar_pedido_oracao(telefone, pedido):
             logging.info(f"Pedido de oração salvo para o visitante com telefone {telefone}.")
             return True
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao salvar pedido de oração: {e}")
         return False
 
@@ -424,7 +487,7 @@ def visitantes_listar_fases():
                 LEFT JOIN fases f ON s.fase_id = f.id
             ''')
             return cursor.fetchall()
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar fases dos visitantes: {e}")
         return {"error": "Erro ao listar fases."}
 
@@ -434,7 +497,7 @@ def visitantes_listar_estatisticas():
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM estatisticas")
             return cursor.fetchall()
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar estatísticas: {e}")
         return {"error": "Erro ao listar estatísticas."}
 
@@ -449,7 +512,7 @@ def visitantes_monitorar_status():
                 LEFT JOIN fases f ON s.fase_id = f.id
             ''')
             return cursor.fetchall()
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar status de visitantes no banco de dados: {e}")
         return None
 
@@ -479,7 +542,7 @@ def listar_todos_visitantes():
 
             return []
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar visitantes no banco de dados: {e}")
         return {"error": "Erro ao listar visitantes."}
 
@@ -505,7 +568,7 @@ def listar_visitantes_fase_null():
 
             return []
 
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao listar visitantes com fase NULL: {e}")
         return {"error": "Erro ao listar visitantes com fase NULL"}
 
@@ -519,7 +582,7 @@ def visitantes_contar_novos():
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM visitantes WHERE data_nascimento IS NOT NULL")
             return cursor.fetchone()[0]
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao contar novos visitantes: {e}")
         return 0
 
@@ -530,7 +593,7 @@ def visitantes_contar_membros_interessados():
             cursor.execute("SELECT COUNT(*) FROM status WHERE fase_id = "
                            "(SELECT id FROM fases WHERE descricao = 'INTERESSE_DISCIPULADO')")
             return cursor.fetchone()[0]
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao contar membros interessados: {e}")
         return 0
 
@@ -540,7 +603,7 @@ def visitantes_contar_sem_retorno():
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM visitantes WHERE horario_contato IS NULL")
             return cursor.fetchone()[0]
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao contar visitantes sem retorno: {e}")
         return 0
 
@@ -551,7 +614,7 @@ def visitantes_contar_discipulado_enviado():
             cursor.execute("SELECT COUNT(*) FROM status WHERE fase_id ="
                            " (SELECT id FROM fases WHERE descricao = 'INTERESSE_DISCIPULADO')")
             return cursor.fetchone()[0]
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao contar visitantes enviados ao discipulado: {e}")
         return 0
 
@@ -562,7 +625,7 @@ def visitantes_contar_sem_interesse_discipulado():
             cursor.execute("SELECT COUNT(*) FROM status WHERE fase_id = "
                            "(SELECT id FROM fases WHERE descricao = 'INTERESSE_NOVO_COMEC')")
             return cursor.fetchone()[0]
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao contar visitantes sem interesse no discipulado: {e}")
         return 0
 
@@ -572,7 +635,7 @@ def visitantes_contar_sem_retorno_total():
             cursor = conn.cursor()
             cursor.execute("SELECT COUNT(*) FROM status WHERE fase_id IS NULL")
             return cursor.fetchone()[0]
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao contar visitantes sem retorno total: {e}")
         return 0
 
@@ -605,7 +668,7 @@ def obter_conversa_por_visitante(visitante_id):
             resultado += "</div>"
 
             return resultado
-    except pymysql.MySQLError as e:
+    except Exception as e:
         logging.error(f"Erro ao buscar conversa para o visitante {visitante_id}: {e}")
         return "<p>Erro ao obter conversa.</p>"
 

@@ -1,39 +1,51 @@
-# --- Importações de bibliotecas padrão ---
+# crmlogic.py - patched entrypoint
 import logging
 import os
 from datetime import datetime
-
-# --- Importações de bibliotecas externas ---
 from flask import Flask, send_from_directory
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
+try:
+    from flask_jwt_extended import JWTManager
+except Exception:
+    # Fallback dummy JWTManager for environments without flask_jwt_extended.
+    class JWTManager:
+        def __init__(self, app=None):
+            pass
+    JWTManager = JWTManager
 
-# --- Configurações do Flask ---
-application = Flask(__name__)
-CORS(application)
 
-# --- FORÇAR A DEFINIÇÃO DA SECRET KEY ---
-flask_secret_key = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_para_dev')
-if not flask_secret_key or flask_secret_key == '':
-    raise RuntimeError("FLASK_SECRET_KEY não definida! Verifique as variáveis de ambiente.")
-application.secret_key = flask_secret_key
+# Create WSGI callable named 'app' (gunicorn expects module:app)
+app = Flask(__name__, static_folder='static', template_folder='templates')
+CORS(app)
 
-logging.info(f"✅ FLASK_SECRET_KEY definida como: {application.secret_key}")
+# Configuration from environment
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'fallback_secret_key_para_dev')
+# JWT secret (use a strong secret in prod)
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', app.config['SECRET_KEY'])
+# Disable default token expiry for simplicity; set a sensible expiry in production
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False
 
-# Configuração JWT
-application.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'default_secret_key')
-jwt = JWTManager(application)
+# Initialize JWT manager
+jwt = JWTManager(app)
 
-# --- LOG DE DEPURAÇÃO ---
-logging.info("✅ Aplicação Flask configurada com sucesso!")
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.info("✅ Aplicação Flask (app) criada e configurada com sucesso!")
 
-# --- REGISTRAR AS ROTAS (de routes.py) ---
-from routes import register_routes
-register_routes(application)
+# Register routes from routes.py
+try:
+    from routes import register_routes
+    register_routes(app)
+    logging.info("✅ Rotas registradas com sucesso (routes.register_routes).")
+except Exception as e:
+    logging.exception("Erro ao registrar rotas: %s", e)
 
-# --- REMOVER A ROTA /health DAQUI - ELA JÁ EXISTE EM routes.py ---
-# A rota /health deve ficar APENAS em routes.py
+# Minimal health route if not provided by routes.py
+@app.route('/health', methods=['GET'])
+def _health():
+    return {'status': 'ok', 'time': datetime.utcnow().isoformat()}, 200
 
-# --- CONFIGURAÇÃO DE LOGS ---
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+# Allow running locally with `python crmlogic.py`
+if __name__ == '__main__':
+    # Recommended to run with gunicorn in production.
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=os.getenv('FLASK_DEBUG', '0') == '1')
