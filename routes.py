@@ -537,8 +537,8 @@ def register_routes(app_instance: Flask) -> None:
         try:
             # Inserir na knowledge_base
             cursor.execute("""
-                INSERT INTO knowledge_base (question, answer, category, created_at, updated_at)
-                VALUES (%s, %s, %s, NOW(), NOW())
+                INSERT INTO training_pairs (question, answer, category, fonte, created_at, updated_at)
+                VALUES (%s, %s, %s, 'manual', NOW(), NOW())
                 ON DUPLICATE KEY UPDATE answer = VALUES(answer), updated_at = NOW()
             """, (question, answer, category))
 
