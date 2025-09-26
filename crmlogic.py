@@ -2,7 +2,7 @@
 import logging
 import os
 from datetime import datetime
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, render_template
 from flask_cors import CORS
 try:
     from flask_jwt_extended import JWTManager
@@ -40,10 +40,18 @@ try:
 except Exception as e:
     logging.exception("Erro ao registrar rotas: %s", e)
 
+# Rota principal -> renderiza login.html
+@app.route("/", methods=["GET"])
+def login_page():
+    return render_template("login.html")
+
 # Minimal health route if not provided by routes.py
 @app.route('/health', methods=['GET'])
 def _health():
     return {'status': 'ok', 'time': datetime.utcnow().isoformat()}, 200
+
+# Alias para compatibilidade com gunicorn
+application = app
 
 # Allow running locally with `python crmlogic.py`
 if __name__ == '__main__':
