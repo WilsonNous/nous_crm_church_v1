@@ -33,7 +33,7 @@ function loadPendingQuestions() {
             if (!response.ok) {
                 // Se não for JSON, provavelmente é um redirect para login
                 if (response.headers.get('content-type')?.includes('text/html')) {
-                    window.location.href = '/admin/integra/login';
+                    window.location.href = '/admin/integra/learn';
                     return;
                 }
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -721,3 +721,4 @@ function handleAcolhidoFormSubmission(event) {
 
 // Atualização temporizada a cada 20 minutos
 setInterval(loadDashboardData, 1200000); // 1200000 ms = 20 minutos
+
