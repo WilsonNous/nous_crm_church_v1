@@ -62,6 +62,3 @@ Abra `http://localhost:5000/health` para checar status.
 2. Remover qualquer credencial do repositório e criar `.env.example` (já criei neste pacote um `.env.example`).
 3. Preparar um `Dockerfile` e um workflow de GitHub Actions para CI/CD com deploy automático para Render (posso gerar).
 4. Revisar e escrever testes automatizados (pytest) para as rotas principais.
-
----
-**Will**: se quiser que eu faça o push automático para seu repositório privado e configure o autodeploy (Render/GitHub Actions), me passe o método que prefere (eu gero um patch/PR que você aplica, ou você me fornece um token temporário para eu criar um branch e PR). Eu recomendo o fluxo PR para revisão antes do deploy.
