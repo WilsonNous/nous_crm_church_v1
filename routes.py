@@ -306,9 +306,80 @@ def register_routes(app_instance: Flask) -> None:
             cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (question,))
             conn.commit()
             cursor.close(); conn.close()
+            
+    # --- EVENTOS: Filtrar Visitantes ---
+    @app_instance.route('/api/eventos/filtrar', methods=['POST'])
+    def api_eventos_filtrar():
+        try:
+            data = request.json
+            data_inicio = data.get("data_inicio")
+            data_fim = data.get("data_fim")
+            idade_min = data.get("idade_min")
+            idade_max = data.get("idade_max")
+            genero = data.get("genero")
     
-            return jsonify({"status": "success"}), 200
+            visitantes = filtrar_visitantes_para_evento(
+                data_inicio=data_inicio,
+                data_fim=data_fim,
+                idade_min=idade_min,
+                idade_max=idade_max,
+                genero=genero
+            )
+    
+            return jsonify({"status": "success", "visitantes": visitantes}), 200
         except Exception as e:
-            logging.error(f"Erro em /api/ia/teach: {e}")
-            return jsonify({"error": str(e)}), 500
+            logging.error(f"❌ Erro em /api/eventos/filtrar: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
+                return jsonify({"status": "success"}), 200
+            except Exception as e:
+                logging.error(f"Erro em /api/ia/teach: {e}")
+                return jsonify({"error": str(e)}), 500
+
+    # --- EVENTOS: Enviar Campanha ---
+    @app_instance.route('/api/eventos/enviar', methods=['POST'])
+    def api_eventos_enviar():
+        try:
+            data = request.json
+            evento_nome = data.get("evento_nome")
+            mensagem = data.get("mensagem")
+            imagem_url = data.get("imagem_url")
+            visitantes = data.get("visitantes")  # lista de visitantes [{id, nome, telefone}]
+    
+            if not visitantes or not evento_nome or not mensagem:
+                return jsonify({"status": "error", "message": "Dados incompletos para envio"}), 400
+    
+            enviados = []
+            for v in visitantes:
+                visitante_id = v.get("id")
+                telefone = v.get("telefone")
+    
+                # aqui você pode integrar a chamada da Z-API
+                # exemplo (mock):
+                logging.info(f"📢 Enviando campanha '{evento_nome}' para {telefone}")
+    
+                salvar_envio_evento(
+                    visitante_id=visitante_id,
+                    evento_nome=evento_nome,
+                    mensagem=mensagem,
+                    imagem_url=imagem_url,
+                    status="enviado"
+                )
+                enviados.append({"id": visitante_id, "telefone": telefone})
+    
+            return jsonify({"status": "success", "enviados": enviados}), 200
+    
+        except Exception as e:
+            logging.error(f"❌ Erro em /api/eventos/enviar: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    # --- EVENTOS: Listar Envios ---
+    @app_instance.route('/api/eventos/envios', methods=['GET'])
+    def api_eventos_envios():
+        try:
+            envios = listar_envios_eventos()
+            return jsonify({"status": "success", "envios": envios}), 200
+        except Exception as e:
+            logging.error(f"❌ Erro em /api/eventos/envios: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
 
