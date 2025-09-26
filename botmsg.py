@@ -421,10 +421,13 @@ Nos diga qual sua escolha! 🙏"""
     # Tratamento para quando nenhuma transição é encontrada
     if proximo_estado is None:
         # --- NOVO: Busca a última pergunta do usuário para contexto ---
+                # --- NOVO: Busca a última pergunta do usuário para contexto ---
         ultima_pergunta = None
         try:
             conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
+            # CORRIGIDO: uso do DictCursor no PyMySQL
+            import pymysql
+            cursor = conn.cursor(pymysql.cursors.DictCursor)
             cursor.execute("""
                 SELECT mensagem FROM conversas 
                 WHERE visitante_id = (SELECT id FROM visitantes WHERE telefone = %s) 
@@ -439,6 +442,7 @@ Nos diga qual sua escolha! 🙏"""
             conn.close()
         except Exception as e:
             logging.error(f"Erro ao buscar última pergunta: {e}")
+
 
         # --- CORRIGIDO: Chamada correta da IA ---
         resultado_ia = ia_integracao.responder_pergunta(
