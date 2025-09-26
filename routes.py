@@ -552,5 +552,58 @@ def register_routes(app_instance: Flask) -> None:
         finally:
             cursor.close()
             conn.close()
+    
+    # --- ROTAS DE TREINAMENTO DA IA (API REST) ---
 
+    @app_instance.route('/ia/pending-questions', methods=['GET'])
+    def ia_pending_questions():
+        """
+        Retorna a lista de perguntas pendentes que a IA ainda não sabe responder.
+        """
+        try:
+            from database import obter_perguntas_pendentes
+            perguntas = obter_perguntas_pendentes()
+            return jsonify({"pending_questions": perguntas}), 200
+        except Exception as e:
+            logging.error(f"Erro ao buscar perguntas pendentes: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    @app_instance.route('/ia/save-answer', methods=['POST'])
+    def ia_save_answer():
+        """
+        Salva uma resposta para uma pergunta pendente e marca como respondida.
+        """
+        try:
+            from database import salvar_par_treinamento, marcar_pergunta_como_respondida
+            data = request.get_json()
+            pergunta = data.get("question")
+            resposta = data.get("answer")
+            categoria = data.get("category", "geral")
+
+            if not pergunta or not resposta:
+                return jsonify({"error": "Pergunta e resposta são obrigatórias"}), 400
+
+            ok = salvar_par_treinamento(pergunta, resposta, categoria, fonte="manual")
+            if ok:
+                marcar_pergunta_como_respondida(pergunta)
+                return jsonify({"success": True}), 200
+            else:
+                return jsonify({"success": False, "error": "Falha ao salvar no banco"}), 500
+        except Exception as e:
+            logging.error(f"Erro ao salvar resposta de treinamento: {e}")
+            return jsonify({"error": str(e)}), 500
+
+    @app_instance.route('/ia/training-list', methods=['GET'])
+    def ia_training_list():
+        """
+        Retorna os pares de treinamento já armazenados (últimos 100).
+        """
+        try:
+            from database import obter_pares_treinamento
+            pares = obter_pares_treinamento()
+            return jsonify({"training_pairs": pares}), 200
+        except Exception as e:
+            logging.error(f"Erro ao buscar pares de treinamento: {e}")
+            return jsonify({"error": str(e)}), 500
+            
     # --- FIM DAS NOVAS ROTAS DE ADMINISTRAÇÃO PARA O INTEGRA+ ---
