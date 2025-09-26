@@ -882,38 +882,49 @@ def marcar_pergunta_como_respondida(pergunta: str):
 # Funções de Campanhas de Eventos
 # =======================
 
-def salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url, status="pendente"):
-    """Salva o envio de um evento para um visitante."""
+def salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url=None, status="pendente"):
+    """Salva o registro de um envio de evento/campanha."""
     try:
-        with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO eventos_envios (visitante_id, evento_nome, mensagem, imagem_url, status)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (visitante_id, evento_nome, mensagem, imagem_url, status))
-            conn.commit()
-            logging.info(f"📢 Evento '{evento_nome}' registrado para visitante {visitante_id}")
-            return True
+        conn = get_db_connection()
+        if not conn:
+            return False
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO eventos_envios (visitante_id, evento_nome, mensagem, imagem_url, status, data_envio)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+        """, (visitante_id, evento_nome, mensagem, imagem_url, status))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logging.info(f"📢 Envio salvo: {evento_nome} para visitante {visitante_id} com status {status}")
+        return True
     except Exception as e:
-        logging.error(f"❌ Erro ao salvar envio de evento: {e}")
+        logging.error(f"Erro ao salvar envio de evento: {e}")
         return False
 
 
-def listar_envios_eventos():
-    """Lista todos os envios de campanhas registrados."""
+def listar_envios_eventos(limit=100):
+    """Lista os últimos envios de eventos/campanhas."""
     try:
-        with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT e.id, v.nome, v.telefone, e.evento_nome, e.mensagem, e.imagem_url,
-                       e.enviado_em, e.status
-                FROM eventos_envios e
-                INNER JOIN visitantes v ON e.visitante_id = v.id
-                ORDER BY e.enviado_em DESC
-            """)
-            return cursor.fetchall()
+        conn = get_db_connection()
+        if not conn:
+            return []
+
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT e.id, v.nome, v.telefone, e.evento_nome, e.mensagem, e.imagem_url, e.status, e.data_envio
+            FROM eventos_envios e
+            JOIN visitantes v ON v.id = e.visitante_id
+            ORDER BY e.data_envio DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return rows
     except Exception as e:
-        logging.error(f"❌ Erro ao listar envios de eventos: {e}")
+        logging.error(f"Erro ao listar envios de eventos: {e}")
         return []
 
 
