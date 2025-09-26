@@ -205,7 +205,7 @@ function initializeEventListeners() {
         },
         'backToOptionsIAButton': () => { toggleSection('options'); },
         'cancelTeachButton': () => { toggleTeachForm(false); },
-        'teachIAForm': handleTeachSubmit // Adiciona o listener para o submit do form
+        'teachIAForm': handleTeachSubmit, // Adiciona o listener para o submit do form
 
         'showCampaignButton': () => { 
             appState.currentView = 'campaignPanel'; 
@@ -801,5 +801,6 @@ function enviarCampanha(visitantes, eventoNome, mensagem, imagemUrl) {
 
 // Atualização temporizada a cada 20 minutos
 setInterval(loadDashboardData, 1200000); // 1200000 ms = 20 minutos
+
 
 
