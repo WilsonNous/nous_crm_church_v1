@@ -164,6 +164,32 @@ def register_routes(app_instance: Flask) -> None:
             logging.error(f"Erro no webhook: {e}")
             return jsonify({"error": "Erro ao processar webhook"}), 500
 
+    @app_instance.route('/get-dashboard-data', methods=['GET'])
+    def get_dashboard_data():
+        try:
+            total_visitantes = obter_total_visitantes()
+            total_membros, total_homens_membro, total_mulheres_membro = obter_total_membros()
+            total_discipulados, total_homens_discipulado, total_mulheres_discipulado = obter_total_discipulados()
+            dados_genero = obter_dados_genero()
+    
+            return jsonify({
+                "totalVisitantes": total_visitantes,
+                "totalMembros": total_membros,
+                "totalhomensMembro": total_homens_membro,
+                "totalmulheresMembro": total_mulheres_membro,
+                "discipuladosAtivos": total_discipulados,
+                "totalHomensDiscipulado": total_homens_discipulado,
+                "totalMulheresDiscipulado": total_mulheres_discipulado,
+                "grupos_comunhao": 0,  # se ainda não temos GC, deixa fixo
+                "Homens": dados_genero.get("Homens", 0),
+                "Homens_Percentual": dados_genero.get("Homens_Percentual", 0),
+                "Mulheres": dados_genero.get("Mulheres", 0),
+                "Mulheres_Percentual": dados_genero.get("Mulheres_Percentual", 0)
+            }), 200
+        except Exception as e:
+            logging.error(f"Erro no get-dashboard-data: {e}")
+            return jsonify({"error": str(e)}), 500
+
     # --- VISITANTES / ESTATÍSTICAS ---
     @app_instance.route('/visitantes', methods=['GET'])
     def get_all_visitantes():
