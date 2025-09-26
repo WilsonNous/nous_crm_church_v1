@@ -248,7 +248,8 @@ def register_routes(app_instance: Flask) -> None:
             cursor.close(); conn.close()
             return jsonify({"questions": perguntas}), 200
         except Exception as e:
-            logging.error(f"Erro: {e}")
+            import traceback
+            logging.error("Erro em /api/ia/pending-questions: %s", traceback.format_exc())
             return jsonify({"error": str(e)}), 500
 
     @app_instance.route('/api/ia/training-list', methods=['GET'])
