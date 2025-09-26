@@ -211,7 +211,7 @@ def register_routes(app_instance: Flask) -> None:
         cursor.close(); conn.close()
         return render_template('admin_integra_learn.html', questions=questions)
 
-    @app_instance.route('/ia/pending-questions', methods=['GET'])
+    @app_instance.route('/api/ia/pending-questions', methods=['GET'])
     def ia_pending_questions():
         try:
             conn = get_db_connection()
@@ -225,7 +225,7 @@ def register_routes(app_instance: Flask) -> None:
             logging.error(f"Erro: {e}")
             return jsonify({"error": str(e)}), 500
 
-    @app_instance.route('/ia/training-list', methods=['GET'])
+    @app_instance.route('/api/ia/training-list', methods=['GET'])
     def ia_training_list():
         try:
             conn = get_db_connection()
