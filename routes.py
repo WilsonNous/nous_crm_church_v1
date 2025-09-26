@@ -242,15 +242,31 @@ def register_routes(app_instance: Flask) -> None:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, user_id, question, created_at FROM unknown_questions WHERE status='pending' ORDER BY created_at DESC")
+            cursor.execute("""
+                SELECT id, user_id, question, created_at
+                FROM unknown_questions
+                WHERE status='pending'
+                ORDER BY created_at DESC
+            """)
             rows = cursor.fetchall()
-            perguntas = [{"id": r[0], "user_id": r[1], "question": r[2], "created_at": r[3]} for r in rows]
             cursor.close(); conn.close()
+    
+            perguntas = [
+                {
+                    "id": r.get("id"),
+                    "user_id": r.get("user_id"),
+                    "question": r.get("question"),
+                    "created_at": r.get("created_at"),
+                }
+                for r in rows
+            ]
+    
             return jsonify({"questions": perguntas}), 200
         except Exception as e:
             import traceback
             logging.error("Erro em /api/ia/pending-questions: %s", traceback.format_exc())
             return jsonify({"error": str(e)}), 500
+
 
     @app_instance.route('/api/ia/training-list', methods=['GET'])
     def ia_training_list():
