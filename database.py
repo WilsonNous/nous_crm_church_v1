@@ -877,3 +877,85 @@ def marcar_pergunta_como_respondida(pergunta: str):
     except Exception as e:
         logging.error(f"Erro ao marcar pergunta como respondida: {e}")
         return False
+
+# =======================
+# Funções de Campanhas de Eventos
+# =======================
+
+def salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url, status="pendente"):
+    """Salva o envio de um evento para um visitante."""
+    try:
+        with closing(get_db_connection()) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO eventos_envios (visitante_id, evento_nome, mensagem, imagem_url, status)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (visitante_id, evento_nome, mensagem, imagem_url, status))
+            conn.commit()
+            logging.info(f"📢 Evento '{evento_nome}' registrado para visitante {visitante_id}")
+            return True
+    except Exception as e:
+        logging.error(f"❌ Erro ao salvar envio de evento: {e}")
+        return False
+
+
+def listar_envios_eventos():
+    """Lista todos os envios de campanhas registrados."""
+    try:
+        with closing(get_db_connection()) as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT e.id, v.nome, v.telefone, e.evento_nome, e.mensagem, e.imagem_url,
+                       e.enviado_em, e.status
+                FROM eventos_envios e
+                INNER JOIN visitantes v ON e.visitante_id = v.id
+                ORDER BY e.enviado_em DESC
+            """)
+            return cursor.fetchall()
+    except Exception as e:
+        logging.error(f"❌ Erro ao listar envios de eventos: {e}")
+        return []
+
+
+def filtrar_visitantes_para_evento(data_inicio=None, data_fim=None, idade_min=None, idade_max=None, genero=None):
+    """
+    Retorna visitantes filtrados por data de cadastro, idade e gênero.
+    """
+    try:
+        with closing(get_db_connection()) as conn:
+            cursor = conn.cursor()
+            query = """
+                SELECT id, nome, telefone, genero, data_nascimento, data_cadastro
+                FROM visitantes
+                WHERE 1=1
+            """
+            params = []
+
+            if data_inicio:
+                query += " AND data_cadastro >= %s"
+                params.append(data_inicio)
+
+            if data_fim:
+                query += " AND data_cadastro <= %s"
+                params.append(data_fim)
+
+            if genero:
+                query += " AND genero = %s"
+                params.append(genero)
+
+            if idade_min or idade_max:
+                query += " AND data_nascimento IS NOT NULL"
+                # Calcula idade no MySQL
+                if idade_min:
+                    query += " AND TIMESTAMPDIFF(YEAR, data_nascimento, CURDATE()) >= %s"
+                    params.append(int(idade_min))
+                if idade_max:
+                    query += " AND TIMESTAMPDIFF(YEAR, data_nascimento, CURDATE()) <= %s"
+                    params.append(int(idade_max))
+
+            cursor.execute(query, tuple(params))
+            return cursor.fetchall()
+
+    except Exception as e:
+        logging.error(f"❌ Erro ao filtrar visitantes para evento: {e}")
+        return []
