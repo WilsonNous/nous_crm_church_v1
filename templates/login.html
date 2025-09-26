@@ -46,6 +46,8 @@
             <button type="button" id="showAcolhidoFormButton" class="btn-quaternary ">Cadastro de Acolhidos</button>
             <!-- Novo Botão para Treinar IA -->
             <button type="button" id="showIATrainingButton" class="btn-tertiary">🧠 Treinar IA</button>
+            <!-- Botão extra no menu -->
+            <button type="button" id="showEventosButton" class="btn-quinary">📢 Campanhas de Eventos</button>
         </div>
         <div id="infoCardsContainer" class="info-cards">
             <!-- Linha para Visitantes -->
@@ -352,6 +354,62 @@
             <button type="button" id="backToOptionsIAButton" class="btn-secondary">← Voltar ao Menu</button>
         </div>
     </section>
+    <!-- Novo Painel de Campanhas de Eventos -->
+    <section id="eventosContainer" class="hidden" aria-label="Campanhas de Eventos">
+        <div class="container">
+            <h2>📢 Campanha de Eventos</h2>
+    
+            <!-- Filtros -->
+            <form id="filtroVisitantesForm">
+                <div class="form-group">
+                    <label for="dataInicio">Data de Cadastro - Início:</label>
+                    <input type="date" id="dataInicio" name="dataInicio" required>
+                </div>
+                <div class="form-group">
+                    <label for="dataFim">Data de Cadastro - Fim:</label>
+                    <input type="date" id="dataFim" name="dataFim" required>
+                </div>
+                <div class="form-group">
+                    <label for="idadeMin">Idade Mínima:</label>
+                    <input type="number" id="idadeMin" name="idadeMin">
+                </div>
+                <div class="form-group">
+                    <label for="idadeMax">Idade Máxima:</label>
+                    <input type="number" id="idadeMax" name="idadeMax">
+                </div>
+                <div class="form-group">
+                    <label for="genero">Gênero:</label>
+                    <select id="genero" name="genero">
+                        <option value="">Todos</option>
+                        <option value="masculino">Masculino</option>
+                        <option value="feminino">Feminino</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Filtrar</button>
+            </form>
+    
+            <!-- Lista de Visitantes filtrados -->
+            <div id="resultadoVisitantes" class="result-list"></div>
+    
+            <!-- Dados da Campanha -->
+            <form id="enviarEventoForm">
+                <div class="form-group">
+                    <label for="eventoNome">Nome do Evento:</label>
+                    <input type="text" id="eventoNome" name="eventoNome" required>
+                </div>
+                <div class="form-group">
+                    <label for="mensagemEvento">Mensagem:</label>
+                    <textarea id="mensagemEvento" name="mensagemEvento" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="imagemUrl">Imagem (URL):</label>
+                    <input type="text" id="imagemUrl" name="imagemUrl" required>
+                </div>
+                <button type="submit" class="btn-success">Enviar Campanha</button>
+                <button type="button" id="backToOptionsEvento" class="btn-secondary">Voltar</button>
+            </form>
+        </div>
+    </section>
 </main>
 <footer>
     <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 2.0</p>
@@ -359,3 +417,4 @@
 
 </body>
 </html>
+
