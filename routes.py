@@ -93,17 +93,21 @@ def register_routes(app_instance: Flask) -> None:
         data = request.get_json()
         if not data:
             return jsonify({'status': 'failed', 'message': 'Nenhum dado foi fornecido'}), 400
+    
         username = data.get('username')
         password = data.get('password')
         if not username or not password:
             return jsonify({'status': 'failed', 'message': 'Usuário e senha são obrigatórios'}), 400
-        stored_username = 'admin'
-        stored_hashed_password = generate_password_hash('s3cr3ty')
-        if username == stored_username and check_password_hash(stored_hashed_password, password):
+    
+        stored_username = os.getenv("ADMIN_USER", "admin")
+        stored_password_hash = os.getenv("ADMIN_PASSWORD_HASH")  # já armazenado com generate_password_hash()
+    
+        if username == stored_username and stored_password_hash and check_password_hash(stored_password_hash, password):
             access_token = create_access_token(identity={'username': username, 'role': 'admin'})
-            return jsonify({'status': 'success','message': 'Login bem-sucedido!','token': access_token}), 200
-        else:
-            return jsonify({'status': 'failed','message': 'Usuário ou senha inválidos'}), 401
+            return jsonify({'status': 'success', 'message': 'Login bem-sucedido!', 'token': access_token}), 200
+    
+        return jsonify({'status': 'failed', 'message': 'Usuário ou senha inválidos'}), 401
+
 
     # --- MONITOR STATUS ---
     @app_instance.route('/monitor-status', methods=['GET'])
