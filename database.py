@@ -28,69 +28,21 @@ from typing import Optional, Dict
 # =======================
 
 def get_db_connection():
-    """Get DB connection. Uses MySQL if USE_SQLITE=0 and pymysql available; otherwise fallback to SQLite.
-    Configure MySQL via env vars: MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB.
-    """
-    import os
-    USE_SQLITE = os.getenv('USE_SQLITE', '1') == '1'
-    SQLITE_DB_FILE = os.getenv('SQLITE_DB_FILE', 'crm_visitantes.db')
-    if USE_SQLITE:
-        import sqlite3
-        class _Cursor:
-            def __init__(self, cur):
-                self._cur = cur
-                self.description = None
-            def execute(self, q, params=None):
-                if params is None:
-                    params = ()
-                q2 = q.replace('%s', '?')
-                self._cur.execute(q2, params)
-                self.description = self._cur.description
-                return self
-            def fetchone(self):
-                row = self._cur.fetchone()
-                if not row: return None
-                if self.description:
-                    cols = [d[0] for d in self.description]
-                    return dict(zip(cols, row))
-                return row
-            def fetchall(self):
-                rows = self._cur.fetchall()
-                if not rows: return []
-                if self.description:
-                    cols = [d[0] for d in self.description]
-                    return [dict(zip(cols, r)) for r in rows]
-                return rows
-        conn = sqlite3.connect(SQLITE_DB_FILE, check_same_thread=False)
-        class ConnWrap:
-            def cursor(self):
-                return _Cursor(conn.cursor())
-            def commit(self): return conn.commit()
-            def close(self): return conn.close()
-        return ConnWrap()
-    # Try MySQL if requested
     try:
-        import pymysql
         conn = pymysql.connect(
-            host=os.getenv('MYSQL_HOST', 'localhost'),
-            user=os.getenv('MYSQL_USER', 'root'),
-            password=os.getenv('MYSQL_PASSWORD', ''),
-            db=os.getenv('MYSQL_DB', ''),
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor
+            host=os.getenv("MYSQL_HOST"),
+            user=os.getenv("MYSQL_USER"),
+            password=os.getenv("MYSQL_PASSWORD"),
+            db=os.getenv("MYSQL_DB"),
+            port=int(os.getenv("MYSQL_PORT", 3306)),
+            charset="utf8mb4",
+            cursorclass=pymysql.cursors.DictCursor,
+            autocommit=False
         )
         return conn
     except Exception as e:
-        import logging
-        logging.warning("MySQL connect failed: %s. Falling back to SQLite.", e)
-        import sqlite3
-        conn = sqlite3.connect(SQLITE_DB_FILE, check_same_thread=False)
-        class ConnWrap:
-            def cursor(self):
-                return _Cursor(conn.cursor())
-            def commit(self): return conn.commit()
-            def close(self): return conn.close()
-        return ConnWrap()
+        logging.error(f"❌ Erro ao conectar no MySQL: {e}")
+        return None
 
 def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
                      estado_civil, igreja_atual, frequenta_igreja, indicacao,
