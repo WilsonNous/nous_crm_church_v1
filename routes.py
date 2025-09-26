@@ -220,7 +220,7 @@ def register_routes(app_instance: Flask) -> None:
             rows = cursor.fetchall()
             perguntas = [{"id": r[0], "user_id": r[1], "question": r[2], "created_at": r[3]} for r in rows]
             cursor.close(); conn.close()
-            return jsonify({"pending_questions": perguntas}), 200
+            return jsonify({"questions": perguntas}), 200
         except Exception as e:
             logging.error(f"Erro: {e}")
             return jsonify({"error": str(e)}), 500
