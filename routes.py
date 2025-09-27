@@ -299,41 +299,74 @@ def register_routes(app_instance: Flask) -> None:
             mensagem = data.get("mensagem")
             imagem_url = data.get("imagem_url")
             visitantes = data.get("visitantes")
-
+    
             if not visitantes or not evento_nome or not mensagem:
                 return jsonify({"status": "error", "message": "Dados incompletos para envio"}), 400
-
+    
             ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
             ZAPI_TOKEN = os.getenv("ZAPI_TOKEN")
             ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN")
             headers = {"Client-Token": ZAPI_CLIENT_TOKEN, "Content-Type": "application/json"}
-
+    
             enviados = []
-            for v in visitantes:
-                visitante_id = v.get("id")
-                telefone = v.get("telefone")
-                telefone_envio = f"55{telefone}" if not telefone.startswith("55") else telefone
-
-                if imagem_url:
-                    payload = {"phone": telefone_envio, "caption": mensagem, "image": imagem_url}
-                    url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-image"
-                else:
-                    payload = {"phone": telefone_envio, "message": mensagem}
-                    url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
-
-                try:
-                    response = requests.post(url, json=payload, headers=headers, timeout=15)
-                    status = "enviado" if response.ok else f"falha: {response.status_code}"
-                    salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url, status)
-                    enviados.append({"id": visitante_id, "telefone": telefone_envio, "status": status})
-                except Exception as e:
-                    logging.error(f"Erro ao enviar para {telefone_envio}: {e}")
-                    salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url, "erro")
-
-            return jsonify({"status": "success", "enviados": enviados}), 200
+            falhas = []
+            lote_size = 20
+            total = len(visitantes)
+    
+            conn = get_db_connection()
+            cursor = conn.cursor()
+    
+            for i in range(0, total, lote_size):
+                lote = visitantes[i:i + lote_size]
+                for v in lote:
+                    visitante_id = v.get("id")
+                    telefone = v.get("telefone")
+                    telefone_envio = f"55{telefone}" if telefone and not telefone.startswith("55") else telefone
+    
+                    # 1. Verificar duplicidade
+                    cursor.execute("""
+                        SELECT id, status FROM eventos_envios 
+                        WHERE visitante_id = %s AND evento_nome = %s
+                    """, (visitante_id, evento_nome))
+                    existing = cursor.fetchone()
+    
+                    if existing and existing[1] == "enviado":
+                        logging.info(f"🔄 Visitante {visitante_id} já recebeu o evento {evento_nome}, ignorando.")
+                        continue
+    
+                    try:
+                        # 2. Montar payload
+                        if imagem_url:
+                            payload = {"phone": telefone_envio, "caption": mensagem, "image": imagem_url}
+                            url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-image"
+                        else:
+                            payload = {"phone": telefone_envio, "message": mensagem}
+                            url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
+    
+                        # 3. Enviar mensagem
+                        response = requests.post(url, json=payload, headers=headers, timeout=15)
+                        status = "enviado" if response.ok else f"falha: {response.status_code}"
+    
+                        # 4. Gravar no banco
+                        salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url, status)
+                        enviados.append({"id": visitante_id, "telefone": telefone_envio, "status": status})
+                    except Exception as e:
+                        logging.error(f"Erro ao enviar para {telefone_envio}: {e}")
+                        salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url, "erro")
+                        falhas.append({"id": visitante_id, "telefone": telefone_envio, "status": "erro"})
+    
+                # 5. Pequena pausa entre lotes (2 segundos)
+                import time
+                time.sleep(2)
+    
+            cursor.close()
+            conn.close()
+    
+            return jsonify({"status": "success", "enviados": enviados, "falhas": falhas}), 200
         except Exception as e:
             logging.error(f"Erro em /api/eventos/enviar: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
+
 
     @app_instance.route('/api/eventos/envios', methods=['GET'])
     def api_eventos_envios():
