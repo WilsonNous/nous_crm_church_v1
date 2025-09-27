@@ -141,14 +141,29 @@ def register_routes(app_instance: Flask) -> None:
         """Lista visitantes básicos (para envio manual WhatsApp)."""
         try:
             visitantes = listar_todos_visitantes()
-            visitors = [
-                {"id": v["id"], "name": v["nome"], "phone": v["telefone"]}
-                for v in visitantes
-            ]
+
+            visitors = []
+            for v in visitantes:
+                # Caso seja dict (MySQL com dictionary=True)
+                if isinstance(v, dict):
+                    visitors.append({
+                        "id": v.get("id"),
+                        "name": v.get("nome"),
+                        "phone": v.get("telefone")
+                    })
+                else:
+                    # Caso seja tupla ou sqlite3.Row
+                    visitors.append({
+                        "id": v[0],
+                        "name": v[1],
+                        "phone": v[2] if len(v) > 2 else None
+                    })
+
             return jsonify({"status": "success", "visitors": visitors}), 200
         except Exception as e:
             logging.error(f"Erro em /api/get-visitors: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
+
 
     @app_instance.route('/api/send-message-manual', methods=['POST'])
     def api_send_message_manual():
