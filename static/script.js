@@ -364,27 +364,32 @@ function handleAcolhidoFormSubmission(event) {
 }
 
 // ------------------------------
-// WhatsApp - Envio manual
+// WhatsApp - Envio manual (Twilio)
 // ------------------------------
 function handleWhatsappButtonClick() {
-  if (!confirm('Deseja enviar a mensagem via WhatsApp?')) return;
+  if (!confirm('Deseja enviar a mensagem via WhatsApp (Twilio)?')) return;
   appState.currentView = 'whatsappLog';
   updateUI();
   fetchVisitorsAndSendMessagesManual();
 }
 
 function fetchVisitorsAndSendMessagesManual() {
-  apiRequest('get_visitors')
+  apiRequest('get-visitors') // <-- alinhar com backend
     .then(data => {
       if (data.status !== 'success') throw new Error('Erro ao buscar visitantes.');
       const visitors = data.visitors || [];
-      if (visitors.length === 0) { alert('Nenhum visitante encontrado.'); return; }
+      if (visitors.length === 0) { 
+        alert('Nenhum visitante encontrado.'); 
+        return; 
+      }
+
       const messages = visitors.map(v => ({
         phone: v.phone,
         ContentSid: 'HX45ac2c911363fad7a701f72b3ff7a2ce',
         template_name: 'boasvindasvisitantes',
         params: { visitor_name: v.name }
       }));
+
       sendMessagesManual(messages);
     })
     .catch(err => showError(`Erro ao buscar visitantes: ${err.message}`, 'logContainer'));
@@ -394,7 +399,7 @@ function sendMessagesManual(messages) {
   (messages || []).forEach(v => {
     apiRequest('send-message-manual', 'POST', {
       numero: v.phone,
-      ContentSid: 'HX45ac2c911363fad7a701f72b3ff7a2ce',
+      ContentSid: v.ContentSid,
       params: v.params
     })
       .then(data => {
@@ -404,6 +409,7 @@ function sendMessagesManual(messages) {
       .catch(err => showError(`Erro ao enviar mensagens: ${err.message}`, 'logContainer'));
   });
 }
+
 
 // ------------------------------
 // Monitorar Status
@@ -755,6 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
