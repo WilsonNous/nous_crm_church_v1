@@ -674,6 +674,33 @@ function handleEnviarEventoSubmit(event) {
     });
 }
 
+function handleReprocessarFalhas() {
+  const evento_nome = $('eventoNome')?.value || '';
+  if (!evento_nome) {
+    alert('Informe o nome do evento para reprocessar falhas.');
+    return;
+  }
+
+  if (!confirm(`Deseja reprocessar falhas do evento: ${evento_nome}?`)) return;
+
+  fetch(`${baseUrl}/api/eventos/reprocessar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ evento_nome })
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status !== 'success') {
+        alert('Erro ao reprocessar: ' + (data.message || 'desconhecido'));
+        return;
+      }
+      alert(`✅ Reprocessados ${data.reprocessados.length}, Falhas: ${data.falhas.length}`);
+    })
+    .catch(err => {
+      console.error('Erro ao reprocessar:', err);
+      alert('Erro de conexão ao reprocessar falhas.');
+    });
+}
 
 // ------------------------------
 // Listeners / Boot
@@ -719,6 +746,9 @@ function initializeEventListeners() {
 
   const enviarEventoForm = $('enviarEventoForm');
   if (enviarEventoForm) enviarEventoForm.addEventListener('submit', handleEnviarEventoSubmit);
+
+  const btnReprocessar = $('btnReprocessarFalhas');
+  if (btnReprocessar) btnReprocessar.addEventListener('click', handleReprocessarFalhas);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -726,4 +756,5 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
