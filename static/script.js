@@ -625,13 +625,17 @@ function handleEnviarEventoSubmit(event) {
   }
 
   // Cria barra de progresso
-  const cont = $('resultadoVisitantes');
-  cont.innerHTML = `
-    <div id="progressBarContainer" style="width:100%; background:#eee; border:1px solid #ccc; margin:10px 0;">
-      <div id="progressBar" style="width:0%; height:25px; background:#28a745; text-align:center; color:#fff;">0%</div>
-    </div>
-  `;
+  let progressBar = $('progressBar');
+  if (!progressBar) {
+    const container = $('resultadoVisitantes');
+    progressBar = document.createElement('progress');
+    progressBar.id = 'progressBar';
+    progressBar.max = visitantesFiltrados.length;
+    progressBar.value = 0;
+    container.appendChild(progressBar);
+  }
 
+  // Envio sequencial (simulado via loop + atraso no backend)
   fetch(`${baseUrl}/api/eventos/enviar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -649,24 +653,19 @@ function handleEnviarEventoSubmit(event) {
         return;
       }
 
-      // Atualiza a barra conforme enviados
-      const enviados = data.enviados || [];
-      const total = visitantesFiltrados.length;
-      let count = 0;
-
-      enviados.forEach((_, idx) => {
-        count++;
-        const pct = Math.round((count / total) * 100);
-        const bar = $('progressBar');
-        if (bar) {
-          bar.style.width = pct + '%';
-          bar.textContent = pct + '%';
+      // Atualiza barra localmente
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i < visitantesFiltrados.length) {
+          progressBar.value = i + 1;
+          i++;
+        } else {
+          clearInterval(interval);
+          alert(`Campanha enviada para ${data.enviados?.length || 0} visitantes.`);
+          appState.currentView = 'options';
+          updateUI();
         }
-      });
-
-      alert(`Campanha enviada para ${enviados.length} visitantes.`);
-      appState.currentView = 'options';
-      updateUI();
+      }, 600); // acompanha o time.sleep do backend (0.5s)
     })
     .catch(err => {
       console.error('Erro ao enviar campanha:', err);
@@ -756,5 +755,6 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
