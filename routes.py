@@ -33,12 +33,16 @@ from database import (
     salvar_envio_evento, listar_envios_eventos, filtrar_visitantes_para_evento
 )
 
+from twilio.rest import Client
 from ia_integracao import IAIntegracao
 ia_integracao = IAIntegracao()
 
 # --- LOGIN (seguro com ENV) ---
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", None)  # deve estar já com generate_password_hash()
+TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "whatsapp:+14155238886")
 
 def register_routes(app_instance: Flask) -> None:
 
@@ -132,6 +136,56 @@ def register_routes(app_instance: Flask) -> None:
             logging.error(f"Erro no webhook: {e}")
             return jsonify({"error": "Erro ao processar webhook"}), 500
 
+    @app_instance.route('/api/get-visitors', methods=['GET'])
+    def api_get_visitors():
+        """Lista visitantes básicos (para envio manual WhatsApp)."""
+        try:
+            visitantes = listar_todos_visitantes()
+            visitors = [
+                {"id": v["id"], "name": v["nome"], "phone": v["telefone"]}
+                for v in visitantes
+            ]
+            return jsonify({"status": "success", "visitors": visitors}), 200
+        except Exception as e:
+            logging.error(f"Erro em /api/get-visitors: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    @app_instance.route('/api/send-message-manual', methods=['POST'])
+    def api_send_message_manual():
+        """Envia mensagem manual via Twilio (1 a 1)."""
+        try:
+            data = request.get_json()
+            numero = data.get("numero")
+            params = data.get("params", {})
+            content_sid = data.get("ContentSid")
+            mensagem = data.get("mensagem", "")
+
+            if not numero:
+                return jsonify({"success": False, "error": "Número não informado"}), 400
+
+            client = Client(TWILIO_SID, TWILIO_TOKEN)
+
+            # Se vier ContentSid, usa template do Twilio
+            if content_sid:
+                message = client.messages.create(
+                    from_=TWILIO_NUMBER,
+                    to=f"whatsapp:{numero}",
+                    content_sid=content_sid,
+                    content_variables=params
+                )
+            else:
+                message = client.messages.create(
+                    from_=TWILIO_NUMBER,
+                    to=f"whatsapp:{numero}",
+                    body=mensagem
+                )
+
+            logging.info(f"✅ Mensagem enviada via Twilio para {numero}, SID: {message.sid}")
+            return jsonify({"success": True, "sid": message.sid}), 200
+        except Exception as e:
+            logging.error(f"Erro em /api/send-message-manual: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+    
     # --- DASHBOARD ---
     @app_instance.route('/api/get-dashboard-data', methods=['GET'])
     def get_dashboard_data():
