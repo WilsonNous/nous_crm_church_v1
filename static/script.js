@@ -65,7 +65,6 @@ function updateUI() {
       break;
     case 'options':
       safeShow('options');
-      // dentro do options: mostrar cartões e botões
       safeShow('infoCardsContainer');
       safeShow('showFormButton');
       safeShow('monitorStatusButton');
@@ -73,7 +72,7 @@ function updateUI() {
       safeShow('showMemberFormButton');
       safeShow('showAcolhidoFormButton');
       safeShow('showIATrainingButton');
-      safeShow('showCampaignButton'); // botão Campanhas
+      safeShow('showCampaignButton');
       break;
     case 'form':
       safeShow('formContainer');
@@ -116,7 +115,7 @@ function handleLogin(event) {
   const username = $('username')?.value || '';
   const password = $('password')?.value || '';
 
-  fetch(`${baseUrl}/login`, {
+  fetch(`${baseUrl}/api/login`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ username, password }),
@@ -127,7 +126,6 @@ function handleLogin(event) {
     })
     .then(data => {
       if (data.status === 'success') {
-        // guarda token (se precisar no futuro)
         try { localStorage.setItem('jwt_token', data.token); } catch(_) {}
         appState.user = username;
         appState.currentView = 'options';
@@ -146,7 +144,7 @@ function handleLogin(event) {
 // Dashboard (cards)
 // ------------------------------
 function loadDashboardData() {
-  fetch(`${baseUrl}/get-dashboard-data`)
+  fetch(`${baseUrl}/api/get-dashboard-data`)
     .then(r => r.json())
     .then(data => {
       const setText = (id, v) => { const el = $(id); if (el) el.textContent = v ?? '0'; };
@@ -169,8 +167,6 @@ function loadDashboardData() {
     })
     .catch(err => console.error('Erro ao carregar dados do dashboard:', err));
 }
-
-// Atualização a cada 20 min
 setInterval(loadDashboardData, 1200000);
 
 // ------------------------------
@@ -223,12 +219,13 @@ function validateForm(data) {
   return data && data.name && data.phone;
 }
 
+// Corrigido: sempre prefixar /api/
 function apiRequest(endpoint, method = 'GET', body = null) {
   const headers = { 'Content-Type': 'application/json' };
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
 
-  return fetch(`${baseUrl}/${endpoint}`, opts)
+  return fetch(`${baseUrl}/api/${endpoint}`, opts)
     .then(async response => {
       if (!response.ok) {
         let msg = 'Erro desconhecido';
@@ -268,9 +265,6 @@ function handleFormSubmission(event) {
 // ------------------------------
 function saveMember(event) {
   event.preventDefault();
-  const form = $('memberForm');
-  if (!form) return;
-
   const data = {
     nome: $('memberName')?.value || '',
     telefone: $('memberPhone')?.value || '',
@@ -300,7 +294,7 @@ function saveMember(event) {
     });
 }
 
-// CEP auto-preenchimento (somente se existir campo)
+// CEP auto-preenchimento
 (function bindCEP() {
   const cepEl = $('cep');
   if (!cepEl) return;
@@ -329,8 +323,9 @@ function saveMember(event) {
 // Acolhido - Cadastro
 // ------------------------------
 function clearAcolhidoForm() {
-  const ids = ['nome', 'telefone', 'situacao', 'observacao'];
-  ids.forEach(id => { const el = $(id); if (el) el.value = ''; });
+  ['nome', 'telefone', 'situacao', 'observacao'].forEach(id => {
+    const el = $(id); if (el) el.value = '';
+  });
 }
 
 function handleAcolhidoFormSubmission(event) {
@@ -369,7 +364,7 @@ function handleAcolhidoFormSubmission(event) {
 }
 
 // ------------------------------
-// WhatsApp - Envio manual (seus endpoints internos)
+// WhatsApp - Envio manual
 // ------------------------------
 function handleWhatsappButtonClick() {
   if (!confirm('Deseja enviar a mensagem via WhatsApp?')) return;
@@ -411,7 +406,7 @@ function sendMessagesManual(messages) {
 }
 
 // ------------------------------
-// Monitorar Status + paginação
+// Monitorar Status
 // ------------------------------
 let currentPage = 1;
 const itemsPerPage = 10;
@@ -437,7 +432,7 @@ function loadPageData(page) {
 }
 
 function monitorStatus() {
-  fetch(`${baseUrl}/monitor-status`, { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+  fetch(`${baseUrl}/api/monitor-status`, { method: 'GET', headers: { 'Content-Type': 'application/json' } })
     .then(r => {
       if (!r.ok) throw new Error(`Erro ao buscar status: ${r.statusText}`);
       return r.json();
@@ -452,7 +447,6 @@ function monitorStatus() {
     .catch(err => showError(`Erro ao buscar status: ${err.message}`, 'logContainer'));
 }
 
-// Paginadores
 function bindPagination() {
   const nextBtn = $('nextPageButton');
   const prevBtn = $('prevPageButton');
@@ -661,7 +655,6 @@ function handleEnviarEventoSubmit(event) {
 // ------------------------------
 function initializeEventListeners() {
   const map = {
-    // Menu principal
     'showFormButton': () => { appState.currentView = 'form'; updateUI(); },
     'showMemberFormButton': () => { appState.currentView = 'memberForm'; updateUI(); },
     'showAcolhidoFormButton': () => { clearAcolhidoForm(); appState.currentView = 'acolhidoForm'; updateUI(); },
@@ -670,7 +663,6 @@ function initializeEventListeners() {
     'showIATrainingButton': () => { appState.currentView = 'iaTrainingPanel'; updateUI(); loadPendingQuestions(); },
     'showCampaignButton': () => { appState.currentView = 'eventos'; updateUI(); },
 
-    // Voltar dos formulários
     'backToOptionsCadastroButton': () => { appState.currentView = 'options'; updateUI(); },
     'backToOptionsCadastroMembro': () => { appState.currentView = 'options'; updateUI(); },
     'backToOptionsCadastroAcolhido': () => { appState.currentView = 'options'; updateUI(); },
@@ -679,7 +671,6 @@ function initializeEventListeners() {
     'backToOptionsIAButton': () => { appState.currentView = 'options'; updateUI(); },
     'cancelTeachButton': () => { toggleTeachForm(false); safeShow('trainingList'); },
 
-    // Voltar do painel de eventos
     'backToOptionsEvento': () => { appState.currentView = 'options'; updateUI(); },
   };
 
@@ -690,21 +681,14 @@ function initializeEventListeners() {
     el.addEventListener(eventType, handler);
   });
 
-  // Formulários com submit próprios
   const visitorForm = $('visitorForm');
   if (visitorForm) visitorForm.addEventListener('submit', handleFormSubmission);
 
   const acolhidoForm = $('acolhidoForm');
   if (acolhidoForm) acolhidoForm.addEventListener('submit', handleAcolhidoFormSubmission);
 
-  // memberForm tem onsubmit="saveMember(event)" no HTML — não duplicar aqui.
-
-  // Login form tem onsubmit="handleLogin(event)" no HTML — não duplicar aqui.
-
-  // Paginadores
   bindPagination();
 
-  // Filtros/Envio de Eventos
   const filtroForm = $('filtroVisitantesForm');
   if (filtroForm) filtroForm.addEventListener('submit', handleFiltroVisitantesSubmit);
 
@@ -712,7 +696,6 @@ function initializeEventListeners() {
   if (enviarEventoForm) enviarEventoForm.addEventListener('submit', handleEnviarEventoSubmit);
 }
 
-// Boot
 document.addEventListener('DOMContentLoaded', () => {
   initializeEventListeners();
   updateUI();
