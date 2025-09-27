@@ -883,18 +883,34 @@ def marcar_pergunta_como_respondida(pergunta: str):
 # =======================
 
 def salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url=None, status="pendente"):
-    """Salva o registro de um envio de evento/campanha."""
+    """Salva o registro de um envio de evento/campanha, evitando duplicados."""
     try:
         conn = get_db_connection()
         if not conn:
             return False
 
         cursor = conn.cursor()
+
+        # Verifica se já existe envio para esse visitante/evento
+        cursor.execute("""
+            SELECT id FROM eventos_envios
+            WHERE visitante_id = %s AND evento_nome = %s
+        """, (visitante_id, evento_nome))
+        existente = cursor.fetchone()
+
+        if existente:
+            logging.info(f"⚠️ Já existe envio para visitante {visitante_id} no evento {evento_nome}. Ignorando.")
+            cursor.close()
+            conn.close()
+            return False
+
+        # Insere somente se não existir
         cursor.execute("""
             INSERT INTO eventos_envios (visitante_id, evento_nome, mensagem, imagem_url, status, data_envio)
             VALUES (%s, %s, %s, %s, %s, NOW())
         """, (visitante_id, evento_nome, mensagem, imagem_url, status))
         conn.commit()
+
         cursor.close()
         conn.close()
         logging.info(f"📢 Envio salvo: {evento_nome} para visitante {visitante_id} com status {status}")
