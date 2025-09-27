@@ -1,224 +1,720 @@
-// --- CORRIGIDO: baseUrl sem espaços ---
+// ==============================
+// script.js - CRM Church (final)
+// ==============================
+
+// Base da API
 const baseUrl = 'https://nous-crm-church-v1.onrender.com';
 
+// Estado da aplicação
 const appState = {
-    currentView: 'login',
-    user: null,
+  currentView: 'login', // 'login' | 'options' | 'form' | 'memberForm' | 'acolhidoForm' | 'whatsappLog' | 'statusLog' | 'iaTrainingPanel' | 'eventos'
+  user: null,
 };
 
-// --- IA ---
+// ------------------------------
+// Utilitários
+// ------------------------------
+function $(id) {
+  return document.getElementById(id);
+}
+
+function safeShow(id) {
+  const el = $(id);
+  if (el) el.classList.remove('hidden');
+}
+function safeHide(id) {
+  const el = $(id);
+  if (el) el.classList.add('hidden');
+}
+
+// Alguns botões no HTML usam onclick com ids antigos — mapeamos aqui
+function toggleForm(anyId) {
+  // Independente do argumento, voltamos ao menu de opções
+  appState.currentView = 'options';
+  updateUI();
+}
+
+// ------------------------------
+// Painel de IA - estado/variáveis
+// ------------------------------
 let currentTeachQuestion = null;
-let perguntasPendentes = [];
+let perguntasPendentes = []; // cache
 
-function toggleSection(sectionId) {
-    const sections = [
-        'loginContainer', 'options', 'formContainer', 'memberFormContainer',
-        'acolhidoFormContainer', 'whatsappLog', 'statusLog',
-        'iaTrainingPanel', 'eventosContainer'
-    ];
-    sections.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('hidden');
+// ------------------------------
+// Navegação entre seções
+// ------------------------------
+function updateUI() {
+  // Esconde tudo
+  const all = [
+    'loginContainer',
+    'options',
+    'formContainer',
+    'memberFormContainer',
+    'acolhidoFormContainer',
+    'whatsappLog',
+    'statusLog',
+    'iaTrainingPanel',
+    'eventosContainer',
+  ];
+  all.forEach(safeHide);
+
+  // Exibe a seção conforme o estado
+  switch (appState.currentView) {
+    case 'login':
+      safeShow('loginContainer');
+      break;
+    case 'options':
+      safeShow('options');
+      // dentro do options: mostrar cartões e botões
+      safeShow('infoCardsContainer');
+      safeShow('showFormButton');
+      safeShow('monitorStatusButton');
+      safeShow('sendWhatsappButton');
+      safeShow('showMemberFormButton');
+      safeShow('showAcolhidoFormButton');
+      safeShow('showIATrainingButton');
+      safeShow('showCampaignButton'); // botão Campanhas
+      break;
+    case 'form':
+      safeShow('formContainer');
+      break;
+    case 'memberForm':
+      safeShow('memberFormContainer');
+      break;
+    case 'acolhidoForm':
+      safeShow('acolhidoFormContainer');
+      break;
+    case 'whatsappLog':
+      safeShow('whatsappLog');
+      break;
+    case 'statusLog':
+      safeShow('statusLog');
+      break;
+    case 'iaTrainingPanel':
+      safeShow('iaTrainingPanel');
+      break;
+    case 'eventos':
+      safeShow('eventosContainer');
+      break;
+    default:
+      console.warn('Visão não reconhecida:', appState.currentView);
+  }
+}
+
+// ------------------------------
+// Login
+// ------------------------------
+function showLoginError(message) {
+  const c = $('loginErrorContainer');
+  if (!c) return;
+  c.innerHTML = `<div class="error-message">${message}</div>`;
+}
+
+function handleLogin(event) {
+  if (event) event.preventDefault();
+
+  const username = $('username')?.value || '';
+  const password = $('password')?.value || '';
+
+  fetch(`${baseUrl}/login`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ username, password }),
+  })
+    .then(res => {
+      if (!res.ok) throw new Error('Falha ao autenticar');
+      return res.json();
+    })
+    .then(data => {
+      if (data.status === 'success') {
+        // guarda token (se precisar no futuro)
+        try { localStorage.setItem('jwt_token', data.token); } catch(_) {}
+        appState.user = username;
+        appState.currentView = 'options';
+        updateUI();
+      } else {
+        showLoginError(data.message || 'Usuário ou senha inválidos.');
+      }
+    })
+    .catch(err => {
+      console.error('Erro no login:', err);
+      showLoginError('Erro ao tentar autenticar.');
     });
-    const targetSection = document.getElementById(sectionId);
-    if (targetSection) targetSection.classList.remove('hidden');
 }
 
+// ------------------------------
+// Dashboard (cards)
+// ------------------------------
+function loadDashboardData() {
+  fetch(`${baseUrl}/get-dashboard-data`)
+    .then(r => r.json())
+    .then(data => {
+      const setText = (id, v) => { const el = $(id); if (el) el.textContent = v ?? '0'; };
+
+      setText('totalVisitantes', data.totalVisitantes);
+      setText('totalMembros', data.totalMembros);
+      setText('totalhomensMembro', data.totalhomensMembro);
+      setText('totalmulheresMembro', data.totalmulheresMembro);
+
+      setText('discipuladosAtivos', data.discipuladosAtivos);
+      setText('totalHomensDiscipulado', data.totalHomensDiscipulado);
+      setText('totalMulheresDiscipulado', data.totalMulheresDiscipulado);
+
+      setText('grupos_comunhao', data.grupos_comunhao);
+
+      setText('totalHomens', data.Homens);
+      setText('percentualHomens', (data.Homens_Percentual || 0) + '%');
+      setText('totalMulheres', data.Mulheres);
+      setText('percentualMulheres', (data.Mulheres_Percentual || 0) + '%');
+    })
+    .catch(err => console.error('Erro ao carregar dados do dashboard:', err));
+}
+
+// Atualização a cada 20 min
+setInterval(loadDashboardData, 1200000);
+
+// ------------------------------
+// Visitantes - Cadastro
+// ------------------------------
+function showError(message, containerId) {
+  const c = $(containerId);
+  if (!c) return;
+  c.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'error-message';
+  div.textContent = message;
+  c.appendChild(div);
+}
+function clearError() {
+  const c = $('registerErrorContainer');
+  if (c) c.innerHTML = '';
+}
+
+function validatePhoneNumber(phone) {
+  const digits = (phone || '').replace(/\D/g, '');
+  return digits.length === 11 ? digits : null;
+}
+
+function collectFormData() {
+  const phoneInput = $('phone')?.value || '';
+  const validPhone = validatePhoneNumber(phoneInput);
+  if (!validPhone) {
+    alert('Número inválido. Informe DDD + número (11 dígitos).');
+    return null;
+  }
+  return {
+    name: $('name')?.value || '',
+    phone: validPhone,
+    email: $('email')?.value || '',
+    birthdate: $('birthdate')?.value || '',
+    city: $('city')?.value || '',
+    gender: $('gender')?.value || '',
+    maritalStatus: $('maritalStatus')?.value || '',
+    currentChurch: $('currentChurch')?.value || '',
+    attendingChurch: $('attendingChurch')?.checked || false,
+    referral: $('referral')?.value || '',
+    membership: $('membership')?.checked || false,
+    prayerRequest: $('prayerRequest')?.value || '',
+    contactTime: document.querySelector('input[name="contactTime"]')?.value || $('contactTime')?.value || ''
+  };
+}
+
+function validateForm(data) {
+  return data && data.name && data.phone;
+}
+
+function apiRequest(endpoint, method = 'GET', body = null) {
+  const headers = { 'Content-Type': 'application/json' };
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+
+  return fetch(`${baseUrl}/${endpoint}`, opts)
+    .then(async response => {
+      if (!response.ok) {
+        let msg = 'Erro desconhecido';
+        try {
+          const e = await response.json();
+          msg = e.message || e.error || msg;
+        } catch(_) {}
+        throw new Error(`Erro: ${response.status} - ${msg}`);
+      }
+      return response.json();
+    });
+}
+
+function registerVisitor(visitorData) {
+  apiRequest('register', 'POST', visitorData)
+    .then(data => {
+      alert(data.message || 'Registro realizado com sucesso!');
+      const form = $('visitorForm');
+      if (form) form.reset();
+      clearError();
+    })
+    .catch(err => showError(`Erro ao registrar: ${err.message}`, 'registerErrorContainer'));
+}
+
+function handleFormSubmission(event) {
+  event.preventDefault();
+  const data = collectFormData();
+  if (validateForm(data)) {
+    registerVisitor(data);
+  } else {
+    alert('Por favor, preencha os campos obrigatórios corretamente.');
+  }
+}
+
+// ------------------------------
+// Membros - Cadastro
+// ------------------------------
+function saveMember(event) {
+  event.preventDefault();
+  const form = $('memberForm');
+  if (!form) return;
+
+  const data = {
+    nome: $('memberName')?.value || '',
+    telefone: $('memberPhone')?.value || '',
+    email: $('memberEmail')?.value || '',
+    data_nascimento: $('memberBirthday')?.value || '',
+    cep: $('cep')?.value || '',
+    bairro: $('memberNeighborhood')?.value || '',
+    cidade: $('memberCity')?.value || '',
+    estado: $('memberState')?.value || '',
+    status_membro: $('memberStatus')?.value || 'ativo',
+  };
+
+  fetch(`${baseUrl}/api/membros`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(data),
+  })
+    .then(r => r.json())
+    .then(_ => {
+      alert('Membro cadastrado com sucesso!');
+      appState.currentView = 'options';
+      updateUI();
+    })
+    .catch(err => {
+      console.error('Erro ao cadastrar membro:', err);
+      alert('Erro ao cadastrar membro!');
+    });
+}
+
+// CEP auto-preenchimento (somente se existir campo)
+(function bindCEP() {
+  const cepEl = $('cep');
+  if (!cepEl) return;
+  cepEl.addEventListener('blur', () => {
+    const cep = (cepEl.value || '').replace(/\D/g, '');
+    if (cep.length !== 8) {
+      alert('Digite um CEP válido.');
+      return;
+    }
+    fetch(`https://viacep.com.br/ws/${cep}/json/`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.erro) { alert('CEP não encontrado.'); return; }
+        const bairroEl = $('memberNeighborhood');
+        const cidadeEl = $('memberCity');
+        const estadoEl = $('memberState');
+        if (bairroEl) bairroEl.value = data.bairro || '';
+        if (cidadeEl) cidadeEl.value = data.localidade || '';
+        if (estadoEl) estadoEl.value = data.uf || '';
+      })
+      .catch(err => console.error('Erro ao buscar CEP:', err));
+  });
+})();
+
+// ------------------------------
+// Acolhido - Cadastro
+// ------------------------------
+function clearAcolhidoForm() {
+  const ids = ['nome', 'telefone', 'situacao', 'observacao'];
+  ids.forEach(id => { const el = $(id); if (el) el.value = ''; });
+}
+
+function handleAcolhidoFormSubmission(event) {
+  event.preventDefault();
+  const nome = $('nome')?.value || '';
+  const telefone = $('telefone')?.value || '';
+  const situacao = $('situacao')?.value || '';
+  const observacao = $('observacao')?.value || '';
+  const dataCadastro = new Date().toISOString();
+
+  if (!nome || !telefone || !situacao) {
+    alert('Por favor, preencha todos os campos obrigatórios.');
+    return;
+  }
+
+  fetch(`${baseUrl}/api/acolhido`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ nome, telefone, situacao, observacao, data_cadastro: dataCadastro }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        alert('Acolhido cadastrado com sucesso!');
+        clearAcolhidoForm();
+        appState.currentView = 'options';
+        updateUI();
+      } else {
+        alert('Erro ao cadastrar acolhido.');
+      }
+    })
+    .catch(err => {
+      console.error('Erro ao enviar dados:', err);
+      alert('Erro ao tentar cadastrar o acolhido.');
+    });
+}
+
+// ------------------------------
+// WhatsApp - Envio manual (seus endpoints internos)
+// ------------------------------
+function handleWhatsappButtonClick() {
+  if (!confirm('Deseja enviar a mensagem via WhatsApp?')) return;
+  appState.currentView = 'whatsappLog';
+  updateUI();
+  fetchVisitorsAndSendMessagesManual();
+}
+
+function fetchVisitorsAndSendMessagesManual() {
+  apiRequest('get_visitors')
+    .then(data => {
+      if (data.status !== 'success') throw new Error('Erro ao buscar visitantes.');
+      const visitors = data.visitors || [];
+      if (visitors.length === 0) { alert('Nenhum visitante encontrado.'); return; }
+      const messages = visitors.map(v => ({
+        phone: v.phone,
+        ContentSid: 'HX45ac2c911363fad7a701f72b3ff7a2ce',
+        template_name: 'boasvindasvisitantes',
+        params: { visitor_name: v.name }
+      }));
+      sendMessagesManual(messages);
+    })
+    .catch(err => showError(`Erro ao buscar visitantes: ${err.message}`, 'logContainer'));
+}
+
+function sendMessagesManual(messages) {
+  (messages || []).forEach(v => {
+    apiRequest('send-message-manual', 'POST', {
+      numero: v.phone,
+      ContentSid: 'HX45ac2c911363fad7a701f72b3ff7a2ce',
+      params: v.params
+    })
+      .then(data => {
+        if (!data.success) throw new Error(data.error || 'Erro ao enviar mensagem.');
+        alert('Mensagem enviada para ' + v.phone);
+      })
+      .catch(err => showError(`Erro ao enviar mensagens: ${err.message}`, 'logContainer'));
+  });
+}
+
+// ------------------------------
+// Monitorar Status + paginação
+// ------------------------------
+let currentPage = 1;
+const itemsPerPage = 10;
+let statusData = [];
+
+function loadPageData(page) {
+  const start = (page - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  const items = statusData.slice(start, end);
+  const tbody = $('statusList');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  items.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${item.id}</td>
+      <td>${item.name}</td>
+      <td>${item.phone}</td>
+      <td>${item.status}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function monitorStatus() {
+  fetch(`${baseUrl}/monitor-status`, { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+    .then(r => {
+      if (!r.ok) throw new Error(`Erro ao buscar status: ${r.statusText}`);
+      return r.json();
+    })
+    .then(data => {
+      statusData = Array.isArray(data) ? data : [];
+      appState.currentView = 'statusLog';
+      updateUI();
+      currentPage = 1;
+      loadPageData(currentPage);
+    })
+    .catch(err => showError(`Erro ao buscar status: ${err.message}`, 'logContainer'));
+}
+
+// Paginadores
+function bindPagination() {
+  const nextBtn = $('nextPageButton');
+  const prevBtn = $('prevPageButton');
+  if (nextBtn) nextBtn.addEventListener('click', () => {
+    if (currentPage * itemsPerPage < statusData.length) {
+      currentPage += 1;
+      loadPageData(currentPage);
+    }
+  });
+  if (prevBtn) prevBtn.addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage -= 1;
+      loadPageData(currentPage);
+    }
+  });
+}
+
+// ------------------------------
+// IA - Painel
+// ------------------------------
 function loadPendingQuestions() {
-    fetch(`${baseUrl}/api/ia/pending-questions`, { credentials: 'include' })
-        .then(r => r.json())
-        .then(data => {
-            perguntasPendentes = data.questions || [];
-            const list = document.getElementById('pendingQuestionsList');
-            const countEl = document.getElementById('pendingQuestionsCount');
-            if (!list || !countEl) return;
-
-            list.innerHTML = '';
-            countEl.textContent = perguntasPendentes.length;
-
-            if (perguntasPendentes.length === 0) {
-                list.innerHTML = '<li>Nenhuma pergunta pendente.</li>';
-                return;
-            }
-
-            perguntasPendentes.forEach((q, i) => {
-                const li = document.createElement('li');
-                li.textContent = q.question;
-                li.dataset.index = i;
-                li.addEventListener('click', () => showTeachForm(i));
-                list.appendChild(li);
-            });
-        })
-        .catch(err => console.error('Erro ao carregar perguntas pendentes da IA:', err));
+  fetch(`${baseUrl}/api/ia/pending-questions`, { credentials: 'include' })
+    .then(response => {
+      if (!response.ok) {
+        const ct = response.headers.get('content-type') || '';
+        if (ct.includes('text/html')) {
+          window.location.href = '/admin/integra/learn';
+          return null;
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (!data) return;
+      perguntasPendentes = data.questions || [];
+      const list = $('pendingQuestionsList');
+      const countEl = $('pendingQuestionsCount');
+      if (!list || !countEl) return;
+      list.innerHTML = '';
+      countEl.textContent = perguntasPendentes.length;
+      if (perguntasPendentes.length === 0) {
+        list.innerHTML = '<li>Nenhuma pergunta pendente.</li>';
+        return;
+      }
+      perguntasPendentes.forEach((q, idx) => {
+        const li = document.createElement('li');
+        li.textContent = q.question || q.pergunta || '(sem texto)';
+        li.dataset.index = String(idx);
+        li.addEventListener('click', () => showTeachForm(idx));
+        list.appendChild(li);
+      });
+    })
+    .catch(err => {
+      console.error('Erro ao carregar perguntas pendentes:', err);
+      const list = $('pendingQuestionsList');
+      if (list) list.innerHTML = '<li>Erro ao carregar dados.</li>';
+    });
 }
 
-function showTeachForm(i) {
-    const q = perguntasPendentes[i];
-    if (!q) return;
-    currentTeachQuestion = q;
-    document.getElementById('teachQuestion').value = q.question;
-    document.getElementById('teachAnswer').value = '';
-    document.getElementById('teachCategory').value = '';
-    document.getElementById('teachForm').classList.remove('hidden');
-    document.getElementById('trainingList').classList.add('hidden');
+function showTeachForm(index) {
+  const question = perguntasPendentes[index];
+  if (!question) return;
+  currentTeachQuestion = question;
+
+  const questionEl = $('teachQuestion');
+  const answerEl = $('teachAnswer');
+  const categoryEl = $('teachCategory');
+
+  if (questionEl) questionEl.value = question.question || '';
+  if (answerEl) answerEl.value = '';
+  if (categoryEl) categoryEl.value = '';
+
+  safeHide('trainingList');
+  safeShow('teachForm');
 }
 
 function toggleTeachForm(show) {
-    document.getElementById('teachForm')?.classList.toggle('hidden', !show);
-    document.getElementById('trainingList')?.classList.toggle('hidden', show);
+  const f = $('teachForm');
+  const l = $('trainingList');
+  if (f) f.classList.toggle('hidden', !show);
+  if (l) l.classList.toggle('hidden', !!show);
 }
 
-function handleTeachSubmit(e) {
-    e.preventDefault();
-    const answer = document.getElementById('teachAnswer').value.trim();
-    const category = document.getElementById('teachCategory').value;
-    if (!answer || !category) {
-        alert('Por favor, preencha a resposta e a categoria.');
-        return;
-    }
-    const formData = {
-        question: currentTeachQuestion.question,
-        answer,
-        category
-    };
-    fetch(`${baseUrl}/api/ia/teach`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-        credentials: 'include'
-    })
+function handleTeachSubmit(event) {
+  event.preventDefault();
+  const answer = $('teachAnswer')?.value.trim();
+  const category = $('teachCategory')?.value;
+  if (!currentTeachQuestion || !answer || !category) {
+    alert('Preencha resposta e categoria.');
+    return;
+  }
+  const payload = {
+    question: currentTeachQuestion.question,
+    answer,
+    category
+  };
+  fetch(`${baseUrl}/api/ia/teach`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    credentials: 'include'
+  })
     .then(r => r.json())
     .then(data => {
-        if (data.status === 'success') {
-            alert('IA ensinada com sucesso!');
-            toggleTeachForm(false);
-            loadPendingQuestions();
-        } else {
-            alert('Erro: ' + (data.error || 'Desconhecido'));
-        }
+      if (data.error) {
+        alert('Erro: ' + data.error);
+        return;
+      }
+      alert('IA ensinada com sucesso!');
+      toggleTeachForm(false);
+      loadPendingQuestions();
     })
     .catch(err => alert('Erro de conexão: ' + err));
 }
 
-// --- EVENTOS ---
-function handleCampaignSubmit(e) {
-    e.preventDefault();
-    const dataInicio = document.getElementById('dataInicio').value;
-    const dataFim = document.getElementById('dataFim').value;
-    const idadeMin = document.getElementById('idadeMin').value;
-    const idadeMax = document.getElementById('idadeMax').value;
-    const genero = document.getElementById('genero').value;
+// ------------------------------
+// Campanhas de Eventos
+// ------------------------------
+let visitantesFiltrados = [];
 
-    fetch(`${baseUrl}/api/eventos/filtrar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data_inicio: dataInicio, data_fim: dataFim, idade_min: idadeMin, idade_max: idadeMax, genero })
-    })
+function renderResultadoVisitantes(lista) {
+  const cont = $('resultadoVisitantes');
+  if (!cont) return;
+  if (!lista || lista.length === 0) {
+    cont.innerHTML = '<p>Nenhum visitante encontrado com esses filtros.</p>';
+    return;
+  }
+  cont.innerHTML = `
+    <p><strong>Total:</strong> ${lista.length}</p>
+    <ul>${lista.map(v => `<li>${v.nome || v.name || '(Sem nome)'} — ${v.telefone || v.phone || ''}</li>`).join('')}</ul>
+  `;
+}
+
+function handleFiltroVisitantesSubmit(event) {
+  event.preventDefault();
+  const data_inicio = $('dataInicio')?.value || '';
+  const data_fim = $('dataFim')?.value || '';
+  const idade_min = $('idadeMin')?.value || '';
+  const idade_max = $('idadeMax')?.value || '';
+  const genero = $('genero')?.value || '';
+
+  fetch(`${baseUrl}/api/eventos/filtrar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data_inicio, data_fim, idade_min, idade_max, genero })
+  })
     .then(r => r.json())
     .then(data => {
-        const lista = document.getElementById('resultadoVisitantes');
-        if (!lista) return;
-        lista.innerHTML = '';
-        if (data.status === "success" && data.visitantes.length > 0) {
-            data.visitantes.forEach(v => {
-                const div = document.createElement('div');
-                div.textContent = `${v.nome} - ${v.telefone}`;
-                lista.appendChild(div);
-            });
-        } else {
-            lista.innerHTML = '<p>Nenhum visitante encontrado.</p>';
-        }
+      if (data.status !== 'success') {
+        alert('Erro ao filtrar: ' + (data.message || 'desconhecido'));
+        return;
+      }
+      visitantesFiltrados = data.visitantes || [];
+      renderResultadoVisitantes(visitantesFiltrados);
     })
     .catch(err => {
-        console.error("Erro ao filtrar:", err);
-        alert("Erro ao buscar visitantes.");
+      console.error('Erro ao filtrar:', err);
+      alert('Erro ao buscar visitantes.');
     });
 }
 
-function enviarCampanhaSubmit(e) {
-    e.preventDefault();
-    const eventoNome = document.getElementById('eventoNome').value;
-    const mensagem = document.getElementById('mensagemEvento').value;
-    const imagemUrl = document.getElementById('imagemUrl').value;
+function handleEnviarEventoSubmit(event) {
+  event.preventDefault();
+  const evento_nome = $('eventoNome')?.value || '';
+  const mensagem = $('mensagemEvento')?.value || '';
+  const imagem_url = $('imagemUrl')?.value || '';
 
-    fetch(`${baseUrl}/api/eventos/enviar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ evento_nome: eventoNome, mensagem, imagem_url: imagemUrl })
+  if (!evento_nome || !mensagem) {
+    alert('Informe pelo menos nome do evento e a mensagem.');
+    return;
+  }
+  if (!visitantesFiltrados || visitantesFiltrados.length === 0) {
+    alert('Filtre e selecione visitantes antes de enviar.');
+    return;
+  }
+
+  fetch(`${baseUrl}/api/eventos/enviar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      visitantes: visitantesFiltrados,
+      evento_nome,
+      mensagem,
+      imagem_url
     })
+  })
     .then(r => r.json())
     .then(data => {
-        if (data.status === "success") {
-            alert(`Campanha enviada para ${data.enviados.length} visitantes.`);
-            appState.currentView = 'options';
-            updateUI();
-        } else {
-            alert("Erro ao enviar campanha: " + data.message);
-        }
+      if (data.status !== 'success') {
+        alert('Erro ao enviar campanha: ' + (data.message || 'desconhecido'));
+        return;
+      }
+      alert(`Campanha enviada para ${data.enviados?.length || 0} visitantes.`);
+      appState.currentView = 'options';
+      updateUI();
     })
     .catch(err => {
-        console.error("Erro ao enviar campanha:", err);
-        alert("Erro de conexão ao enviar campanha.");
+      console.error('Erro ao enviar campanha:', err);
+      alert('Erro de conexão ao enviar campanha.');
     });
 }
 
-// --- CORE ---
-document.addEventListener('DOMContentLoaded', () => {
-    initializeEventListeners();
-    updateUI();
-    loadDashboardData();
-});
-
+// ------------------------------
+// Listeners / Boot
+// ------------------------------
 function initializeEventListeners() {
-    const listeners = {
-        'showFormButton': () => { appState.currentView = 'formContainer'; updateUI(); },
-        'showMemberFormButton': () => { appState.currentView = 'memberFormContainer'; updateUI(); },
-        'showAcolhidoFormButton': () => { appState.currentView = 'acolhidoFormContainer'; updateUI(); },
-        'monitorStatusButton': monitorStatus,
-        'sendWhatsappButton': handleWhatsappButtonClick,
-        'loginForm': handleLogin,
-        'visitorForm': handleFormSubmission,
-        'memberForm': handleMemberFormSubmission,
-        'acolhidoForm': handleAcolhidoFormSubmission,
-        'showIATrainingButton': () => { appState.currentView = 'iaTrainingPanel'; updateUI(); loadPendingQuestions(); },
-        'backToOptionsIAButton': () => { appState.currentView = 'options'; updateUI(); },
-        'teachIAForm': handleTeachSubmit,
-        'cancelTeachButton': () => toggleTeachForm(false),
-        'showCampaignButton': () => { appState.currentView = 'eventosContainer'; updateUI(); },
-        'backToOptionsEvento': () => { appState.currentView = 'options'; updateUI(); },
-        'filtroVisitantesForm': handleCampaignSubmit,
-        'enviarEventoForm': enviarCampanhaSubmit,
-        // Botões de voltar genéricos
-        'backToOptionsCadastroButton': () => { appState.currentView = 'options'; updateUI(); },
-        'backToOptionsCadastroMembro': () => { appState.currentView = 'options'; updateUI(); },
-        'backToOptionsCadastroAcolhido': () => { appState.currentView = 'options'; updateUI(); },
-        'backToOptionsStatusButton': () => { appState.currentView = 'options'; updateUI(); },
-        'backToOptionsWhatsappButton': () => { appState.currentView = 'options'; updateUI(); }
-    };
+  const map = {
+    // Menu principal
+    'showFormButton': () => { appState.currentView = 'form'; updateUI(); },
+    'showMemberFormButton': () => { appState.currentView = 'memberForm'; updateUI(); },
+    'showAcolhidoFormButton': () => { clearAcolhidoForm(); appState.currentView = 'acolhidoForm'; updateUI(); },
+    'monitorStatusButton': () => { monitorStatus(); },
+    'sendWhatsappButton': () => { handleWhatsappButtonClick(); },
+    'showIATrainingButton': () => { appState.currentView = 'iaTrainingPanel'; updateUI(); loadPendingQuestions(); },
+    'showCampaignButton': () => { appState.currentView = 'eventos'; updateUI(); },
 
-    for (const [id, handler] of Object.entries(listeners)) {
-        const el = document.getElementById(id);
-        if (el) {
-            const eventType = el.tagName === 'FORM' ? 'submit' : 'click';
-            el.addEventListener(eventType, handler);
-        }
-    }
+    // Voltar dos formulários
+    'backToOptionsCadastroButton': () => { appState.currentView = 'options'; updateUI(); },
+    'backToOptionsCadastroMembro': () => { appState.currentView = 'options'; updateUI(); },
+    'backToOptionsCadastroAcolhido': () => { appState.currentView = 'options'; updateUI(); },
+    'backToOptionsWhatsappButton': () => { appState.currentView = 'options'; updateUI(); },
+    'backToOptionsStatusButton': () => { appState.currentView = 'options'; updateUI(); },
+    'backToOptionsIAButton': () => { appState.currentView = 'options'; updateUI(); },
+    'cancelTeachButton': () => { toggleTeachForm(false); safeShow('trainingList'); },
+
+    // Voltar do painel de eventos
+    'backToOptionsEvento': () => { appState.currentView = 'options'; updateUI(); },
+  };
+
+  Object.entries(map).forEach(([id, handler]) => {
+    const el = $(id);
+    if (!el) return;
+    const eventType = el.tagName === 'FORM' ? 'submit' : 'click';
+    el.addEventListener(eventType, handler);
+  });
+
+  // Formulários com submit próprios
+  const visitorForm = $('visitorForm');
+  if (visitorForm) visitorForm.addEventListener('submit', handleFormSubmission);
+
+  const acolhidoForm = $('acolhidoForm');
+  if (acolhidoForm) acolhidoForm.addEventListener('submit', handleAcolhidoFormSubmission);
+
+  // memberForm tem onsubmit="saveMember(event)" no HTML — não duplicar aqui.
+
+  // Login form tem onsubmit="handleLogin(event)" no HTML — não duplicar aqui.
+
+  // Paginadores
+  bindPagination();
+
+  // Filtros/Envio de Eventos
+  const filtroForm = $('filtroVisitantesForm');
+  if (filtroForm) filtroForm.addEventListener('submit', handleFiltroVisitantesSubmit);
+
+  const enviarEventoForm = $('enviarEventoForm');
+  if (enviarEventoForm) enviarEventoForm.addEventListener('submit', handleEnviarEventoSubmit);
 }
 
-function updateUI() {
-    const sections = [
-        'loginContainer', 'options', 'formContainer', 'memberFormContainer',
-        'acolhidoFormContainer', 'whatsappLog', 'statusLog',
-        'iaTrainingPanel', 'eventosContainer'
-    ];
-    sections.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.add('hidden');
-    });
-
-    const target = document.getElementById(appState.currentView);
-    if (target) target.classList.remove('hidden');
-}
-
-// --- (mantém aqui todas as funções já existentes: login, whatsapp, dashboard, cadastros etc) ---
-
+// Boot
+document.addEventListener('DOMContentLoaded', () => {
+  initializeEventListeners();
+  updateUI();
+  loadDashboardData();
+});
