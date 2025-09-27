@@ -624,6 +624,14 @@ function handleEnviarEventoSubmit(event) {
     return;
   }
 
+  // Cria barra de progresso
+  const cont = $('resultadoVisitantes');
+  cont.innerHTML = `
+    <div id="progressBarContainer" style="width:100%; background:#eee; border:1px solid #ccc; margin:10px 0;">
+      <div id="progressBar" style="width:0%; height:25px; background:#28a745; text-align:center; color:#fff;">0%</div>
+    </div>
+  `;
+
   fetch(`${baseUrl}/api/eventos/enviar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -640,7 +648,23 @@ function handleEnviarEventoSubmit(event) {
         alert('Erro ao enviar campanha: ' + (data.message || 'desconhecido'));
         return;
       }
-      alert(`Campanha enviada para ${data.enviados?.length || 0} visitantes.`);
+
+      // Atualiza a barra conforme enviados
+      const enviados = data.enviados || [];
+      const total = visitantesFiltrados.length;
+      let count = 0;
+
+      enviados.forEach((_, idx) => {
+        count++;
+        const pct = Math.round((count / total) * 100);
+        const bar = $('progressBar');
+        if (bar) {
+          bar.style.width = pct + '%';
+          bar.textContent = pct + '%';
+        }
+      });
+
+      alert(`Campanha enviada para ${enviados.length} visitantes.`);
       appState.currentView = 'options';
       updateUI();
     })
@@ -649,6 +673,7 @@ function handleEnviarEventoSubmit(event) {
       alert('Erro de conexão ao enviar campanha.');
     });
 }
+
 
 // ------------------------------
 // Listeners / Boot
@@ -701,3 +726,4 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
