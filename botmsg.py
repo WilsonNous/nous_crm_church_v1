@@ -16,10 +16,10 @@ import re
 from ia_integracao import IAIntegracao
 from constantes import (EstadoVisitante, mensagens, palavras_chave_ministerios)
 
-# Configurações Twilio
-account_sid = os.getenv('TWILIO_ACCOUNT_SID')
-auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
+# 🔄 Configurações Z-API
+ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
+ZAPI_TOKEN = os.getenv("ZAPI_TOKEN")
+ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN")
 
 # Inicializa a IA (isso pode levar alguns segundos na primeira execução)
 ia_integracao = IAIntegracao()
@@ -29,10 +29,6 @@ numero_pedidos_oracao = ['48984949649', '48999449961']
 # Número da secretaria que receberá os pedidos de "outros"
 numero_outros_secretaria = '48991553619'
 
-if not account_sid or not auth_token:
-    raise EnvironmentError("Twilio SID e/ou Auth Token não definidos nas variáveis de ambiente.")
-
-client = Client(account_sid, auth_token)
 
 # Transições
 transicoes = {
@@ -114,18 +110,19 @@ fila_mensagens = deque()
 
 # Função para processar a fila de mensagens
 def processar_fila_mensagens():
+    """Processa a fila e envia mensagens sequenciais via Z-API"""
     while fila_mensagens:
         numero, mensagem = fila_mensagens.popleft()
         try:
             enviar_mensagem(numero, mensagem)
-            time.sleep(2)  # Aguarda 2 segundos entre o envio de mensagens
+            time.sleep(2)  # espaçamento entre envios
         except Exception as e:
             logging.error(f"Erro ao enviar mensagem para {numero}: {e}")
 
 # Função para adicionar mensagens à fila
 def adicionar_na_fila(numero, mensagem):
     fila_mensagens.append((numero, mensagem))
-    if len(fila_mensagens) == 1:  # Se a fila estava vazia, processa imediatamente
+    if len(fila_mensagens) == 1:
         threading.Thread(target=processar_fila_mensagens).start()
 
 # Função para capturar apenas o primeiro nome do visitante
@@ -153,19 +150,20 @@ def detectar_saudacao(texto: str) -> bool:
 
 # Função para enviar pedidos de oração para todos os números da lista
 def enviar_pedido_oracao(lista_intercessores, visitor_name, numero_visitante, texto_recebido):
-    template_sid = 'HX86a5053a56e35cf157726b22b9c89be6'
+    """Envia pedido de oração formatado para os intercessores via Z-API"""
+    mensagem = (
+        f"📖 Pedido de Oração\n\n"
+        f"🙏 Nome: {visitor_name}\n"
+        f"📱 Número: {numero_visitante}\n"
+        f"📝 Pedido: {texto_recebido}\n"
+        f"📅 Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    )
     for numero in lista_intercessores:
         try:
             numero_normalizado_oracao = normalizar_para_envio(numero)
-            params = {
-                "visitor_name": visitor_name,
-                "numero_normalizado": numero_visitante,
-                "texto_recebido": texto_recebido,
-                "date": datetime.now().strftime('%d/%m/%Y %H:%M')
-            }
-            enviar_mensagem_manual(numero_normalizado_oracao, template_sid, params)
+            enviar_mensagem(numero_normalizado_oracao, mensagem)
         except Exception as e:
-            logging.error(f"Erro ao enviar o pedido de oração para o número {numero}: {e}")
+            logging.error(f"Erro ao enviar pedido de oração para {numero}: {e}")
 
 # Substitua a chamada direta para `enviar_mensagem` pelo uso da fila
 def enviar_mensagem_para_fila(numero_destino, corpo_mensagem):
@@ -293,26 +291,29 @@ Aqui estão algumas opções que você pode escolher:
 
     # Se o estado for NULL e a ação for manual, enviar a mensagem inicial
     if not estado_str and acao_manual:
-        visitor_name = obter_primeiro_nome(obter_nome_do_visitante(numero_normalizado)) or "Visitante"
-        resposta_inicial = f"""A Paz de Cristo, {visitor_name}! Tudo bem com você?
-Aqui é a Equipe de Integração da MAIS DE CRISTO Canasvieiras!
+    visitor_name = obter_primeiro_nome(obter_nome_do_visitante(numero_normalizado)) or "Visitante"
+    resposta_inicial = f"""👋 A Paz de Cristo, {visitor_name}! Tudo bem com você?
+
+Sou o *Integra+*, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.  
 Escolha uma das opções abaixo, respondendo com o número correspondente:
-1⃣ Sou batizado em águas, e quero me tornar membro.
-2⃣ Não sou batizado, e quero me tornar membro.
-3⃣ Gostaria de receber orações.
-4⃣ Queria saber mais sobre os horários dos cultos.
-5⃣ Quero entrar no grupo do WhatsApp da igreja.
-6⃣ Outro assunto.
-Nos diga qual sua escolha! 🙏"""
-        # Atualiza o status diretamente para INICIO, sem o MENU
-        atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
-        enviar_mensagem_para_fila(numero_normalizado, resposta_inicial)
-        salvar_conversa(numero_normalizado, resposta_inicial, tipo='enviada', sid=message_sid)
-        return {
-            "resposta": resposta_inicial,
-            "estado_atual": EstadoVisitante.INICIO.name,
-            "proximo_estado": EstadoVisitante.INICIO.name
-        }
+
+1⃣ Sou batizado em águas e quero me tornar membro.  
+2⃣ Não sou batizado e quero me tornar membro.  
+3⃣ Gostaria de receber orações.  
+4⃣ Quero saber os horários dos cultos.  
+5⃣ Quero entrar no grupo do WhatsApp.  
+6⃣ Outro assunto.  
+
+🙏 Me diga sua escolha para podermos continuar!
+"""
+    atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
+    enviar_mensagem_para_fila(numero_normalizado, resposta_inicial)
+    salvar_conversa(numero_normalizado, resposta_inicial, tipo='enviada', sid=message_sid)
+    return {
+        "resposta": resposta_inicial,
+        "estado_atual": EstadoVisitante.INICIO.name,
+        "proximo_estado": EstadoVisitante.INICIO.name
+    }
 
     # Verifica se a mensagem recebida foi a mensagem inicial e não a processa
     if texto_recebido_normalizado.startswith("a paz de cristo") and not acao_manual:
@@ -553,43 +554,51 @@ def validar_data_nascimento(data: str) -> bool:
     padrao = r"^\d{2}/\d{2}/\d{4}$"
     return re.match(padrao, data) is not None
 
-def enviar_mensagem(numero_destino, corpo_mensagem):
+# =======================
+# Função central de envio (Z-API)
+# =======================
+def enviar_mensagem(numero_destino, corpo_mensagem, imagem_url=None):
+    """Envia mensagem de texto ou imagem via Z-API"""
     try:
         numero_normalizado = normalizar_para_envio(numero_destino)
-        logging.info(f"Enviando mensagem para o número normalizado: whatsapp:+{numero_normalizado}")
-        mensagem = client.messages.create(
-            body=corpo_mensagem,
-            from_=f"whatsapp:{twilio_phone_number}",
-            to=f"whatsapp:+{numero_normalizado}"
-        )
-        logging.info(f"Mensagem enviada: {mensagem.sid}")
-    except Exception as e:
-        logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
-
-def enviar_mensagem_manual(numero_destino, template_sid, params):
-    try:
-        numero_normalizado = normalizar_para_envio(numero_destino)
-        logging.info(f"Enviando mensagem para o número normalizado: whatsapp:+{numero_normalizado}")
-        if 'visitor_name' not in params:
-            logging.error("A variável 'visitor_name' não foi encontrada em params.")
-            return
-        logging.info(f"Conteúdo das variáveis: {params}")
-        # --- URL CORRIGIDA: Removido o espaço extra ---
-        url = f"https://api.twilio.com/2010-04-01/Accounts/{os.environ['TWILIO_ACCOUNT_SID']}/Messages.json"
-        data = {
-            "To": f"whatsapp:+{numero_normalizado}",
-            "From": f"whatsapp:{twilio_phone_number}",
-            "ContentSid": template_sid,
-            "ContentVariables": json.dumps(params)
+        headers = {
+            "Client-Token": ZAPI_CLIENT_TOKEN,
+            "Content-Type": "application/json"
         }
-        response = requests.post(
-            url,
-            data=data,
-            auth=(os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_AUTH_TOKEN"])
-        )
-        if response.status_code != 201:
-            logging.error(f"Erro no envio: {response.status_code} - {response.text}")
-        if response.status_code == 201:
-            logging.info("Mensagem enviada com sucesso!")
+        if imagem_url:
+            payload = {"phone": numero_normalizado, "caption": corpo_mensagem, "image": imagem_url}
+            url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-image"
+        else:
+            payload = {"phone": numero_normalizado, "message": corpo_mensagem}
+            url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
+
+        logging.info(f"➡️ Enviando via Z-API | {numero_normalizado} | {corpo_mensagem[:50]}...")
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        if not response.ok:
+            logging.error(f"❌ Falha no envio para {numero_normalizado}: {response.status_code} {response.text}")
+        else:
+            logging.info(f"✅ Mensagem enviada para {numero_normalizado}")
     except Exception as e:
-        logging.error(f"Erro ao enviar mensagem para {numero_destino}: {e}")
+        logging.error(f"Erro ao enviar mensagem via Z-API: {e}")
+
+# =======================
+# Envio manual (mensagens parametrizadas)
+# =======================
+def enviar_mensagem_manual(numero_destino, titulo, params):
+    """
+    Envia mensagem "manual" (antes usada com template no Twilio) via Z-API.
+    Agora monta um texto formatado com os parâmetros recebidos.
+    """
+    try:
+        numero_normalizado = normalizar_para_envio(numero_destino)
+
+        # Monta a mensagem com título + parâmetros em formato legível
+        msg = f"📌 {titulo}\n\n"
+        for k, v in params.items():
+            msg += f"- {k.capitalize()}: {v}\n"
+
+        enviar_mensagem(numero_normalizado, msg)
+        logging.info(f"✅ Mensagem manual enviada para {numero_normalizado}")
+    except Exception as e:
+        logging.error(f"Erro ao enviar mensagem manual via Z-API: {e}")
+
