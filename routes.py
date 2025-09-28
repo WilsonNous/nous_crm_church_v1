@@ -33,16 +33,12 @@ from database import (
     salvar_envio_evento, listar_envios_eventos, filtrar_visitantes_para_evento
 )
 
-from twilio.rest import Client
 from ia_integracao import IAIntegracao
 ia_integracao = IAIntegracao()
 
 # --- LOGIN (seguro com ENV) ---
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", None)  # deve estar já com generate_password_hash()
-TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "whatsapp:+14155238886")
 
 def register_routes(app_instance: Flask) -> None:
 
@@ -121,21 +117,6 @@ def register_routes(app_instance: Flask) -> None:
             logging.exception(f"Erro ao salvar visitante: {e}")
             return jsonify({"error": "Erro interno do servidor"}), 500
 
-    # --- WEBHOOK TWILIO ---
-    @app_instance.route('/api/webhook', methods=['POST'])
-    def webhook():
-        try:
-            data = request.form
-            from_number = data.get('From', '')
-            message_body = data.get('Body', '').strip()
-            message_sid = data.get('MessageSid', '')
-            logging.info(f"Recebendo mensagem: {from_number}, SID: {message_sid}, Msg: {message_body}")
-            processar_mensagem(from_number, message_body, message_sid)
-            return jsonify({"status": "success"}), 200
-        except Exception as e:
-            logging.error(f"Erro no webhook: {e}")
-            return jsonify({"error": "Erro ao processar webhook"}), 500
-
     @app_instance.route('/api/get-visitors', methods=['GET'])
     def api_get_visitors():
         """Lista visitantes básicos (para envio manual WhatsApp)."""
@@ -167,39 +148,40 @@ def register_routes(app_instance: Flask) -> None:
 
     @app_instance.route('/api/send-message-manual', methods=['POST'])
     def api_send_message_manual():
-        """Envia mensagem manual via Twilio (1 a 1)."""
+        """Envia mensagem manual via Z-API (1 a 1)."""
         try:
             data = request.get_json()
             numero = data.get("numero")
-            params = data.get("params", {})
-            content_sid = data.get("ContentSid")
             mensagem = data.get("mensagem", "")
-
+            imagem_url = data.get("imagem_url", None)
+    
             if not numero:
                 return jsonify({"success": False, "error": "Número não informado"}), 400
-
-            client = Client(TWILIO_SID, TWILIO_TOKEN)
-
-            # Se vier ContentSid, usa template do Twilio
-            if content_sid:
-                message = client.messages.create(
-                    from_=TWILIO_NUMBER,
-                    to=f"whatsapp:{numero}",
-                    content_sid=content_sid,
-                    content_variables=params
-                )
+    
+            ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
+            ZAPI_TOKEN = os.getenv("ZAPI_TOKEN")
+            ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN")
+            headers = {"Client-Token": ZAPI_CLIENT_TOKEN, "Content-Type": "application/json"}
+    
+            telefone_envio = f"55{numero}" if not numero.startswith("55") else numero
+            if imagem_url:
+                payload = {"phone": telefone_envio, "caption": mensagem, "image": imagem_url}
+                url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-image"
             else:
-                message = client.messages.create(
-                    from_=TWILIO_NUMBER,
-                    to=f"whatsapp:{numero}",
-                    body=mensagem
-                )
-
-            logging.info(f"✅ Mensagem enviada via Twilio para {numero}, SID: {message.sid}")
-            return jsonify({"success": True, "sid": message.sid}), 200
+                payload = {"phone": telefone_envio, "message": mensagem}
+                url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
+    
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
+            if response.ok:
+                logging.info(f"✅ Mensagem enviada via Z-API para {telefone_envio}")
+                salvar_conversa(telefone_envio, mensagem, tipo="enviada", origem="integra+")
+                return jsonify({"success": True}), 200
+            else:
+                return jsonify({"success": False, "error": f"Falha: {response.status_code}"}), 500
         except Exception as e:
-            logging.error(f"Erro em /api/send-message-manual: {e}")
+            logging.error(f"Erro em /api/send-message-manual (Z-API): {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+
     
     # --- DASHBOARD ---
     @app_instance.route('/api/get-dashboard-data', methods=['GET'])
@@ -415,6 +397,21 @@ def register_routes(app_instance: Flask) -> None:
         except Exception as e:
             logging.exception("Erro em /api/eventos/enviar")
             return jsonify({"status": "error", "message": str(e)}), 500
+        
+    @app_instance.route('/api/webhook-zapi', methods=['POST'])
+    def webhook_zapi():
+        try:
+            data = request.get_json()
+            from_number = data.get("phone", "")
+            message_body = data.get("message", "").strip()
+            message_sid = data.get("messageId", None)
+    
+            logging.info(f"📥 Recebendo via Z-API: {from_number}, Msg: {message_body}")
+            processar_mensagem(from_number, message_body, message_sid, origem="integra+")
+            return jsonify({"status": "success"}), 200
+        except Exception as e:
+            logging.error(f"Erro no webhook Z-API: {e}")
+            return jsonify({"error": "Erro ao processar webhook"}), 500
 
     @app_instance.route('/api/eventos/envios', methods=['GET'])
     def api_eventos_envios():
