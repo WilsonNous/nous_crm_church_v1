@@ -205,18 +205,24 @@ def salvar_estatistica(numero, estado_atual, proximo_estado):
     except Exception as e:
         logging.error(f"Erro ao salvar estatística para {numero}: {e}")
 
-def salvar_conversa(numero, mensagem, tipo='recebida', sid=None):
-    """Salva a conversa de um visitante no banco de dados, incluindo o SID da mensagem."""
+def salvar_conversa(numero, mensagem, tipo="recebida", sid=None, origem="integra+"):
+    """Salva a conversa de um visitante no banco de dados, incluindo SID e origem."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO conversas (visitante_id, mensagem, tipo, message_sid)
-                VALUES ((SELECT id FROM visitantes WHERE telefone = %s), %s, %s, %s)
-            ''', (numero, mensagem, tipo, sid))
+            cursor.execute("""
+                INSERT INTO conversas (visitante_id, mensagem, tipo, message_sid, origem, created_at)
+                VALUES (
+                    (SELECT id FROM visitantes WHERE telefone = %s),
+                    %s, %s, %s, %s, NOW()
+                )
+            """, (numero, mensagem, tipo, sid, origem))
             conn.commit()
+            logging.info(f"💬 Conversa salva: visitante={numero}, tipo={tipo}, origem={origem}")
+            return True
     except Exception as e:
         logging.error(f"Erro ao salvar conversa para o telefone {numero}. Detalhes: {e}")
+        return False
 
 def monitorar_status_visitantes():
     """Retorna o status de todos os visitantes cadastrados, excluindo a fase ID 11 (Importados)."""
@@ -882,7 +888,14 @@ def marcar_pergunta_como_respondida(pergunta: str):
 # Funções de Campanhas de Eventos
 # =======================
 
-def salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url=None, status="pendente"):
+def salvar_envio_evento(
+    visitante_id,
+    evento_nome,
+    mensagem,
+    imagem_url=None,
+    status="pendente",
+    origem="integra+"
+):
     """Salva o registro de um envio de evento/campanha, evitando duplicados."""
     try:
         conn = get_db_connection()
@@ -891,50 +904,60 @@ def salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url=None, st
 
         cursor = conn.cursor()
 
-        # Verifica se já existe envio para esse visitante/evento
+        # Verifica se já existe envio para esse visitante/evento/origem
         cursor.execute("""
             SELECT id FROM eventos_envios
-            WHERE visitante_id = %s AND evento_nome = %s
-        """, (visitante_id, evento_nome))
+            WHERE visitante_id = %s AND evento_nome = %s AND origem = %s
+        """, (visitante_id, evento_nome, origem))
         existente = cursor.fetchone()
 
         if existente:
-            logging.info(f"⚠️ Já existe envio para visitante {visitante_id} no evento {evento_nome}. Ignorando.")
+            logging.info(f"⚠️ Já existe envio ({origem}) para visitante {visitante_id} no evento {evento_nome}. Ignorando.")
             cursor.close()
             conn.close()
             return False
 
         # Insere somente se não existir
         cursor.execute("""
-            INSERT INTO eventos_envios (visitante_id, evento_nome, mensagem, imagem_url, status, data_envio)
-            VALUES (%s, %s, %s, %s, %s, NOW())
-        """, (visitante_id, evento_nome, mensagem, imagem_url, status))
+            INSERT INTO eventos_envios
+                (visitante_id, evento_nome, mensagem, imagem_url, status, origem, data_envio)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        """, (visitante_id, evento_nome, mensagem, imagem_url, status, origem))
         conn.commit()
 
         cursor.close()
         conn.close()
-        logging.info(f"📢 Envio salvo: {evento_nome} para visitante {visitante_id} com status {status}")
+        logging.info(f"📢 Envio salvo: {evento_nome} para visitante {visitante_id} com status {status}, origem {origem}")
         return True
     except Exception as e:
         logging.error(f"Erro ao salvar envio de evento: {e}")
         return False
 
 
-def listar_envios_eventos(limit=100):
-    """Lista os últimos envios de eventos/campanhas."""
+def listar_envios_eventos(limit=100, origem: str = None):
+    """Lista os últimos envios de eventos/campanhas, opcionalmente filtrando por origem."""
     try:
         conn = get_db_connection()
         if not conn:
             return []
 
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT e.id, v.nome, v.telefone, e.evento_nome, e.mensagem, e.imagem_url, e.status, e.data_envio
+        base_query = """
+            SELECT e.id, v.nome, v.telefone, e.evento_nome, e.mensagem, 
+                   e.imagem_url, e.status, e.origem, e.data_envio
             FROM eventos_envios e
             JOIN visitantes v ON v.id = e.visitante_id
-            ORDER BY e.data_envio DESC
-            LIMIT %s
-        """, (limit,))
+        """
+        params = []
+
+        if origem:
+            base_query += " WHERE e.origem = %s"
+            params.append(origem)
+
+        base_query += " ORDER BY e.data_envio DESC LIMIT %s"
+        params.append(limit)
+
+        cursor.execute(base_query, tuple(params))
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
