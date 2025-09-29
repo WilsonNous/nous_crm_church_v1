@@ -420,20 +420,25 @@ Escolha uma das opções abaixo, respondendo com o número correspondente:
     .catch(err => showError(`Erro ao buscar visitantes: ${err.message}`, 'logContainer'));
 }
 
-function sendMessagesManual(messages) {
-  (messages || []).forEach(v => {
-    apiRequest('api/send-message-manual', 'POST', {
-      numero: v.numero,
-      mensagem: v.mensagem
-    })
-      .then(data => {
-        if (!data.success) throw new Error(data.error || 'Erro ao enviar mensagem.');
-        console.log(`✅ Mensagem enviada para ${v.numero}`);
-      })
-      .catch(err => showError(`Erro ao enviar mensagens: ${err.message}`, 'logContainer'));
-  });
-}
+async function sendMessagesManual(messages) {
+  for (let i = 0; i < (messages || []).length; i++) {
+    const v = messages[i];
+    try {
+      const data = await apiRequest('api/send-message-manual', 'POST', {
+        numero: v.numero,
+        mensagem: v.mensagem
+      });
 
+      if (!data.success) throw new Error(data.error || 'Erro ao enviar mensagem.');
+      console.log(`✅ Mensagem enviada para ${v.numero}`);
+    } catch (err) {
+      showError(`Erro ao enviar mensagens: ${err.message}`, 'logContainer');
+    }
+
+    // delay de 2 segundos entre os envios
+    await new Promise(res => setTimeout(res, 2000));
+  }
+}
 
 // ------------------------------
 // Monitorar Status
@@ -785,6 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
