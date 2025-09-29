@@ -420,6 +420,29 @@ Aqui estão algumas opções que você pode escolher:
 
     logging.info(f"O Próximo estado é: {proximo_estado}.")
 
+    # ======================
+    # Contexto de Evento Enviado
+    # ======================
+    if estado_atual == "EVENTO_ENVIADO":
+        resposta = (f"👋 Oi {visitor_name}, vi que você recebeu nosso convite para o evento! 🎉\n"
+                    "Gostaria de confirmar sua presença ou saber mais detalhes?\n\n"
+                    "Responda com:\n"
+                    "1️⃣ Sim, quero participar!\n"
+                    "2️⃣ Quero saber mais informações.\n"
+                    "3️⃣ Não posso participar desta vez.")
+        
+        # Resetamos para INICIO para seguir o fluxo normal depois
+        atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
+        enviar_mensagem_para_fila(numero_normalizado, resposta)
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada', sid=message_sid)
+    
+        return {
+            "resposta": resposta,
+            "estado_atual": "EVENTO_ENVIADO",
+            "proximo_estado": EstadoVisitante.INICIO.name
+        }
+
+  
     # Tratamento para quando nenhuma transição é encontrada
     if proximo_estado is None:
         # --- NOVO: Busca a última pergunta do usuário para contexto ---
