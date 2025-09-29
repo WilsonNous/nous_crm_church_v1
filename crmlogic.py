@@ -2,7 +2,7 @@
 import logging
 import os
 from datetime import datetime
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from flask_cors import CORS
 
 try:
@@ -31,12 +31,18 @@ jwt = JWTManager(app)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logging.info("✅ Aplicação Flask (app) criada e configurada com sucesso!")
 
+# Flag para saber se as rotas foram registradas
+routes_ok = False
+routes_error = None
+
 # Registrar rotas do routes.py
 try:
     from routes import register_routes
     register_routes(app)
     logging.info("✅ Rotas registradas com sucesso (routes.register_routes).")
+    routes_ok = True
 except Exception as e:
+    routes_error = str(e)
     logging.exception("❌ Erro ao registrar rotas: %s", e)
 
 # DEBUG EXTRA: listar todas as rotas registradas
@@ -53,6 +59,21 @@ def login_page():
 @app.route('/health', methods=['GET'])
 def _health():
     return {'status': 'ok', 'time': datetime.utcnow().isoformat()}, 200
+
+# Novo health para diagnosticar se /api/... está registrado
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    if not routes_ok:
+        return jsonify({
+            "status": "error",
+            "message": "Rotas não registradas",
+            "error": routes_error
+        }), 500
+    return jsonify({
+        "status": "alive",
+        "message": "Bot Integra+ ativo!",
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }), 200
 
 # Alias p/ Gunicorn
 application = app
