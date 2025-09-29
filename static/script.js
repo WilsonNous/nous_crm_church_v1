@@ -384,22 +384,24 @@ function handleWhatsappButtonClick() {
 }
 
 function fetchVisitorsAndSendMessagesManual() {
-  apiRequest('api/get-visitors')
+  apiRequest('api/get-visitors') // chamada já corrigida p/ backend
     .then(data => {
       if (data.status !== 'success') throw new Error('Erro ao buscar visitantes.');
       const visitors = data.visitors || [];
-      if (visitors.length === 0) { 
-        alert('Nenhum visitante encontrado.'); 
-        return; 
+
+      // 🔎 Filtra apenas visitantes sem fase/status definido
+      const novos = visitors.filter(v => !v.fase && !v.status);
+
+      if (novos.length === 0) {
+        alert('Nenhum visitante novo encontrado para envio.');
+        return;
       }
 
-      // Mensagem padrão de boas-vindas do Integra+
-      const messages = visitors.map(v => ({
-        numero: v.phone,
-        mensagem: `👋 A Paz de Cristo, ${v.name || 'Visitante'}! Tudo bem com você?
+      const messages = novos.map(v => ({
+        phone: v.phone,
+        content: `👋 A Paz de Cristo, ${v.name || "Visitante"}! Tudo bem com você?
 
 Sou o *Integra+*, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.  
-
 Escolha uma das opções abaixo, respondendo com o número correspondente:
 
 1⃣ Sou batizado em águas e quero me tornar membro.  
@@ -412,7 +414,8 @@ Escolha uma das opções abaixo, respondendo com o número correspondente:
 🙏 Me diga sua escolha para podermos continuar!`
       }));
 
-      sendMessagesManual(messages);
+      // Enviar em sequência para evitar sobrecarga
+      sendMessagesSequentially(messages);
     })
     .catch(err => showError(`Erro ao buscar visitantes: ${err.message}`, 'logContainer'));
 }
@@ -782,6 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
