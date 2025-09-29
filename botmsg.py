@@ -291,29 +291,30 @@ Aqui estão algumas opções que você pode escolher:
 
     # Se o estado for NULL e a ação for manual, enviar a mensagem inicial
     if not estado_str and acao_manual:
-    visitor_name = obter_primeiro_nome(obter_nome_do_visitante(numero_normalizado)) or "Visitante"
-    resposta_inicial = f"""👋 A Paz de Cristo, {visitor_name}! Tudo bem com você?
+        visitor_name = obter_primeiro_nome(obter_nome_do_visitante(numero_normalizado)) or "Visitante"
+        resposta_inicial = f"""👋 A Paz de Cristo, {visitor_name}! Tudo bem com você?
+    
+    Sou o *Integra+*, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.  
+    Escolha uma das opções abaixo, respondendo com o número correspondente:
+    
+    1⃣ Sou batizado em águas e quero me tornar membro.  
+    2⃣ Não sou batizado e quero me tornar membro.  
+    3⃣ Gostaria de receber orações.  
+    4⃣ Quero saber os horários dos cultos.  
+    5⃣ Quero entrar no grupo do WhatsApp.  
+    6⃣ Outro assunto.  
+    
+    🙏 Me diga sua escolha para podermos continuar!
+    """
+        atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
+        enviar_mensagem_para_fila(numero_normalizado, resposta_inicial)
+        salvar_conversa(numero_normalizado, resposta_inicial, tipo='enviada', sid=message_sid)
+        return {
+            "resposta": resposta_inicial,
+            "estado_atual": EstadoVisitante.INICIO.name,
+            "proximo_estado": EstadoVisitante.INICIO.name
+        }
 
-Sou o *Integra+*, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.  
-Escolha uma das opções abaixo, respondendo com o número correspondente:
-
-1⃣ Sou batizado em águas e quero me tornar membro.  
-2⃣ Não sou batizado e quero me tornar membro.  
-3⃣ Gostaria de receber orações.  
-4⃣ Quero saber os horários dos cultos.  
-5⃣ Quero entrar no grupo do WhatsApp.  
-6⃣ Outro assunto.  
-
-🙏 Me diga sua escolha para podermos continuar!
-"""
-    atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
-    enviar_mensagem_para_fila(numero_normalizado, resposta_inicial)
-    salvar_conversa(numero_normalizado, resposta_inicial, tipo='enviada', sid=message_sid)
-    return {
-        "resposta": resposta_inicial,
-        "estado_atual": EstadoVisitante.INICIO.name,
-        "proximo_estado": EstadoVisitante.INICIO.name
-    }
 
     # Verifica se a mensagem recebida foi a mensagem inicial e não a processa
     if texto_recebido_normalizado.startswith("a paz de cristo") and not acao_manual:
