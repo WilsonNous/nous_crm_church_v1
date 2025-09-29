@@ -225,7 +225,7 @@ function apiRequest(endpoint, method = 'GET', body = null) {
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
 
-  return fetch(`${baseUrl}/api/${endpoint}`, opts)
+  return fetch(`${baseUrl}/${endpoint}`, opts)
     .then(async response => {
       if (!response.ok) {
         let msg = 'Erro desconhecido';
@@ -761,6 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
