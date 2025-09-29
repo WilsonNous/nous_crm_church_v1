@@ -373,8 +373,18 @@ function handleWhatsappButtonClick() {
   fetchVisitorsAndSendMessagesManual();
 }
 
+// ===============================
+// WhatsApp - Envio manual (Z-API)
+// ===============================
+function handleWhatsappButtonClick() {
+  if (!confirm('Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?')) return;
+  appState.currentView = 'whatsappLog';
+  updateUI();
+  fetchVisitorsAndSendMessagesManual();
+}
+
 function fetchVisitorsAndSendMessagesManual() {
-  apiRequest('get-visitors') // <-- alinhar com backend
+  apiRequest('get-visitors')
     .then(data => {
       if (data.status !== 'success') throw new Error('Erro ao buscar visitantes.');
       const visitors = data.visitors || [];
@@ -383,11 +393,23 @@ function fetchVisitorsAndSendMessagesManual() {
         return; 
       }
 
+      // Mensagem padrão de boas-vindas do Integra+
       const messages = visitors.map(v => ({
-        phone: v.phone,
-        ContentSid: 'HX45ac2c911363fad7a701f72b3ff7a2ce',
-        template_name: 'boasvindasvisitantes',
-        params: { visitor_name: v.name }
+        numero: v.phone,
+        mensagem: `👋 A Paz de Cristo, ${v.name || 'Visitante'}! Tudo bem com você?
+
+Sou o *Integra+*, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.  
+
+Escolha uma das opções abaixo, respondendo com o número correspondente:
+
+1⃣ Sou batizado em águas e quero me tornar membro.  
+2⃣ Não sou batizado e quero me tornar membro.  
+3⃣ Gostaria de receber orações.  
+4⃣ Quero saber os horários dos cultos.  
+5⃣ Quero entrar no grupo do WhatsApp.  
+6⃣ Outro assunto.  
+
+🙏 Me diga sua escolha para podermos continuar!`
       }));
 
       sendMessagesManual(messages);
@@ -398,13 +420,12 @@ function fetchVisitorsAndSendMessagesManual() {
 function sendMessagesManual(messages) {
   (messages || []).forEach(v => {
     apiRequest('send-message-manual', 'POST', {
-      numero: v.phone,
-      ContentSid: v.ContentSid,
-      params: v.params
+      numero: v.numero,
+      mensagem: v.mensagem
     })
       .then(data => {
         if (!data.success) throw new Error(data.error || 'Erro ao enviar mensagem.');
-        alert('Mensagem enviada para ' + v.phone);
+        console.log(`✅ Mensagem enviada para ${v.numero}`);
       })
       .catch(err => showError(`Erro ao enviar mensagens: ${err.message}`, 'logContainer'));
   });
@@ -761,6 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
