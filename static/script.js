@@ -419,7 +419,7 @@ Escolha uma das opções abaixo, respondendo com o número correspondente:
 
 function sendMessagesManual(messages) {
   (messages || []).forEach(v => {
-    apiRequest('send-message-manual', 'POST', {
+    apiRequest('api/send-message-manual', 'POST', {
       numero: v.numero,
       mensagem: v.mensagem
     })
@@ -782,6 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
