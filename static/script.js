@@ -384,7 +384,7 @@ function handleWhatsappButtonClick() {
 }
 
 function fetchVisitorsAndSendMessagesManual() {
-  apiRequest('get-visitors')
+  apiRequest('api/get-visitors')
     .then(data => {
       if (data.status !== 'success') throw new Error('Erro ao buscar visitantes.');
       const visitors = data.visitors || [];
@@ -782,6 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
