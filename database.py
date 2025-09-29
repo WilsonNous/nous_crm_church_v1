@@ -896,7 +896,7 @@ def salvar_envio_evento(
     status="pendente",
     origem="integra+"
 ):
-    """Salva o registro de um envio de evento/campanha, evitando duplicados."""
+    """Salva envio e atualiza fase do visitante para EVENTO_ENVIADO."""
     try:
         conn = get_db_connection()
         if not conn:
@@ -904,30 +904,34 @@ def salvar_envio_evento(
 
         cursor = conn.cursor()
 
-        # Verifica se já existe envio para esse visitante/evento/origem
+        # Atualizar fase para EVENTO_ENVIADO
+        cursor.execute("SELECT id FROM fases WHERE descricao = %s", ("EVENTO_ENVIADO",))
+        fase_row = cursor.fetchone()
+        if not fase_row:
+            cursor.execute("INSERT INTO fases (descricao) VALUES (%s)", ("EVENTO_ENVIADO",))
+            conn.commit()
+            cursor.execute("SELECT id FROM fases WHERE descricao = %s", ("EVENTO_ENVIADO",))
+            fase_row = cursor.fetchone()
+
+        fase_id = fase_row["id"]
+
+        # Atualizar ou inserir status
         cursor.execute("""
-            SELECT id FROM eventos_envios
-            WHERE visitante_id = %s AND evento_nome = %s AND origem = %s
-        """, (visitante_id, evento_nome, origem))
-        existente = cursor.fetchone()
+            INSERT INTO status (visitante_id, fase_id)
+            VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE fase_id = VALUES(fase_id)
+        """, (visitante_id, fase_id))
 
-        if existente:
-            logging.info(f"⚠️ Já existe envio ({origem}) para visitante {visitante_id} no evento {evento_nome}. Ignorando.")
-            cursor.close()
-            conn.close()
-            return False
-
-        # Insere somente se não existir
+        # Registrar envio no log
         cursor.execute("""
             INSERT INTO eventos_envios
                 (visitante_id, evento_nome, mensagem, imagem_url, status, origem, data_envio)
             VALUES (%s, %s, %s, %s, %s, %s, NOW())
         """, (visitante_id, evento_nome, mensagem, imagem_url, status, origem))
-        conn.commit()
 
-        cursor.close()
-        conn.close()
-        logging.info(f"📢 Envio salvo: {evento_nome} para visitante {visitante_id} com status {status}, origem {origem}")
+        conn.commit()
+        cursor.close(); conn.close()
+        logging.info(f"📢 Evento '{evento_nome}' salvo e fase do visitante {visitante_id} atualizada para EVENTO_ENVIADO")
         return True
     except Exception as e:
         logging.error(f"Erro ao salvar envio de evento: {e}")
