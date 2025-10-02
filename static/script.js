@@ -444,7 +444,7 @@ async function sendMessagesSequentially(messages, delayMs = 2000) {
         continue;
       }
 
-      const resp = await apiRequest('/api/send-message-manual', 'POST', {
+      const resp = await apiRequest('send-message-manual', 'POST', {
         numero: v.numero,
         mensagem: v.mensagem
       });
@@ -839,6 +839,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
