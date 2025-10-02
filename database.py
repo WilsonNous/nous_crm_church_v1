@@ -388,47 +388,48 @@ def atualizar_dado_visitante(numero, campo, valor):
 # =======================
 
 def normalizar_para_envio(telefone: str) -> str:
-    telefone = ''.join(filter(lambda x: x.isdigit(), telefone))
+    """
+    Normaliza um número para envio via WhatsApp/Z-API.
+    Garante que sempre retorne no formato internacional: 55 + DDD + número.
+    Ex: 48999999999 -> 5548999999999
+        55999999999 (DDD 55) -> 5555999999999
+    """
+    telefone = ''.join(filter(str.isdigit, telefone))
 
-    if len(telefone) < 10:
-        raise ValueError(f"Telefone inválido: {telefone}. Número deve ter ao menos 10 dígitos.")
+    # Já está no formato internacional correto (13 dígitos)
+    if telefone.startswith('55') and len(telefone) == 13:
+        return telefone
 
-    if telefone.startswith('55'):
-        telefone = telefone[2:]
+    # Está no formato nacional (11 dígitos: DDD + número)
+    if len(telefone) == 11:
+        return f"55{telefone}"
 
-    ddd, numero = telefone[:2], telefone[2:]
+    raise ValueError(f"Telefone inválido para envio: {telefone}")
 
-    if len(numero) == 9 and numero[0] == '9':
-        numero = numero[1:]
-
-    return f"55{ddd}{numero}"
 
 def normalizar_para_recebimento(telefone: str) -> str:
+    """
+    Normaliza o telefone recebido para salvar no banco.
+    Sempre retorna no formato internacional: 55 + DDD + número (13 dígitos).
+    """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
     if telefone.startswith('whatsapp:'):
         telefone = telefone.replace('whatsapp:', '')
         logging.info(f"Prefixo 'whatsapp:' removido, número agora é: {telefone}")
 
-    telefone = ''.join(filter(lambda x: x.isdigit(), telefone))
+    telefone = ''.join(filter(str.isdigit, telefone))
 
-    if telefone.startswith('55'):
-        telefone = telefone[2:]
+    # Já está no formato internacional correto
+    if telefone.startswith('55') and len(telefone) == 13:
+        return telefone
 
-    ddd = telefone[:2]
-    numero = telefone[2:]
+    # Está no formato nacional (11 dígitos)
+    if len(telefone) == 11:
+        return f"55{telefone}"
 
-    if len(numero) == 8:
-        numero = '9' + numero
-
-    if len(ddd) != 2 or len(numero) != 9:
-        logging.error(f"Número de telefone inválido após normalização: {telefone}")
-        raise ValueError(f"Número de telefone inválido: {telefone}")
-
-    telefone_normalizado = f'{ddd}{numero}'
-    logging.info(f"Número normalizado: {telefone_normalizado}")
-
-    return telefone_normalizado
+    logging.error(f"Número de telefone inválido após normalização: {telefone}")
+    raise ValueError(f"Número de telefone inválido: {telefone}")
 
 # =======================
 # Funções de Status e Fases
