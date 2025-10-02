@@ -598,7 +598,11 @@ def visitantes_contar_sem_retorno_total():
         logging.error(f"Erro ao contar visitantes sem retorno total: {e}")
         return 0
 
-def obter_conversa_por_visitante(visitante_id):
+def obter_conversa_por_visitante(visitante_id: int) -> str:
+    """
+    Retorna o histórico de conversas de um visitante em HTML formatado,
+    já marcando mensagens do Bot (classe 'bot') e do Usuário (classe 'user').
+    """
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
@@ -610,7 +614,8 @@ def obter_conversa_por_visitante(visitante_id):
                     ELSE v.nome
                 END AS remetente,
                 c.mensagem,  
-                c.data_hora 
+                c.data_hora,
+                c.tipo
             FROM conversas c
             INNER JOIN visitantes v ON v.id = c.visitante_id
             WHERE c.visitante_id = %s
@@ -622,14 +627,20 @@ def obter_conversa_por_visitante(visitante_id):
 
             resultado = "<div class='chat-conversa'>"
             for conversa in conversas:
-                resultado += (f"<p><strong>{conversa['remetente']}:</strong>"
-                              f" {conversa['mensagem']} <br><small>{conversa['data_hora']}</small></p>")
+                classe = "bot" if conversa["tipo"] == "enviada" else "user"
+                resultado += (
+                    f"<p class='{classe}'>"
+                    f"<strong>{conversa['remetente']}:</strong> {conversa['mensagem']} "
+                    f"<br><small>{conversa['data_hora']}</small></p>"
+                )
             resultado += "</div>"
 
             return resultado
+
     except Exception as e:
         logging.error(f"Erro ao buscar conversa para o visitante {visitante_id}: {e}")
         return "<p>Erro ao obter conversa.</p>"
+
 
 def obter_total_visitantes():
     try:
