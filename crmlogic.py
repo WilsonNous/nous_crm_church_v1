@@ -35,10 +35,10 @@ logging.info("✅ Aplicação Flask (app) criada e configurada com sucesso!")
 routes_ok = False
 routes_error = None
 
-# Registrar rotas do pacote routes (refatorado)
+# Registrar rotas refatoradas
 try:
-    import routes
-    routes.register_routes(app)
+    from routes import register_routes  # routes é um package (pasta com __init__.py)
+    register_routes(app)
     logging.info("✅ Rotas registradas com sucesso (routes.register_routes).")
     routes_ok = True
 except Exception as e:
