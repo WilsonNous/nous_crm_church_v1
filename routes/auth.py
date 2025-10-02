@@ -1,5 +1,4 @@
 import os
-import logging
 from flask import request, jsonify
 from werkzeug.security import check_password_hash
 
@@ -18,7 +17,9 @@ def register(app):
         if not data:
             return jsonify({'status': 'failed', 'message': 'Nenhum dado foi fornecido'}), 400
 
-        username, password = data.get('username'), data.get('password')
+        username = data.get('username')
+        password = data.get('password')
+
         if not username or not password:
             return jsonify({'status': 'failed', 'message': 'Usuário e senha são obrigatórios'}), 400
 
