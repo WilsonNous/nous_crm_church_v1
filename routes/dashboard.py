@@ -1,6 +1,9 @@
 import logging
 from flask import jsonify
-from database import obter_total_visitantes, obter_total_membros, obter_total_discipulados, obter_dados_genero
+from database import (
+    obter_total_visitantes, obter_total_membros,
+    obter_total_discipulados, obter_dados_genero
+)
 
 def register(app):
     @app.route('/api/get-dashboard-data', methods=['GET'])
@@ -25,4 +28,3 @@ def register(app):
         except Exception as e:
             logging.error(f"Erro no get-dashboard-data: {e}")
             return jsonify({"error": str(e)}), 500
-
