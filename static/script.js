@@ -219,20 +219,24 @@ function validateForm(data) {
   return data && data.name && data.phone;
 }
 
-// Corrigido: sempre prefixar /api/
+// Corrigido: sempre prefixar /api/ sem duplicar //
 function apiRequest(endpoint, method = 'GET', body = null) {
   const headers = { 'Content-Type': 'application/json' };
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
 
-  return fetch(`${baseUrl}/${endpoint}`, opts)
+  // remove barra inicial se tiver, depois prefixa com /api/
+  const cleanEndpoint = endpoint.replace(/^\/+/, '');
+  const url = `${baseUrl}/api/${cleanEndpoint}`;
+
+  return fetch(url, opts)
     .then(async response => {
       if (!response.ok) {
         let msg = 'Erro desconhecido';
         try {
           const e = await response.json();
           msg = e.message || e.error || msg;
-        } catch(_) {}
+        } catch (_) {}
         throw new Error(`Erro: ${response.status} - ${msg}`);
       }
       return response.json();
@@ -384,7 +388,7 @@ function handleWhatsappButtonClick() {
 }
 
 function fetchVisitorsAndSendMessagesManual() {
-  apiRequest('api/get-visitors') // chamada já corrigida p/ backend
+  apiRequest('get-visitors') // não precisa "/api/", já tratei no apiRequest
     .then(data => {
       if (data.status !== 'success') throw new Error('Erro ao buscar visitantes.');
       const visitors = data.visitors || [];
@@ -398,8 +402,8 @@ function fetchVisitorsAndSendMessagesManual() {
       }
 
       const messages = novos.map(v => ({
-        phone: v.phone,
-        content: `👋 A Paz de Cristo, ${v.name || "Visitante"}! Tudo bem com você?
+        numero: v.phone, // <-- padronizado
+        mensagem: `👋 A Paz de Cristo, ${v.name || "Visitante"}! Tudo bem com você?
 
 Sou o *Integra+*, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.  
 Escolha uma das opções abaixo, respondendo com o número correspondente:
@@ -470,14 +474,13 @@ function sendMessagesManual(messages) {
 // Exemplo de uso com busca automática dos contatos em fase NULL:
 async function enviarParaFaseNull(mensagemDoFormulario) {
   try {
-    const res = await apiRequest('/api/visitantes/fase-null', 'GET');
-    const visitantes = res?.data || res || []; // dep. de como você responde no backend
+    const res = await apiRequest('visitantes/fase-null', 'GET');
+    const visitantes = res?.data || res || [];
 
-    // Mapeia para o formato esperado pelo sender
     const toSend = visitantes.map(v => ({
-      numero: v.phone,     // já vem do backend
+      numero: v.phone,       // padronizado
       mensagem: mensagemDoFormulario,
-      fase: null           // marcamos para reforçar a checagem
+      fase: null
     }));
 
     await sendMessagesSequentially(toSend, 2000);
@@ -836,6 +839,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
