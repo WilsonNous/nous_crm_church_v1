@@ -130,3 +130,16 @@ def register(app):
         except Exception as e:
             logging.error(f"Erro em /api/send-message-manual: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+
+    @app.route('/api/visitantes/fase-null', methods=['GET'])
+    def get_visitantes_fase_null():
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, nome, telefone FROM visitantes WHERE fase IS NULL OR fase = ''")
+            rows = cursor.fetchall()
+            cursor.close(); conn.close()
+            return jsonify({"status": "success", "visitantes": rows}), 200
+        except Exception as e:
+            logging.error(f"Erro em /api/visitantes/fase-null: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
