@@ -1,4 +1,6 @@
 import logging
+import os
+import requests
 from flask import request, jsonify
 from database import (
     salvar_visitante, visitante_existe, normalizar_para_recebimento,
@@ -88,3 +90,43 @@ def register(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ==============================
+    # NOVO: Envio manual via Z-API
+    # ==============================
+    @app.route('/api/send-message-manual', methods=['POST'])
+    def api_send_message_manual():
+        try:
+            data = request.get_json()
+            numero = data.get("numero")
+            mensagem = data.get("mensagem", "")
+            imagem_url = data.get("imagem_url")
+
+            if not numero:
+                return jsonify({"success": False, "error": "Número não informado"}), 400
+
+            ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
+            ZAPI_TOKEN = os.getenv("ZAPI_TOKEN")
+            ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN")
+            if not (ZAPI_INSTANCE and ZAPI_TOKEN and ZAPI_CLIENT_TOKEN):
+                return jsonify({"success": False, "error": "Configuração Z-API ausente"}), 500
+
+            headers = {"Client-Token": ZAPI_CLIENT_TOKEN, "Content-Type": "application/json"}
+            telefone_envio = f"55{numero}" if not numero.startswith("55") else numero
+
+            if imagem_url:
+                payload = {"phone": telefone_envio, "caption": mensagem, "image": imagem_url}
+                url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-image"
+            else:
+                payload = {"phone": telefone_envio, "message": mensagem}
+                url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
+
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
+            if response.ok:
+                logging.info(f"✅ Mensagem enviada via Z-API para {telefone_envio}")
+                salvar_conversa(telefone_envio, mensagem, tipo="enviada", origem="integra+")
+                return jsonify({"success": True}), 200
+            else:
+                return jsonify({"success": False, "error": f"Falha: {response.status_code}"}), 500
+        except Exception as e:
+            logging.error(f"Erro em /api/send-message-manual: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
