@@ -26,8 +26,8 @@ from botmsg import processar_mensagem
 from database import (
     salvar_visitante, visitante_existe, normalizar_para_recebimento,
     listar_todos_visitantes, monitorar_status_visitantes,
-    visitantes_listar_fases, visitantes_listar_estatisticas,
-    salvar_conversa, atualizar_status, obter_conversa_por_visitante,
+    s_listar_fases, s_listar_estatisticas,
+    salvar_conversa, atualizar_status, obter_conversa_por_,
     membro_existe, salvar_membro, obter_total_membros, obter_total_visitantes,
     obter_total_discipulados, obter_dados_genero, get_db_connection,
     salvar_envio_evento, listar_envios_eventos, filtrar_visitantes_para_evento
