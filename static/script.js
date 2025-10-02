@@ -388,10 +388,10 @@ function handleWhatsappButtonClick() {
 }
 
 function fetchVisitorsAndSendMessagesManual() {
-  apiRequest('get-visitors') // não precisa "/api/", já tratei no apiRequest
+  apiRequest('visitantes/fase-null') // não precisa "/api/", apiRequest já trata
     .then(data => {
       if (data.status !== 'success') throw new Error('Erro ao buscar visitantes.');
-      const visitors = data.visitors || [];
+      const visitors = data.visitantes || []; // <- ajuste
 
       // 🔎 Filtra apenas visitantes sem fase/status definido
       const novos = visitors.filter(v => !v.fase && !v.status);
@@ -402,8 +402,8 @@ function fetchVisitorsAndSendMessagesManual() {
       }
 
       const messages = novos.map(v => ({
-        numero: v.phone, // <-- padronizado
-        mensagem: `👋 A Paz de Cristo, ${v.name || "Visitante"}! Tudo bem com você?
+        numero: v.telefone, // <- ajuste
+        mensagem: `👋 A Paz de Cristo, ${v.nome || "Visitante"}! Tudo bem com você?
 
 Sou o *Integra+*, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.  
 Escolha uma das opções abaixo, respondendo com o número correspondente:
@@ -839,6 +839,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
