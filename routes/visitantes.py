@@ -1,12 +1,12 @@
 import logging
 import os
 import requests
-from flask import request, jsonify
+from flask import request, jsonify, response
 from database import (
     salvar_visitante, visitante_existe, normalizar_para_recebimento,
     listar_todos_visitantes, monitorar_status_visitantes,
     visitantes_listar_fases, visitantes_listar_estatisticas,
-    salvar_conversa
+    salvar_conversa, obter_conversa_por_visitante
 )
 
 def register(app):
@@ -143,3 +143,69 @@ def register(app):
         except Exception as e:
             logging.error(f"Erro em /api/visitantes/fase-null: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
+
+    # ==============================
+    # Conversas do Visitante (histórico em HTML)
+    # ==============================
+    @app.route('/api/conversas/<int:visitante_id>', methods=['GET'])
+    def api_get_conversas(visitante_id):
+        try:
+            html = obter_conversa_por_visitante(visitante_id)
+
+            # estilo inline simples para chat
+            styled_html = f"""
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <title>Histórico de Conversas</title>
+              <style>
+                body {{
+                  font-family: Arial, sans-serif;
+                  background: #f4f4f9;
+                  padding: 20px;
+                }}
+                .chat-conversa {{
+                  max-width: 600px;
+                  margin: auto;
+                  background: #fff;
+                  border-radius: 10px;
+                  padding: 15px;
+                  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+                }}
+                .chat-conversa p {{
+                  padding: 8px 12px;
+                  border-radius: 8px;
+                  margin: 8px 0;
+                }}
+                .chat-conversa p strong {{
+                  display: block;
+                  font-size: 0.9em;
+                  margin-bottom: 4px;
+                }}
+                .chat-conversa p small {{
+                  display: block;
+                  font-size: 0.7em;
+                  color: #888;
+                  margin-top: 4px;
+                }}
+                .chat-conversa p.bot {{
+                  background: #e0f7fa;
+                  text-align: left;
+                }}
+                .chat-conversa p.user {{
+                  background: #e8eaf6;
+                  text-align: right;
+                }}
+              </style>
+            </head>
+            <body>
+              <h2>💬 Conversas do Visitante #{visitante_id}</h2>
+              {html}
+            </body>
+            </html>
+            """
+
+            return Response(styled_html, mimetype='text/html')
+        except Exception as e:
+            logging.error(f"Erro em /api/conversas/{visitante_id}: {e}")
+            return Response(f"<p>Erro: {e}</p>", mimetype='text/html', status=500)
