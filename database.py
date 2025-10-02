@@ -635,17 +635,13 @@ def obter_total_visitantes():
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
             logging.info("Iniciando a consulta para o total de visitantes com telefone registrado...")
-            cursor.execute("SELECT COUNT(*) FROM visitantes")
+            cursor.execute("SELECT COUNT(*) AS total FROM visitantes")
             result = cursor.fetchone()
 
             logging.debug(f"Resultado de fetchone(): {result}")
 
-            if result:
-                total_visitantes_com_telefone = result['COUNT(*)']
-                logging.info(f"Total de visitantes com telefone registrado: {total_visitantes_com_telefone}")
-            else:
-                total_visitantes_com_telefone = 0
-                logging.warning("Nenhum visitante com telefone encontrado, retornando 0.")
+            if result and "total" in result:
+                total_visitantes_com_telefone = result['total']
 
             return formatar_com_pontos(total_visitantes_com_telefone)
 
