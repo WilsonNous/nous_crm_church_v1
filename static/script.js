@@ -420,23 +420,69 @@ Escolha uma das opções abaixo, respondendo com o número correspondente:
     .catch(err => showError(`Erro ao buscar visitantes: ${err.message}`, 'logContainer'));
 }
 
-async function sendMessagesManual(messages) {
-  for (let i = 0; i < (messages || []).length; i++) {
-    const v = messages[i];
+// util: aguardar X ms
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+/**
+ * Envia mensagens uma a uma (sequencial), esperando 2s entre cada envio.
+ * Envia SOMENTE se o contato estiver com fase/status NULL (quando vier do backend
+ * garantido pela rota /api/visitantes/fase-null) — mas deixo uma checagem de segurança.
+ *
+ * Estrutura esperada em each item:
+ * { numero: "5599999999999" ou "11999999999", mensagem: "..." , fase: null | undefined }
+ */
+async function sendMessagesSequentially(messages, delayMs = 2000) {
+  for (const v of (messages || [])) {
     try {
-      const data = await apiRequest('api/send-message-manual', 'POST', {
+      // checagem de segurança no front caso venha fase anexada
+      if (v.fase !== undefined && v.fase !== null) {
+        console.log(`⏭️ Pulando ${v.numero} (fase não-NULL)`);
+        continue;
+      }
+
+      const resp = await apiRequest('/api/send-message-manual', 'POST', {
         numero: v.numero,
         mensagem: v.mensagem
       });
 
-      if (!data.success) throw new Error(data.error || 'Erro ao enviar mensagem.');
+      if (!resp || !resp.success) {
+        throw new Error(resp?.error || 'Erro ao enviar mensagem.');
+      }
+
       console.log(`✅ Mensagem enviada para ${v.numero}`);
+      await sleep(delayMs);
     } catch (err) {
       showError(`Erro ao enviar mensagens: ${err.message}`, 'logContainer');
+      // continua com o próximo número
+      await sleep(delayMs);
     }
+  }
+}
 
-    // delay de 2 segundos entre os envios
-    await new Promise(res => setTimeout(res, 2000));
+/**
+ * (Opcional) Mantém compatibilidade com o que já havia no front.
+ * Agora apenas delega para o envio sequencial (2s).
+ */
+function sendMessagesManual(messages) {
+  return sendMessagesSequentially(messages, 2000);
+}
+
+// Exemplo de uso com busca automática dos contatos em fase NULL:
+async function enviarParaFaseNull(mensagemDoFormulario) {
+  try {
+    const res = await apiRequest('/api/visitantes/fase-null', 'GET');
+    const visitantes = res?.data || res || []; // dep. de como você responde no backend
+
+    // Mapeia para o formato esperado pelo sender
+    const toSend = visitantes.map(v => ({
+      numero: v.phone,     // já vem do backend
+      mensagem: mensagemDoFormulario,
+      fase: null           // marcamos para reforçar a checagem
+    }));
+
+    await sendMessagesSequentially(toSend, 2000);
+  } catch (e) {
+    showError(`Erro ao buscar visitantes: ${e.message}`, 'logContainer');
   }
 }
 
@@ -790,6 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
