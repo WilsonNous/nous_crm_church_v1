@@ -124,6 +124,8 @@ def register(app):
             if response.ok:
                 logging.info(f"✅ Mensagem enviada via Z-API para {telefone_envio}")
                 salvar_conversa(telefone_envio, mensagem, tipo="enviada", origem="integra+")
+                # 👇 Atualiza fase do visitante
+                atualizar_status(telefone_envio, "INICIO")
                 return jsonify({"success": True}), 200
             else:
                 return jsonify({"success": False, "error": f"Falha: {response.status_code}"}), 500
