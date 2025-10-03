@@ -6,7 +6,7 @@ from database import (
     salvar_visitante, visitante_existe, normalizar_para_recebimento,
     listar_todos_visitantes, monitorar_status_visitantes,
     visitantes_listar_fases, visitantes_listar_estatisticas,
-    salvar_conversa, obter_conversa_por_visitante
+    salvar_conversa, obter_conversa_por_visitante, get_db_connection   
 )
 
 def register(app):
