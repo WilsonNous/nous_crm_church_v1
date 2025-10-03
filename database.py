@@ -401,27 +401,29 @@ def normalizar_para_envio(telefone: str) -> str:
 def normalizar_para_recebimento(telefone: str) -> str:
     """
     Normaliza o telefone recebido para salvar no banco.
-    Sempre retorna no formato internacional: 55 + DDD + número (13 dígitos).
-    Se o número já contiver o código do país (55), mantém o número; caso contrário, adiciona '55'.
+    Garante que o número seja no formato DDD + número (com 11 dígitos).
+    Remove o código do país '55' caso o número tenha 13 dígitos.
     """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
-    # Remover o prefixo 'whatsapp:' se existir
+    # Se o telefone começar com 'whatsapp:', removemos o prefixo
     if telefone.startswith('whatsapp:'):
         telefone = telefone.replace('whatsapp:', '')
         logging.info(f"Prefixo 'whatsapp:' removido, número agora é: {telefone}")
 
-    # Remover qualquer caractere não numérico
+    # Remove qualquer caractere que não seja número
     telefone = ''.join(filter(str.isdigit, telefone))
 
-    # Se o telefone já está no formato internacional correto (com 13 dígitos e código '55'), retorna ele
-    if telefone.startswith('55') and len(telefone) == 13:
+    # Se o telefone tem 13 dígitos (com '55' como código do país), removemos o '55'
+    if len(telefone) == 13 and telefone.startswith('55'):
+        telefone = telefone[2:]  # Remove o '55' do código do país
+
+    # Verifica se o telefone tem 11 dígitos (formato correto sem o código do país)
+    if len(telefone) == 11:
+        logging.info(f"Número normalizado para consulta no banco: {telefone}")
         return telefone
 
-    # Se o telefone estiver no formato nacional (11 dígitos), adiciona '55' no início
-    if len(telefone) == 11:
-        return f"55{telefone}"
-
+    # Se não for um número válido (não tem 11 dígitos), loga o erro
     logging.error(f"Número de telefone inválido após normalização: {telefone}")
     raise ValueError(f"Número de telefone inválido: {telefone}")
 
