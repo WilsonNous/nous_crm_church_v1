@@ -158,22 +158,35 @@ def atualizar_status(telefone, nova_fase, origem="integra+"):
     """Atualiza o status de um visitante no banco de dados com origem."""
     try:
         logging.info(f"Atualizando status para {nova_fase} para o número {telefone} no banco de dados.")
+        
+        # Buscar o fase_id com maior robustez
         fase_id = buscar_fase_id(nova_fase)
         if not fase_id:
             raise ValueError(f"Fase '{nova_fase}' não encontrada no banco de dados.")
-
+        
+        # Buscar o visitante_id para garantir que existe antes de tentar atualizar
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                UPDATE status SET fase_id = %s, origem = %s
-                WHERE visitante_id = (SELECT id FROM visitantes WHERE telefone = %s)
-            ''', (fase_id, origem, telefone))
+            cursor.execute('''SELECT id FROM visitantes WHERE telefone = %s''', (telefone,))
+            visitante_id = cursor.fetchone()
 
+            if not visitante_id:
+                raise ValueError(f"Visitante com telefone '{telefone}' não encontrado no banco de dados.")
+            
+            # Atualiza o status se o visitante existir
+            cursor.execute(''' 
+                UPDATE status 
+                SET fase_id = %s, origem = %s 
+                WHERE visitante_id = %s
+            ''', (fase_id, origem, visitante_id[0]))
+
+            # Verifica se o visitante não foi encontrado para o update (no caso de novo visitante)
             if cursor.rowcount == 0:
+                logging.info(f"Visitante não encontrado para atualização, inserindo novo status para {telefone}.")
                 cursor.execute(''' 
                     INSERT INTO status (visitante_id, fase_id, origem)
-                    VALUES ((SELECT id FROM visitantes WHERE telefone = %s), %s, %s)
-                ''', (telefone, fase_id, origem))
+                    VALUES (%s, %s, %s)
+                ''', (visitante_id[0], fase_id, origem))
 
             conn.commit()
             logging.info(f"Status atualizado para fase '{nova_fase}' (id {fase_id}) para o telefone {telefone}")
