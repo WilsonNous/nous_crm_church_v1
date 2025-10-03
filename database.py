@@ -411,13 +411,14 @@ def normalizar_para_recebimento(telefone: str) -> str:
 
     telefone = ''.join(filter(str.isdigit, telefone))
 
-    # Remover o "55" se for encontrado
+    # Remover o "55" se for encontrado (código do país)
     if telefone.startswith('55'):
         telefone = telefone[2:]  # Remove o "55" do código do país
 
-    # Se o número tiver 8 dígitos (sem o "9"), adicionar o "9" após o DDD
+    # Se o número tiver 8 dígitos (sem o "9" após o DDD), adicionar o "9"
     if len(telefone) == 8:
         telefone = telefone[:2] + '9' + telefone[2:]
+        logging.info(f"Telefone ajustado com o '9': {telefone}")
 
     # Verifica se o número tem 11 dígitos (DDD + 9 + número)
     if len(telefone) == 11:
