@@ -16,7 +16,9 @@ def register(app):
             # Origem pode vir no body ou querystring → padrão integra+
             origem = data.get('origem') or request.args.get('origem', 'integra+')
 
-            logging.info(f"📥 Webhook TWILIO | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}")
+            logging.info(
+                f"📥 Webhook TWILIO | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}"
+            )
 
             processar_mensagem(from_number, message_body, message_sid, origem=origem)
 
@@ -35,9 +37,12 @@ def register(app):
             message_body = data.get("message", "").strip()
             message_sid = data.get("messageId", None)
 
-            origem = "integra+"
+            # Origem pode vir na querystring → padrão integra+
+            origem = request.args.get("origem", "integra+")
 
-            logging.info(f"📥 Webhook Z-API | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}")
+            logging.info(
+                f"📥 Webhook Z-API | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}"
+            )
 
             processar_mensagem(from_number, message_body, message_sid, origem=origem)
 
