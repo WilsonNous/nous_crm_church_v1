@@ -136,13 +136,20 @@ def register(app):
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, nome, telefone FROM visitantes WHERE fase IS NULL OR fase = ''")
+            cursor.execute("""
+                SELECT v.id, v.nome, v.telefone
+                FROM visitantes v
+                LEFT JOIN status s ON v.id = s.visitante_id
+                WHERE s.fase_id IS NULL
+            """)
             rows = cursor.fetchall()
-            cursor.close(); conn.close()
+            cursor.close()
+            conn.close()
             return jsonify({"status": "success", "visitantes": rows}), 200
         except Exception as e:
             logging.error(f"Erro em /api/visitantes/fase-null: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
+
 
     # ==============================
     # Conversas do Visitante (histórico em HTML)
