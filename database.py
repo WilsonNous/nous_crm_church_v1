@@ -401,7 +401,7 @@ def normalizar_para_envio(telefone: str) -> str:
 def normalizar_para_recebimento(telefone: str) -> str:
     """
     Normaliza o telefone recebido para salvar no banco.
-    Verifica se o número possui 8 ou 9 dígitos após o DDD, e inclui o "9" quando necessário.
+    Sempre retorna o número no formato DDD + 9 + número ou DDD + número.
     """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
@@ -411,18 +411,13 @@ def normalizar_para_recebimento(telefone: str) -> str:
 
     telefone = ''.join(filter(str.isdigit, telefone))
 
-    # Remover o "55" se for encontrado (código do país)
-    if telefone.startswith('55'):
-        telefone = telefone[2:]  # Remove o "55" do código do país
+    # Se o número tiver 10 dígitos (DDD + número), adiciona o "9" após o DDD
+    if len(telefone) == 10:
+        return f"{telefone[:2]}9{telefone[2:]}"  # Insere o 9 após o DDD
 
-    # Se o número tiver 8 dígitos (sem o "9" após o DDD), adicionar o "9"
-    if len(telefone) == 8:
-        telefone = telefone[:2] + '9' + telefone[2:]
-        logging.info(f"Telefone ajustado com o '9': {telefone}")
-
-    # Verifica se o número tem 11 dígitos (DDD + 9 + número)
+    # Se o número já tiver 11 dígitos, não altera
     if len(telefone) == 11:
-        return telefone
+        return telefone  # O número já está no formato correto (DDD + 9 + número)
 
     logging.error(f"Número de telefone inválido após normalização: {telefone}")
     raise ValueError(f"Número de telefone inválido: {telefone}")
