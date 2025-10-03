@@ -292,6 +292,7 @@ def obter_nome_do_visitante(telefone: str) -> str:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
+            # Normaliza o telefone antes de realizar a consulta
             telefone_normalizado = normalizar_para_recebimento(telefone)
 
             cursor.execute('''
@@ -303,7 +304,7 @@ def obter_nome_do_visitante(telefone: str) -> str:
             if resultado:
                 return resultado['nome']
             else:
-                logging.warning(f"Visitante com telefone {telefone} não encontrado.")
+                logging.warning(f"Visitante com telefone {telefone_normalizado} não encontrado.")
                 return 'Visitante não Cadastrado'
 
     except Exception as e:
@@ -397,25 +398,27 @@ def normalizar_para_envio(telefone: str) -> str:
 
     raise ValueError(f"Telefone inválido para envio: {telefone}")
 
-
 def normalizar_para_recebimento(telefone: str) -> str:
     """
     Normaliza o telefone recebido para salvar no banco.
     Sempre retorna no formato internacional: 55 + DDD + número (13 dígitos).
+    Se o número já contiver o código do país (55), mantém o número; caso contrário, adiciona '55'.
     """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
+    # Remover o prefixo 'whatsapp:' se existir
     if telefone.startswith('whatsapp:'):
         telefone = telefone.replace('whatsapp:', '')
         logging.info(f"Prefixo 'whatsapp:' removido, número agora é: {telefone}")
 
+    # Remover qualquer caractere não numérico
     telefone = ''.join(filter(str.isdigit, telefone))
 
-    # Já está no formato internacional correto
+    # Se o telefone já está no formato internacional correto (com 13 dígitos e código '55'), retorna ele
     if telefone.startswith('55') and len(telefone) == 13:
         return telefone
 
-    # Está no formato nacional (11 dígitos)
+    # Se o telefone estiver no formato nacional (11 dígitos), adiciona '55' no início
     if len(telefone) == 11:
         return f"55{telefone}"
 
