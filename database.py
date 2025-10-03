@@ -401,7 +401,7 @@ def normalizar_para_envio(telefone: str) -> str:
 def normalizar_para_recebimento(telefone: str) -> str:
     """
     Normaliza o telefone recebido para salvar no banco.
-    Sempre retorna o número no formato DDD + 9 + número ou DDD + número.
+    Garante que o número esteja no formato DDD + 9 + número ou DDD + número.
     """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
@@ -409,18 +409,26 @@ def normalizar_para_recebimento(telefone: str) -> str:
         telefone = telefone.replace('whatsapp:', '')
         logging.info(f"Prefixo 'whatsapp:' removido, número agora é: {telefone}")
 
-    telefone = ''.join(filter(str.isdigit, telefone))
+    telefone = ''.join(filter(str.isdigit, telefone))  # Remove todos os caracteres não numéricos
 
-    # Se o número tiver 10 dígitos (DDD + número), adiciona o "9" após o DDD
+    # Se o número começa com '55' (código do país), removemos
+    if telefone.startswith('55'):
+        telefone = telefone[2:]  # Remove o código do país (55)
+
+    # Se o número tem 10 dígitos (DDD + número), adiciona o '9' após o DDD
     if len(telefone) == 10:
-        return f"{telefone[:2]}9{telefone[2:]}"  # Insere o 9 após o DDD
+        telefone = f"{telefone[:2]}9{telefone[2:]}"  # Adiciona o 9 após o DDD
 
-    # Se o número já tiver 11 dígitos, não altera
-    if len(telefone) == 11:
-        return telefone  # O número já está no formato correto (DDD + 9 + número)
+    # Se o número já tem 11 dígitos, não faz alteração
+    elif len(telefone) == 11:
+        pass  # Número já está correto no formato DDD + 9 + número
 
-    logging.error(f"Número de telefone inválido após normalização: {telefone}")
-    raise ValueError(f"Número de telefone inválido: {telefone}")
+    else:
+        logging.error(f"Número de telefone inválido após normalização: {telefone}")
+        raise ValueError(f"Número de telefone inválido: {telefone}")  # Se não tiver 10 ou 11 dígitos, erro
+
+    logging.info(f"Número normalizado para: {telefone}")
+    return telefone
 
 # =======================
 # Funções de Status e Fases
