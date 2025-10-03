@@ -154,6 +154,11 @@ function showError(message, containerId) {
   c.appendChild(div);
 }
 
+function clearError() {
+  const c = $('registerErrorContainer');
+  if (c) c.innerHTML = '';
+}
+
 function validatePhoneNumber(phone) {
   const digits = (phone || '').replace(/\D/g, '');
   return digits.length === 11 ? digits : null;
@@ -235,22 +240,152 @@ function apiRequest(endpoint, method = 'GET', body = null) {
 }
 
 // ------------------------------
-// FILTROS E PÁGINAÇÃO
+// Acolhido
 // ------------------------------
 
-function bindPagination() {
-  const nextBtn = $('nextPageButton');
-  const prevBtn = $('prevPageButton');
-  
-  if (nextBtn) nextBtn.addEventListener('click', () => handlePageChange(1));
-  if (prevBtn) prevBtn.addEventListener('click', () => handlePageChange(-1));
+function clearAcolhidoForm() {
+  ['nome', 'telefone', 'situacao', 'observacao'].forEach(id => {
+    const el = $(id);
+    if (el) el.value = '';
+  });
 }
 
-function handlePageChange(direction) {
-  if (currentPage + direction > 0 && currentPage + direction <= totalPages) {
-    currentPage += direction;
+// ------------------------------
+// Monitor de Status
+// ------------------------------
+
+let currentPage = 1;
+const itemsPerPage = 10;
+let statusData = [];
+
+function monitorStatus() {
+  fetch(`${baseUrl}/api/monitor-status`, { 
+    method: 'GET', 
+    headers: { 'Content-Type': 'application/json' } 
+  })
+  .then(r => {
+    if (!r.ok) throw new Error(`Erro ao buscar status: ${r.statusText}`);
+    return r.json();
+  })
+  .then(data => {
+    statusData = Array.isArray(data) ? data : [];
+    appState.currentView = 'statusLog';
+    updateUI();
+    currentPage = 1;
     loadPageData(currentPage);
+  })
+  .catch(err => showError(`Erro ao buscar status: ${err.message}`, 'logContainer'));
+}
+
+function loadPageData(page) {
+  const start = (page - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  const items = statusData.slice(start, end);
+  const tbody = $('statusList');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  items.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${item.id}</td>
+      <td>${item.name}</td>
+      <td>${item.phone}</td>
+      <td>${item.status}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ------------------------------
+// WhatsApp
+// ------------------------------
+
+function handleWhatsappButtonClick() {
+  if (!confirm('Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?')) return;
+  appState.currentView = 'whatsappLog';
+  updateUI();
+  fetchVisitorsAndSendMessagesManual();
+}
+
+function fetchVisitorsAndSendMessagesManual() {
+  apiRequest('visitantes/fase-null')
+    .then(data => {
+      if (data.status !== 'success') throw new Error('Erro ao buscar visitantes.');
+      const visitors = data.visitantes || [];
+
+      const novos = visitors.filter(v => !v.fase && !v.status);
+      if (novos.length === 0) {
+        alert('Nenhum visitante novo encontrado para envio.');
+        return;
+      }
+
+      const messages = novos.map(v => ({
+        numero: v.telefone,
+        mensagem: `👋 A Paz de Cristo, ${v.nome || "Visitante"}! Tudo bem com você?`
+      }));
+
+      sendMessagesSequentially(messages);
+    })
+    .catch(err => showError(`Erro ao buscar visitantes: ${err.message}`, 'logContainer'));
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function sendMessagesSequentially(messages, delayMs = 2000) {
+  for (const v of (messages || [])) {
+    try {
+      appendLogToWhatsapp(`📤 Enviando para ${v.numero} (${v.name || "Visitante"})...`);
+
+      const resp = await apiRequest('send-message-manual', 'POST', {
+        numero: v.numero,
+        mensagem: v.mensagem
+      });
+
+      if (!resp || !resp.success) throw new Error(resp?.error || 'Erro ao enviar mensagem.');
+
+      appendLogToWhatsapp(`✅ Mensagem enviada para ${v.numero}`);
+      await sleep(delayMs);
+    } catch (err) {
+      appendLogToWhatsapp(`❌ Erro ao enviar para ${v.numero}: ${err.message}`, true);
+      await sleep(delayMs);
+    }
   }
+}
+
+// ------------------------------
+// IA - Perguntas Pendentes
+// ------------------------------
+
+let perguntasPendentes = [];
+
+function loadPendingQuestions() {
+  fetch(`${baseUrl}/api/ia/pending-questions`, { credentials: 'include' })
+    .then(response => response.json())
+    .then(data => {
+      perguntasPendentes = data.questions || [];
+      const list = $('pendingQuestionsList');
+      const countEl = $('pendingQuestionsCount');
+      if (list && countEl) {
+        list.innerHTML = '';
+        countEl.textContent = perguntasPendentes.length;
+        if (perguntasPendentes.length === 0) {
+          list.innerHTML = '<li>Nenhuma pergunta pendente.</li>';
+        } else {
+          perguntasPendentes.forEach((q, idx) => {
+            const li = document.createElement('li');
+            li.textContent = q.question || q.pergunta || '(sem texto)';
+            li.dataset.index = String(idx);
+            li.addEventListener('click', () => showTeachForm(idx));
+            list.appendChild(li);
+          });
+        }
+      }
+    })
+    .catch(err => {
+      console.error('Erro ao carregar perguntas pendentes:', err);
+      const list = $('pendingQuestionsList');
+      if (list) list.innerHTML = '<li>Erro ao carregar dados.</li>';
+    });
 }
 
 // ------------------------------
