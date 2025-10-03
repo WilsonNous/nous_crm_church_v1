@@ -34,6 +34,22 @@ function toggleForm(anyId) {
   updateUI();
 }
 
+function appendLogToWhatsapp(message, isError = false) {
+  const logContainer = document.getElementById("logContainer");
+  if (!logContainer) return;
+
+  const p = document.createElement("p");
+  p.textContent = message;
+  if (isError) {
+    p.style.color = "red";
+    p.style.fontWeight = "bold";
+  }
+  logContainer.appendChild(p);
+
+  // Scroll automático para o fim
+  logContainer.scrollTop = logContainer.scrollHeight;
+}
+
 // ------------------------------
 // Painel de IA - estado/variáveis
 // ------------------------------
@@ -438,11 +454,14 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 async function sendMessagesSequentially(messages, delayMs = 2000) {
   for (const v of (messages || [])) {
     try {
-      // checagem de segurança no front caso venha fase anexada
+      // 🔎 Segurança extra: só envia se fase for null/undefined
       if (v.fase !== undefined && v.fase !== null) {
-        console.log(`⏭️ Pulando ${v.numero} (fase não-NULL)`);
+        appendLogToWhatsapp(`⏭️ Pulando ${v.numero} (${v.name || "Visitante"}) - fase não-NULL`);
         continue;
       }
+
+      // Log antes de enviar
+      appendLogToWhatsapp(`📤 Enviando para ${v.numero} (${v.name || "Visitante"})...`);
 
       const resp = await apiRequest('send-message-manual', 'POST', {
         numero: v.numero,
@@ -453,12 +472,13 @@ async function sendMessagesSequentially(messages, delayMs = 2000) {
         throw new Error(resp?.error || 'Erro ao enviar mensagem.');
       }
 
-      console.log(`✅ Mensagem enviada para ${v.numero}`);
+      // Log de sucesso
+      appendLogToWhatsapp(`✅ Mensagem enviada para ${v.numero} (${v.name || "Visitante"})`);
       await sleep(delayMs);
     } catch (err) {
-      showError(`Erro ao enviar mensagens: ${err.message}`, 'logContainer');
-      // continua com o próximo número
-      await sleep(delayMs);
+      // Log de erro em vermelho
+      appendLogToWhatsapp(`❌ Erro ao enviar para ${v.numero}: ${err.message}`, true);
+      await sleep(delayMs); // continua o loop mesmo no erro
     }
   }
 }
@@ -839,6 +859,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
