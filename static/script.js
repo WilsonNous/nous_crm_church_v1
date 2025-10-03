@@ -217,7 +217,6 @@ function apiRequest(endpoint, method = 'GET', body = null) {
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
 
-  // remove barra inicial se tiver, depois prefixa com /api/
   const cleanEndpoint = endpoint.replace(/^\/+/, '');
   const url = `${baseUrl}/api/${cleanEndpoint}`;
 
