@@ -1,6 +1,7 @@
 import logging
 from flask import request, jsonify
 from botmsg import processar_mensagem
+from database import normalizar_para_recebimento
 
 def register(app):
     # --- Webhook Twilio ---
