@@ -89,6 +89,7 @@ function updateUI() {
       safeShow('showAcolhidoFormButton');
       safeShow('showIATrainingButton');
       safeShow('showCampaignButton');
+      safeShow('showStatsButton');  // Novo botão de Estatísticas
       break;
     case 'form':
       safeShow('formContainer');
@@ -859,6 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUI();
   loadDashboardData();
 });
+
 
 
 
