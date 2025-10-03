@@ -135,7 +135,7 @@ def register(app):
     def get_visitantes_fase_null():
         try:
             conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor()
             cursor.execute("SELECT id, nome, telefone FROM visitantes WHERE fase IS NULL OR fase = ''")
             rows = cursor.fetchall()
             cursor.close(); conn.close()
