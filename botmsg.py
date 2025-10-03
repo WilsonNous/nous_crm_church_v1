@@ -29,7 +29,6 @@ numero_pedidos_oracao = ['48984949649', '48999449961']
 # Número da secretaria que receberá os pedidos de "outros"
 numero_outros_secretaria = '48991553619'
 
-
 # Transições
 transicoes = {
     EstadoVisitante.INICIO: {
