@@ -46,25 +46,22 @@ def get_db_connection():
 
 def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
                      estado_civil, igreja_atual, frequenta_igreja, indicacao,
-                     membro, pedido_oracao, horario_contato):
-    """Salva um visitante no banco de dados."""
+                     membro, pedido_oracao, horario_contato, origem="integra+"):
+    """Salva um visitante no banco de dados com origem."""
     try:
-        # Verifica se o visitante já existe antes de tentar salvar
         if visitante_existe(telefone):
             logging.error(f"Erro: O telefone {telefone} já está cadastrado.")
             return False
 
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
-
-            # Tenta inserir o visitante
             cursor.execute(''' 
                 INSERT INTO visitantes (nome, telefone, email, data_nascimento,
                  cidade, genero, estado_civil, igreja_atual,
-                 frequenta_igreja, indicacao, membro, pedido_oracao, horario_contato)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 frequenta_igreja, indicacao, membro, pedido_oracao, horario_contato, origem)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', (nome, telefone, email, data_nascimento, cidade, genero, estado_civil,
-                  igreja_atual, frequenta_igreja, indicacao, membro, pedido_oracao, horario_contato))
+                  igreja_atual, frequenta_igreja, indicacao, membro, pedido_oracao, horario_contato, origem))
 
             conn.commit()
             logging.info(f"Visitante {nome} cadastrado com sucesso com o telefone {telefone}!")
@@ -112,14 +109,15 @@ def membro_existe(telefone):
         logging.error(f"Erro ao verificar existência do membro: {e}")
         return False
 
-def salvar_novo_visitante(telefone, nome):
+def salvar_novo_visitante(telefone, nome, origem="integra+"):
+    """Salva um novo visitante no banco de dados com origem."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO visitantes (nome, telefone, data_cadastro) 
-                VALUES (%s, %s, NOW())
-            ''', (nome, telefone))
+                INSERT INTO visitantes (nome, telefone, data_cadastro, origem) 
+                VALUES (%s, %s, NOW(), %s)
+            ''', (nome, telefone, origem))
             conn.commit()
             logging.info(f"Novo visitante {nome} registrado com sucesso.")
     except Exception as e:
@@ -156,8 +154,8 @@ def visitante_existe(telefone):
 # Função de Atualização de Status
 # =======================
 
-def atualizar_status(telefone, nova_fase):
-    """Atualiza o status de um visitante no banco de dados."""
+def atualizar_status(telefone, nova_fase, origem="integra+"):
+    """Atualiza o status de um visitante no banco de dados com origem."""
     try:
         logging.info(f"Atualizando status para {nova_fase} para o número {telefone} no banco de dados.")
         fase_id = buscar_fase_id(nova_fase)
@@ -166,19 +164,16 @@ def atualizar_status(telefone, nova_fase):
 
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
-
-            # Verifica se o status já existe para o visitante
             cursor.execute('''
-                UPDATE status SET fase_id = %s
+                UPDATE status SET fase_id = %s, origem = %s
                 WHERE visitante_id = (SELECT id FROM visitantes WHERE telefone = %s)
-            ''', (fase_id, telefone))
+            ''', (fase_id, origem, telefone))
 
-            # Se o status não foi atualizado, insere um novo status
             if cursor.rowcount == 0:
-                cursor.execute('''
-                    INSERT INTO status (visitante_id, fase_id)
-                    VALUES ((SELECT id FROM visitantes WHERE telefone = %s), %s)
-                ''', (telefone, fase_id))
+                cursor.execute(''' 
+                    INSERT INTO status (visitante_id, fase_id, origem)
+                    VALUES ((SELECT id FROM visitantes WHERE telefone = %s), %s, %s)
+                ''', (telefone, fase_id, origem))
 
             conn.commit()
             logging.info(f"Status atualizado para fase '{nova_fase}' (id {fase_id}) para o telefone {telefone}")
@@ -190,18 +185,16 @@ def atualizar_status(telefone, nova_fase):
 # Funções de Estatísticas e Conversas
 # =======================
 
-def salvar_estatistica(numero, estado_atual, proximo_estado):
+def salvar_estatistica(numero, estado_atual, proximo_estado, origem="integra+"):
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO estatisticas (numero, estado_atual, proximo_estado, data_hora)
-                VALUES (%s, %s, %s, %s)
-            ''', (numero, estado_atual, proximo_estado, datetime.now()))
+            cursor.execute(''' 
+                INSERT INTO estatisticas (numero, estado_atual, proximo_estado, origem, data_hora)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (numero, estado_atual, proximo_estado, origem, datetime.now()))
             conn.commit()
-            logging.info(f"Estatística salva para o número {numero} "
-                         f"com estado atual {estado_atual} e "
-                         f"próximo estado {proximo_estado}.")
+            logging.info(f"Estatística salva para o número {numero} com estado atual {estado_atual} e próximo estado {proximo_estado}.")
     except Exception as e:
         logging.error(f"Erro ao salvar estatística para {numero}: {e}")
 
@@ -356,21 +349,19 @@ def mensagem_sid_existe(message_sid: str) -> bool:
         logging.error(f"Erro ao verificar SID da mensagem: {e}")
         return False
 
-def salvar_pedido_oracao(telefone, pedido):
+def salvar_pedido_oracao(telefone, pedido, origem="integra+"):
+    """Salva o pedido de oração com origem."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
-
-            cursor.execute('''
-                UPDATE visitantes 
-                SET pedido_oracao = %s 
+            cursor.execute(''' 
+                UPDATE visitantes SET pedido_oracao = %s, origem = %s
                 WHERE telefone = %s
-            ''', (pedido, telefone))
+            ''', (pedido, origem, telefone))
 
             conn.commit()
             logging.info(f"Pedido de oração salvo para o visitante com telefone {telefone}.")
             return True
-
     except Exception as e:
         logging.error(f"Erro ao salvar pedido de oração: {e}")
         return False
