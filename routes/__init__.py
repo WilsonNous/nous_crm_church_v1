@@ -1,7 +1,7 @@
 import logging
 
 def register_routes(app):
-    from . import auth, visitantes, dashboard, ia, eventos, webhooks
+    from . import auth, visitantes, dashboard, ia, eventos, webhooks, estatisticas
 
     logging.info("📌 Registrando rotas...")
 
@@ -22,4 +22,7 @@ def register_routes(app):
 
     webhooks.register(app)
     logging.info("✅ Rotas webhooks registradas.")
+
+    estatisticas.register(app)
+    logging.info("✅ Rotas estatisticas registradas.")
 
