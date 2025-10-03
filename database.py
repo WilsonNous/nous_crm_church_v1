@@ -401,8 +401,8 @@ def normalizar_para_envio(telefone: str) -> str:
 def normalizar_para_recebimento(telefone: str) -> str:
     """
     Normaliza o telefone recebido para salvar no banco.
-    Garante que o número seja no formato DDD + número (com 11 dígitos).
-    Adiciona o '55' se necessário e remove o código do país '55' se já presente.
+    Garante que o número seja no formato DDD + número (com 11 dígitos, incluindo o '9' após o DDD).
+    Adiciona o '9' se necessário e remove o código do país '55' se já presente.
     """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
@@ -419,15 +419,17 @@ def normalizar_para_recebimento(telefone: str) -> str:
         telefone = telefone[2:]  # Remove o '55' do código do país
         logging.info(f"Número após remoção do '55': {telefone}")
 
-    # Se o número tem 11 dígitos e já não começa com '55', ele está correto
+    # Se o número tem 11 dígitos e já está correto, só retornamos
     if len(telefone) == 11:
-        logging.info(f"Número normalizado para consulta no banco: {telefone}")
+        if telefone[2] != '9':  # Verifica se tem 9 após o DDD
+            telefone = telefone[:2] + '9' + telefone[2:]  # Adiciona o "9" entre DDD e número
+            logging.info(f"Número com 8 dígitos após DDD, ajustado para 9 dígitos: {telefone}")
         return telefone
 
-    # Se o número tem 11 dígitos (mas não tem o '55' na frente), adicionamos o '55'
-    if len(telefone) == 11 and not telefone.startswith('55'):
-        telefone = '55' + telefone
-        logging.info(f"Número após adicionar o código do país: {telefone}")
+    # Se o número tem 8 dígitos (número com DDD), precisamos incluir o "9" após o DDD
+    if len(telefone) == 8:
+        telefone = telefone[:2] + '9' + telefone[2:]  # Adiciona o "9" entre DDD e número
+        logging.info(f"Número com 8 dígitos ajustado para 9 dígitos: {telefone}")
         return telefone
 
     logging.error(f"Número de telefone inválido após normalização: {telefone}")
