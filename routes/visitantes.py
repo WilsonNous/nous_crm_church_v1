@@ -1,7 +1,7 @@
 import logging
 import os
 import requests
-from flask import request, jsonify, response
+from flask import request, jsonify, Response
 from database import (
     salvar_visitante, visitante_existe, normalizar_para_recebimento,
     listar_todos_visitantes, monitorar_status_visitantes,
