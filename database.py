@@ -289,11 +289,11 @@ def obter_dados_visitante(telefone: str) -> Optional[Dict]:
 
 def obter_nome_do_visitante(telefone: str) -> str:
     try:
+        # Normalizar o telefone para garantir que esteja no formato correto
+        telefone_normalizado = normalizar_para_recebimento(telefone)
+
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
-
-            # Normaliza o telefone antes de realizar a consulta
-            telefone_normalizado = normalizar_para_recebimento(telefone)
 
             cursor.execute('''
                 SELECT nome FROM visitantes WHERE telefone = %s LIMIT 1
@@ -304,7 +304,7 @@ def obter_nome_do_visitante(telefone: str) -> str:
             if resultado:
                 return resultado['nome']
             else:
-                logging.warning(f"Visitante com telefone {telefone_normalizado} não encontrado.")
+                logging.warning(f"Visitante com telefone {telefone} não encontrado.")
                 return 'Visitante não Cadastrado'
 
     except Exception as e:
@@ -401,35 +401,26 @@ def normalizar_para_envio(telefone: str) -> str:
 def normalizar_para_recebimento(telefone: str) -> str:
     """
     Normaliza o telefone recebido para salvar no banco.
-    Garante que o número seja no formato DDD + número (com 11 dígitos, incluindo o '9' após o DDD).
-    Adiciona o '9' se necessário e remove o código do país '55' se já presente.
+    Verifica se o número possui 8 ou 9 dígitos após o DDD, e inclui o "9" quando necessário.
     """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
-    # Se o telefone começar com 'whatsapp:', removemos o prefixo
     if telefone.startswith('whatsapp:'):
         telefone = telefone.replace('whatsapp:', '')
         logging.info(f"Prefixo 'whatsapp:' removido, número agora é: {telefone}")
 
-    # Remove qualquer caractere que não seja número
     telefone = ''.join(filter(str.isdigit, telefone))
 
-    # Se o telefone tem 13 dígitos e começa com '55', removemos o '55'
-    if len(telefone) == 13 and telefone.startswith('55'):
-        telefone = telefone[2:]  # Remove o '55' do código do país
-        logging.info(f"Número após remoção do '55': {telefone}")
+    # Remover o "55" se for encontrado
+    if telefone.startswith('55'):
+        telefone = telefone[2:]  # Remove o "55" do código do país
 
-    # Se o número tem 11 dígitos e já está correto, só retornamos
-    if len(telefone) == 11:
-        if telefone[2] != '9':  # Verifica se tem 9 após o DDD
-            telefone = telefone[:2] + '9' + telefone[2:]  # Adiciona o "9" entre DDD e número
-            logging.info(f"Número com 8 dígitos após DDD, ajustado para 9 dígitos: {telefone}")
-        return telefone
-
-    # Se o número tem 8 dígitos (número com DDD), precisamos incluir o "9" após o DDD
+    # Se o número tiver 8 dígitos (sem o "9"), adicionar o "9" após o DDD
     if len(telefone) == 8:
-        telefone = telefone[:2] + '9' + telefone[2:]  # Adiciona o "9" entre DDD e número
-        logging.info(f"Número com 8 dígitos ajustado para 9 dígitos: {telefone}")
+        telefone = telefone[:2] + '9' + telefone[2:]
+
+    # Verifica se o número tem 11 dígitos (DDD + 9 + número)
+    if len(telefone) == 11:
         return telefone
 
     logging.error(f"Número de telefone inválido após normalização: {telefone}")
