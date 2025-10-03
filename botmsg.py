@@ -178,31 +178,31 @@ def detectar_agradecimento(texto):
     texto_normalizado = normalizar_texto(texto)
     return any(palavra in texto_normalizado for palavra in palavras_agradecimento)
 
-def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_manual=False) -> dict:
-    logging.info(f"Processando mensagem: {numero}, SID: {message_sid}, Mensagem: {texto_recebido}")
+def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_manual=False, origem="integra+") -> dict:
+    logging.info(f"Processando mensagem | Origem={origem} | Numero={numero}, SID={message_sid}, Mensagem={texto_recebido}")
+
     numero_normalizado = normalizar_para_recebimento(numero)
     texto_recebido_normalizado = normalizar_texto(texto_recebido)
+
+    # Salva mensagem recebida com origem
+    salvar_conversa(numero_normalizado, texto_recebido, tipo="recebida", sid=message_sid, origem=origem)
 
     # Buscar estado atual do visitante no banco de dados
     estado_str = obter_estado_atual_do_banco(numero_normalizado)
     logging.debug(f"Estado atual do visitante no Banco: {estado_str}, Mensagem: {texto_recebido}")
 
     # Estado atual é validado e fluxo normal continua
-    estado_atual = EstadoVisitante[estado_str] if estado_str in EstadoVisitante.__members__ \
-        else EstadoVisitante.INICIO
+    estado_atual = EstadoVisitante[estado_str] if estado_str in EstadoVisitante.__members__ else EstadoVisitante.INICIO
     logging.debug(f"Estado atual: {estado_atual.name}, Texto recebido: {texto_recebido_normalizado}")
 
     # Se o estado for NULL, ou seja, o visitante não está registrado no sistema
     if not estado_str:
-        # Verificar se o estado atual é "PEDIR_NOME" (já foi pedido o nome)
         if estado_str == 'PEDIR_NOME':
-            # Salvar o nome e registrar o visitante
             salvar_novo_visitante(numero_normalizado, texto_recebido_normalizado)
             resposta = f"Obrigado, {texto_recebido_normalizado}! Agora podemos continuar com o atendimento."
             atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
             proximo_estado = EstadoVisitante.INICIO
         else:
-            # Pedir o nome do visitante
             resposta = ("Olá! Parece que você ainda não está cadastrado no nosso sistema. "
                         "Para começar, por favor, me diga o seu nome completo.")
             atualizar_status(numero_normalizado, 'PEDIR_NOME')
@@ -210,7 +210,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
         # Enviar a mensagem e salvar a conversa
         enviar_mensagem_para_fila(numero_normalizado, resposta)
-        salvar_conversa(numero_normalizado, resposta, tipo='enviada', sid=message_sid)
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada', sid=message_sid, origem=origem)
         return {
             "resposta": resposta,
             "estado_atual": estado_str or "PEDIR_NOME",
@@ -221,7 +221,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     resposta_ministerio = detectar_palavra_chave_ministerio(texto_recebido_normalizado)
     if resposta_ministerio:
         enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio)
-        salvar_conversa(numero_normalizado, resposta_ministerio, tipo='enviada', sid=message_sid)
+        salvar_conversa(numero_normalizado, resposta_ministerio, tipo='enviada', sid=message_sid, origem=origem)
         return {
             "resposta": resposta_ministerio,
             "estado_atual": "MINISTERIO",
@@ -234,7 +234,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         resposta_agradecimento = (f"Ficamos felizes em poder ajudar, {visitor_name}! "
                                   f"Se precisar de algo mais, estamos à disposição.")
         enviar_mensagem_para_fila(numero_normalizado, resposta_agradecimento)
-        salvar_conversa(numero_normalizado, resposta_agradecimento, tipo='enviada', sid=message_sid)
+        salvar_conversa(numero_normalizado, resposta_agradecimento, tipo='enviada', sid=message_sid, origem=origem)
         return {
             "resposta": resposta_agradecimento,
             "estado_atual": "AGRADACIMENTO",
@@ -258,7 +258,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
     Estou aqui pra você! 🙌"""
         enviar_mensagem_para_fila(numero_normalizado, resposta_saudacao)
-        salvar_conversa(numero_normalizado, resposta_saudacao, tipo='enviada', sid=message_sid)
+        salvar_conversa(numero_normalizado, resposta_saudacao, tipo='enviada', sid=message_sid, origem=origem)
         return {
             "resposta": resposta_saudacao,
             "estado_atual": "SAUDACAO",
@@ -281,7 +281,7 @@ Aqui estão algumas opções que você pode escolher:
         proximo_estado = EstadoVisitante.INICIO
         atualizar_status(numero_normalizado, proximo_estado.value)
         enviar_mensagem_para_fila(numero_normalizado, resposta)
-        salvar_conversa(numero_normalizado, resposta, tipo='enviada')
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada', sid=message_sid, origem=origem)
         registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)
         return {
             "resposta": resposta,
@@ -308,13 +308,12 @@ Aqui estão algumas opções que você pode escolher:
     """
         atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)
         enviar_mensagem_para_fila(numero_normalizado, resposta_inicial)
-        salvar_conversa(numero_normalizado, resposta_inicial, tipo='enviada', sid=message_sid)
+        salvar_conversa(numero_normalizado, resposta_inicial, tipo='enviada', sid=message_sid, origem=origem)
         return {
             "resposta": resposta_inicial,
             "estado_atual": EstadoVisitante.INICIO.name,
             "proximo_estado": EstadoVisitante.INICIO.name
         }
-
 
     # Verifica se a mensagem recebida foi a mensagem inicial e não a processa
     if texto_recebido_normalizado.startswith("a paz de cristo") and not acao_manual:
@@ -326,7 +325,7 @@ Aqui estão algumas opções que você pode escolher:
             "proximo_estado": estado_atual.name
         }
 
-    salvar_conversa(numero_normalizado, texto_recebido, tipo='recebida', sid=message_sid)
+    salvar_conversa(numero_normalizado, texto_recebido, tipo='recebida', sid=message_sid, origem=origem)
 
     # Procurar o próximo estado baseado na resposta numérica ou palavra-chave
     proximo_estado = transicoes.get(estado_atual, {}).get(texto_recebido_normalizado)
@@ -334,7 +333,7 @@ Aqui estão algumas opções que você pode escolher:
     if estado_atual == EstadoVisitante.PEDIDO_ORACAO:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         # Salvando o pedido de oração no banco
-        salvar_conversa(numero_normalizado, f"Pedido de oração: {texto_recebido}", tipo='recebida', sid=message_sid)
+        salvar_conversa(numero_normalizado, f"Pedido de oração: {texto_recebido}", tipo='recebida', sid=message_sid, origem=origem)
         # Enviar o pedido de oração para a lista de intercessores usando o template
         enviar_pedido_oracao(
             numero_pedidos_oracao,
@@ -354,7 +353,7 @@ Aqui estão algumas opções que você pode escolher:
         # --- ADICIONE ESTA LINHA ---
         atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)  # Força reset após atendimento
         enviar_mensagem_para_fila(numero_normalizado, resposta)
-        salvar_conversa(numero_normalizado, resposta, tipo='enviada')
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada', sid=message_sid, origem=origem)
         registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)
         return {
             "resposta": resposta,
@@ -366,7 +365,7 @@ Aqui estão algumas opções que você pode escolher:
         resposta_ministerio = detectar_palavra_chave_ministerio(texto_recebido_normalizado)
         if resposta_ministerio:
             enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio)
-            salvar_conversa(numero_normalizado, resposta_ministerio, tipo='enviada', sid=message_sid)
+            salvar_conversa(numero_normalizado, resposta_ministerio, tipo='enviada', sid=message_sid, origem=origem)
             return {
                 "resposta": resposta_ministerio,
                 "estado_atual": "MINISTERIO",
@@ -377,7 +376,7 @@ Aqui estão algumas opções que você pode escolher:
             resposta_agradecimento = ("Ficamos felizes em poder ajudar! "
                                       "Se precisar de algo mais, estamos à disposição.")
             enviar_mensagem_para_fila(numero_normalizado, resposta_agradecimento)
-            salvar_conversa(numero_normalizado, resposta_agradecimento, tipo='enviada', sid=message_sid)
+            salvar_conversa(numero_normalizado, resposta_agradecimento, tipo='enviada', sid=message_sid, origem=origem)
             return {
                 "resposta": resposta_agradecimento,
                 "estado_atual": "AGRADACIMENTO",
@@ -388,7 +387,7 @@ Aqui estão algumas opções que você pode escolher:
             f"com a mensagem '{texto_recebido_normalizado}'.")
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         # Salvando a mensagem de "outro" no banco de dados
-        salvar_conversa(numero_normalizado, f"Outro: {texto_recebido}", tipo='recebida', sid=message_sid)
+        salvar_conversa(numero_normalizado, f"Outro: {texto_recebido}", tipo='recebida', sid=message_sid, origem=origem)
         # Enviar a mensagem para o número da secretaria
         mensagem_outro = (
             f"Solicitação de Atendimento (Outro):\n"
@@ -410,7 +409,7 @@ Aqui estão algumas opções que você pode escolher:
         # --- ADICIONE ESTA LINHA ---
         atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value)  # Força reset após atendimento
         enviar_mensagem_para_fila(numero_normalizado, resposta)
-        salvar_conversa(numero_normalizado, resposta, tipo='enviada')
+        salvar_conversa(numero_normalizado, resposta, tipo='enviada', sid=message_sid, origem=origem)
         registrar_estatistica(numero_normalizado, estado_atual.value, proximo_estado.value)
         return {
             "resposta": resposta,
@@ -419,7 +418,7 @@ Aqui estão algumas opções que você pode escolher:
         }
 
     logging.info(f"O Próximo estado é: {proximo_estado}.")
-
+    
     # ======================
     # Contexto de Evento Enviado
     # ======================
