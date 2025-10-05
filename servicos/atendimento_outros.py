@@ -3,13 +3,12 @@ from datetime import datetime
 from database import salvar_conversa, atualizar_status, normalizar_para_envio
 from servicos.fila_mensagens import adicionar_na_fila
 from constantes import EstadoVisitante
-from servicos.interacoes_basicas import detectar_agradecimento
-from servicos.interacoes_basicas import detectar_palavra_chave_ministerio
+from servicos.interacoes_basicas import detectar_agradecimento, detectar_palavra_chave_ministerio
 
 # Número da secretaria para assuntos gerais
 NUMERO_SECRETARIA = "48991553619"
 
-def processar_outros(numero: str, visitor_name: str, texto_recebido: str, message_sid: str, origem: str = "integra+"):
+def processar_outro(numero: str, visitor_name: str, texto_recebido: str, message_sid: str, origem: str = "integra+"):
     """
     Processa mensagens classificadas como 'OUTRO':
     - Se encontrar palavra-chave de ministério → responde direto.
