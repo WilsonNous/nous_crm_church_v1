@@ -2,7 +2,7 @@ import logging
 import unicodedata
 from database import salvar_conversa, atualizar_status
 from servicos.fila_mensagens import adicionar_na_fila
-from constantes import EstadoVisitante
+from constantes import EstadoVisitante, palavras_chave_ministerios
 
 # ------------------------
 # Utilitários de texto
@@ -26,6 +26,7 @@ def detectar_saudacao(texto: str) -> bool:
     texto_normalizado = normalizar_texto(texto)
     return any(s in texto_normalizado for s in saudacoes)
 
+
 def detectar_agradecimento(texto: str) -> bool:
     palavras_agradecimento = [
         "obrigado", "obrigada", "grato", "grata", "agradecido", "agradecida",
@@ -33,6 +34,18 @@ def detectar_agradecimento(texto: str) -> bool:
     ]
     texto_normalizado = normalizar_texto(texto)
     return any(p in texto_normalizado for p in palavras_agradecimento)
+
+
+def detectar_palavra_chave_ministerio(texto_recebido: str):
+    """
+    Detecta se a mensagem contém alguma palavra-chave ligada a ministérios.
+    Retorna a resposta configurada em 'constantes.palavras_chave_ministerios'.
+    """
+    texto_recebido = normalizar_texto(texto_recebido).replace('ç', 'c')
+    for palavra, resposta in palavras_chave_ministerios.items():
+        if palavra in texto_recebido or palavra.rstrip('s') in texto_recebido:
+            return resposta
+    return None
 
 # ------------------------
 # Processadores
@@ -62,6 +75,7 @@ Estou aqui pra você! 🙌"""
         "estado_atual": "SAUDACAO",
         "proximo_estado": EstadoVisitante.INICIO.name
     }
+
 
 def processar_agradecimento(numero: str, nome_visitante: str, message_sid: str, origem: str = "integra+"):
     """Responde a agradecimentos"""
