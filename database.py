@@ -155,44 +155,50 @@ def visitante_existe(telefone):
 # =======================
 
 def atualizar_status(telefone, nova_fase, origem="integra+"):
-    """Atualiza o status de um visitante no banco de dados com origem."""
+    """
+    Atualiza o status/fase de um visitante com base no telefone.
+    Aceita telefones nos formatos: 48999999999, 5548999999999 ou +5548999999999.
+    """
     try:
         logging.info(f"Atualizando status para {nova_fase} para o número {telefone} no banco de dados.")
-        
-        # Buscar o fase_id com maior robustez
-        fase_id = buscar_fase_id(nova_fase)
-        if not fase_id:
-            raise ValueError(f"Fase '{nova_fase}' não encontrada no banco de dados.")
-        
-        # Buscar o visitante_id para garantir que existe antes de tentar atualizar
-        with closing(get_db_connection()) as conn:
+
+        # 🔢 Normaliza o telefone para formato padrão (somente DDD + número, sem DDI)
+        telefone_normalizado = normalizar_para_recebimento(telefone)
+
+        with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('''SELECT id FROM visitantes WHERE telefone = %s''', (telefone,))
-            visitante_id = cursor.fetchone()
 
-            if not visitante_id:
-                raise ValueError(f"Visitante com telefone '{telefone}' não encontrado no banco de dados.")
-            
-            # Atualiza o status se o visitante existir
-            cursor.execute(''' 
-                UPDATE status 
-                SET fase_id = %s, origem = %s 
-                WHERE visitante_id = %s
-            ''', (fase_id, origem, visitante_id[0]))
+            # 🔍 Busca o visitante pelo telefone normalizado
+            cursor.execute("""
+                SELECT id FROM visitantes
+                WHERE REPLACE(REPLACE(REPLACE(telefone, '+', ''), ' ', ''), '-', '') LIKE ?
+            """, (f"%{telefone_normalizado[-9:]}%",))
+            visitante = cursor.fetchone()
 
-            # Verifica se o visitante não foi encontrado para o update (no caso de novo visitante)
-            if cursor.rowcount == 0:
-                logging.info(f"Visitante não encontrado para atualização, inserindo novo status para {telefone}.")
-                cursor.execute(''' 
-                    INSERT INTO status (visitante_id, fase_id, origem)
-                    VALUES (%s, %s, %s)
-                ''', (visitante_id[0], fase_id, origem))
+            if not visitante:
+                logging.error(f"Visitante com telefone '{telefone_normalizado}' não encontrado no banco de dados.")
+                return False
+
+            visitante_id = visitante["id"] if isinstance(visitante, dict) else visitante[0]
+
+            # ✅ Atualiza ou insere o status na tabela de status
+            cursor.execute("""
+                INSERT INTO status (visitante_id, fase_id, ultima_atualizacao, origem)
+                VALUES (?, ?, datetime('now'), ?)
+                ON CONFLICT(visitante_id) DO UPDATE SET
+                    fase_id = excluded.fase_id,
+                    ultima_atualizacao = excluded.ultima_atualizacao,
+                    origem = excluded.origem
+            """, (visitante_id, nova_fase, origem))
 
             conn.commit()
-            logging.info(f"Status atualizado para fase '{nova_fase}' (id {fase_id}) para o telefone {telefone}")
+            logging.info(f"✅ Status atualizado: visitante_id={visitante_id}, fase={nova_fase}")
+            return True
 
     except Exception as e:
         logging.error(f"Erro ao atualizar status para o telefone {telefone}: {e}")
+        return False
+
 
 # =======================
 # Funções de Estatísticas e Conversas
