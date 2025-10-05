@@ -104,15 +104,21 @@ def register(app):
             if not numero:
                 return jsonify({"success": False, "error": "Número não informado"}), 400
 
+            # 🔧 Normaliza número (remove +55 e garante formato consistente)
+            telefone_envio = f"55{numero}" if not numero.startswith("55") else numero
+            telefone_normalizado = normalizar_para_recebimento(telefone_envio)
+
+            # ⚙️ Tokens da Z-API (configuração)
             ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
             ZAPI_TOKEN = os.getenv("ZAPI_TOKEN")
             ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN")
+
             if not (ZAPI_INSTANCE and ZAPI_TOKEN and ZAPI_CLIENT_TOKEN):
                 return jsonify({"success": False, "error": "Configuração Z-API ausente"}), 500
 
             headers = {"Client-Token": ZAPI_CLIENT_TOKEN, "Content-Type": "application/json"}
-            telefone_envio = f"55{numero}" if not numero.startswith("55") else numero
 
+            # 🔄 Monta payload e URL conforme tipo
             if imagem_url:
                 payload = {"phone": telefone_envio, "caption": mensagem, "image": imagem_url}
                 url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-image"
@@ -120,18 +126,32 @@ def register(app):
                 payload = {"phone": telefone_envio, "message": mensagem}
                 url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
 
+            # 🚀 Envia via Z-API
             response = requests.post(url, json=payload, headers=headers, timeout=15)
+
             if response.ok:
-                logging.info(f"✅ Mensagem enviada via Z-API para {telefone_envio}")
-                salvar_conversa(telefone_envio, mensagem, tipo="enviada", origem="integra+")
-                # 👇 Atualiza fase do visitante
-                atualizar_status(telefone_envio, "INICIO")
-                return jsonify({"success": True}), 200
+                logging.info(f"✅ Mensagem enviada via Z-API para {telefone_envio}: {mensagem[:60]}")
+
+                # 💾 Registra conversa no banco
+                salvar_conversa(telefone_normalizado, mensagem, tipo="enviada", origem="integra+")
+
+                # 🔁 Atualiza fase do visitante
+                try:
+                    atualizar_status(telefone_normalizado, "INICIO")
+                    logging.info(f"🔄 Status atualizado para INICIO ({telefone_normalizado})")
+                except Exception as e:
+                    logging.warning(f"⚠️ Falha ao atualizar status: {e}")
+
+                return jsonify({"success": True, "message": "Mensagem enviada com sucesso"}), 200
+
             else:
-                return jsonify({"success": False, "error": f"Falha: {response.status_code}"}), 500
+                logging.error(f"❌ Falha Z-API {response.status_code}: {response.text}")
+                return jsonify({"success": False, "error": f"Falha Z-API {response.status_code}"}), 500
+
         except Exception as e:
-            logging.error(f"Erro em /api/send-message-manual: {e}")
+            logging.error(f"❌ Erro em /api/send-message-manual: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+
 
     @app.route('/api/visitantes/fase-null', methods=['GET'])
     def get_visitantes_fase_null():
@@ -147,11 +167,14 @@ def register(app):
             rows = cursor.fetchall()
             cursor.close()
             conn.close()
-            return jsonify({"status": "success", "visitantes": rows}), 200
+
+            rows_dict = [{"id": r[0], "nome": r[1], "telefone": r[2]} for r in rows]
+            logging.info(f"📊 {len(rows_dict)} visitantes encontrados sem fase.")
+
+            return jsonify({"status": "success", "visitantes": rows_dict}), 200
         except Exception as e:
             logging.error(f"Erro em /api/visitantes/fase-null: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
-
 
     # ==============================
     # Conversas do Visitante (histórico em HTML)
