@@ -10,6 +10,7 @@ from servicos.atendimento_oracao import processar_pedido_oracao
 from servicos.atendimento_outros import processar_outro
 from servicos.atendimento_eventos import processar_evento_enviado
 from servicos.fluxo_transicoes import obter_proximo_estado, obter_mensagem_estado
+from servicos.detector_ministerio import detectar_palavra_chave_ministerio
 from ia_integracao import IAIntegracao
 
 # IA de apoio
@@ -34,6 +35,21 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
     logging.debug(f"📊 Estado atual no banco: {estado_str} → {estado_atual.name}")
 
+    # ========== Palavra-chave de ministério ==========
+    resposta_ministerio = detectar_palavra_chave_ministerio(texto_normalizado)
+    if resposta_ministerio:
+        enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio)
+        salvar_conversa(numero_normalizado, resposta_ministerio, tipo="enviada", sid=message_sid, origem=origem)
+        return {
+            "resposta": resposta_ministerio,
+            "estado_atual": "MINISTERIO",
+            "proximo_estado": "INICIO"
+        }
+
+    # ========== Agradecimento ==========
+    if detectar_agradecimento(texto_normalizado):
+        return processar_agradecimento(numero_normalizado, message_sid, origem)
+
     # ========== Visitante novo ==========
     if not estado_str:
         resposta = ("Olá! Parece que você ainda não está cadastrado no nosso sistema. "
@@ -42,13 +58,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         enviar_mensagem_para_fila(numero_normalizado, resposta)
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": "NOVO", "proximo_estado": "PEDIR_NOME"}
-
-    # ========== Palavra-chave de ministério ==========
-    # (exemplo: "louvor", "jovens"... pode ser implementado depois)
-
-    # ========== Agradecimento ==========
-    if detectar_agradecimento(texto_normalizado):
-        return processar_agradecimento(numero_normalizado, message_sid, origem)
 
     # ========== Saudação ==========
     if detectar_saudacao(texto_normalizado):
