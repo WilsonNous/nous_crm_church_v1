@@ -4,7 +4,7 @@ from botmsg import processar_mensagem
 from database import normalizar_para_recebimento
 
 def register(app):
-    # --- Webhook Twilio ---
+    # --- Webhook TWILIO ---
     @app.route('/api/webhook', methods=['POST'])
     def webhook_twilio():
         try:
@@ -24,9 +24,11 @@ def register(app):
             processar_mensagem(from_number, message_body, message_sid, origem=origem)
 
             return jsonify({"status": "success", "origem": origem}), 200
+
         except Exception as e:
-            logging.error(f"Erro no webhook TWILIO: {e}")
+            logging.error(f"❌ Erro no webhook TWILIO: {e}")
             return jsonify({"error": "Erro ao processar webhook Twilio"}), 500
+
 
     # --- Webhook Z-API ---
     @app.route('/api/webhook-zapi', methods=['POST'])
@@ -35,7 +37,16 @@ def register(app):
             data = request.get_json() or {}
 
             from_number = data.get("phone", "")
-            message_body = data.get("message", "").strip()
+
+            # 🔧 Alguns webhooks da Z-API usam chaves diferentes para o corpo da mensagem
+            message_body = (
+                data.get("message")
+                or data.get("body")
+                or data.get("text")
+                or data.get("content")
+                or ""
+            ).strip()
+
             message_sid = data.get("messageId", None)
 
             # Origem pode vir na querystring → padrão integra+
@@ -45,15 +56,17 @@ def register(app):
                 f"📥 Webhook Z-API | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}"
             )
 
-            # 🚫 Evita loop infinito: ignora mensagens vazias ou notificações da Z-API
+            # 🚫 Evita loop infinito: ignora mensagens sem texto (mensagens de status ou delivery)
             if not message_body:
-                logging.warning(f"⚠️ Ignorando webhook sem mensagem. SID={message_sid}, From={from_number}")
-                return jsonify({"status": "ignored", "reason": "empty message"}), 200
+                logging.warning(
+                    f"⚠️ Ignorando webhook sem mensagem. SID={message_sid}, From={from_number}"
+                )
+                return jsonify({"status": "ignored", "reason": "empty_message"}), 200
 
-            # Normaliza o número de telefone
+            # 🔢 Normaliza o número de telefone
             from_number_normalizado = normalizar_para_recebimento(from_number)
 
-            # Chama a função de processamento da mensagem
+            # 🧠 Processa a mensagem recebida
             processar_mensagem(from_number_normalizado, message_body, message_sid, origem=origem)
 
             return jsonify({"status": "success", "origem": origem}), 200
