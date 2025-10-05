@@ -14,7 +14,6 @@ def register(app):
             message_body = data.get('Body', '').strip() if 'Body' in data else data.get('mensagem', '').strip()
             message_sid = data.get('MessageSid', '') or data.get('sid', '')
 
-            # Origem pode vir no body ou querystring → padrão integra+
             origem = data.get('origem') or request.args.get('origem', 'integra+')
 
             logging.info(
@@ -22,7 +21,6 @@ def register(app):
             )
 
             processar_mensagem(from_number, message_body, message_sid, origem=origem)
-
             return jsonify({"status": "success", "origem": origem}), 200
 
         except Exception as e:
@@ -34,11 +32,10 @@ def register(app):
     @app.route('/api/webhook-zapi', methods=['POST'])
     def webhook_zapi():
         try:
-            data = request.get_json() or {}
-    
+            data = request.get_json(force=True, silent=True) or {}
             from_number = data.get("phone", "")
-    
-            # 🔧 Alguns webhooks da Z-API trazem a mensagem como string, outros como dict
+
+            # 🔧 Extrai mensagem (pode vir em vários formatos)
             raw_message = (
                 data.get("message")
                 or data.get("body")
@@ -46,8 +43,8 @@ def register(app):
                 or data.get("content")
                 or ""
             )
-    
-            # 🔍 Se for um dicionário (ex: {"text": "1", "type": "chat"}), extrai o campo de texto
+
+            # 🔍 Caso o campo seja dicionário, tenta várias profundidades
             if isinstance(raw_message, dict):
                 message_body = (
                     raw_message.get("text")
@@ -55,34 +52,39 @@ def register(app):
                     or raw_message.get("content")
                     or ""
                 )
+                # Se ainda for dicionário, tenta acessar subnível (ex: message["text"]["body"])
+                if isinstance(message_body, dict):
+                    message_body = (
+                        message_body.get("body")
+                        or message_body.get("text")
+                        or ""
+                    )
             else:
                 message_body = raw_message
-    
-            message_body = str(message_body).strip()  # garante tipo string e remove espaços
+
+            message_body = str(message_body).strip()
             message_sid = data.get("messageId", None)
-    
-            # Origem pode vir na querystring → padrão integra+
             origem = request.args.get("origem", "integra+")
-    
+
             logging.info(
                 f"📥 Webhook Z-API | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}"
             )
-    
-            # 🚫 Evita loop infinito: ignora mensagens sem texto
+
+            # 🚫 Ignora mensagens sem texto (notificações da Z-API)
             if not message_body:
                 logging.warning(
                     f"⚠️ Ignorando webhook sem mensagem. SID={message_sid}, From={from_number}"
                 )
                 return jsonify({"status": "ignored", "reason": "empty_message"}), 200
-    
+
             # 🔢 Normaliza o número de telefone
             from_number_normalizado = normalizar_para_recebimento(from_number)
-    
+
             # 🧠 Processa a mensagem recebida
             processar_mensagem(from_number_normalizado, message_body, message_sid, origem=origem)
-    
+
             return jsonify({"status": "success", "origem": origem}), 200
-    
+
         except Exception as e:
             logging.error(f"❌ Erro no webhook Z-API: {e}")
             return jsonify({"error": "Erro ao processar webhook Z-API"}), 500
