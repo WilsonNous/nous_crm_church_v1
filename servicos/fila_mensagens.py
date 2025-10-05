@@ -25,3 +25,6 @@ def adicionar_na_fila(numero: str, mensagem: str):
     fila_mensagens.append((numero, mensagem))
     if len(fila_mensagens) == 1:
         threading.Thread(target=processar_fila_mensagens).start()
+
+# ✅ Alias para compatibilidade com versões antigas
+enviar_mensagem_para_fila = adicionar_na_fila
