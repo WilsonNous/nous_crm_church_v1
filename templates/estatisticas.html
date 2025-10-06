@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Painel de Estatísticas - CRM Igreja Mais de Cristo Canasvieiras">
-  <meta name="keywords" content="igreja, CRM, estatísticas, integração, visitantes, membros">
+  <meta name="description" content="CRM para a gestão de visitantes e membros da Igreja Mais de Cristo Canasvieiras">
+  <meta name="keywords" content="igreja, CRM, visitantes, membros, cadastro, WhatsApp, estatísticas">
   <meta name="author" content="Igreja Mais de Cristo">
-  <title>📊 Painel de Estatísticas | CRM Church</title>
+  <title>📊 Estatísticas - CRM Church</title>
 
   <link rel="stylesheet" href="/static/estatisticas.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/static/estatisticas.js" defer></script>
 </head>
 
 <body>
@@ -18,169 +18,73 @@
     <h1>📈 Estatísticas do Ministério de Integração</h1>
   </header>
 
-  <main>
+  <main id="mainContent">
     <section id="statisticsContainer">
-      <h2>Visão Geral</h2>
+      <h2>Visão Geral das Estatísticas</h2>
 
-      <!-- CARDS DE RESUMO -->
-      <div class="info-cards">
+      <div id="infoCardsContainer" class="info-cards">
+        <!-- Linha 1 -->
         <div class="info-row">
           <div class="info-card" id="totalVisitantesInicio">
-            <h3>Visitantes (Fase INÍCIO)</h3>
-            <p class="value">...</p>
+            <h3>Visitantes na Fase INÍCIO</h3>
+            <p>Carregando...</p>
           </div>
-
           <div class="info-card" id="discipuladosAtivos">
             <h3>Visitantes em Discipulado</h3>
-            <p class="value">...</p>
+            <p>Carregando...</p>
           </div>
-
           <div class="info-card" id="totalPedidosOracao">
             <h3>Pedidos de Oração</h3>
-            <p class="value">...</p>
+            <p>Carregando...</p>
           </div>
         </div>
 
+        <!-- Linha 2 -->
         <div class="info-row">
           <div class="info-card" id="totalHomens">
             <h3>Visitantes Homens</h3>
-            <canvas id="chartGeneroHomens"></canvas>
+            <p>Carregando...</p>
           </div>
-
           <div class="info-card" id="totalMulheres">
             <h3>Visitantes Mulheres</h3>
-            <canvas id="chartGeneroMulheres"></canvas>
+            <p>Carregando...</p>
           </div>
-
           <div class="info-card" id="origemCadastro">
             <h3>Origem dos Cadastros</h3>
-            <p class="value">...</p>
+            <p>Carregando...</p>
           </div>
         </div>
 
+        <!-- Linha 3 -->
         <div class="info-row">
           <div class="info-card" id="evolucaoMensal">
-            <h3>Evolução Mensal</h3>
-            <canvas id="chartEvolucaoMensal"></canvas>
+            <h3>Evolução Mensal dos Cadastros</h3>
+            <p>Carregando...</p>
           </div>
-        </div>
-
-        <div class="info-row">
           <div class="info-card" id="conversasEnviadasRecebidas">
-            <h3>Conversas WhatsApp</h3>
-            <p class="value">...</p>
+            <h3>Estatísticas de Conversas</h3>
+            <p>Carregando...</p>
           </div>
         </div>
       </div>
     </section>
 
     <!-- MENU DE NAVEGAÇÃO -->
-    <nav class="dashboard-menu">
-      <button onclick="window.location.href='visitantes.html'" class="btn-primary">👤 Visitantes</button>
-      <button onclick="window.location.href='membros.html'" class="btn-tertiary">👥 Membros</button>
-      <button onclick="window.location.href='acolhidos.html'" class="btn-quaternary">💬 Acolhidos</button>
-      <button onclick="window.location.href='ia.html'" class="btn-tertiary">🧠 Treinar IA</button>
-      <button onclick="window.location.href='campanhas.html'" class="btn-warning">📣 Campanhas</button>
-      <button onclick="window.location.href='login.html'" class="btn-secondary">⬅ Sair / Menu</button>
-    </nav>
+    <div style="text-align: center; margin-top: 40px;">
+      <h3>Acessar Outros Módulos</h3>
+      <div style="margin-top: 15px;">
+        <button onclick="window.location.href='visitantes.html'" class="btn-primary">👤 Visitantes</button>
+        <button onclick="window.location.href='membros.html'" class="btn-tertiary">👥 Membros</button>
+        <button onclick="window.location.href='acolhidos.html'" class="btn-quaternary">💬 Acolhidos</button>
+        <button onclick="window.location.href='ia.html'" class="btn-tertiary">🧠 Treinar IA</button>
+        <button onclick="window.location.href='campanhas.html'" class="btn-warning">📣 Campanhas</button>
+        <button onclick="window.location.href='login.html'" class="btn-secondary">⬅ Voltar ao Menu</button>
+      </div>
+    </div>
   </main>
 
   <footer>
     <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
   </footer>
-
-  <script>
-    const endpoints = {
-      inicio: '/api/estatisticas/inicio',
-      genero: '/api/estatisticas/genero',
-      discipulado: '/api/estatisticas/discipulado',
-      oracao: '/api/estatisticas/oracao',
-      origem: '/api/estatisticas/origem',
-      mensal: '/api/estatisticas/mensal',
-      conversas: '/api/estatisticas/conversas'
-    };
-
-    async function getData(endpoint) {
-      const res = await fetch(endpoint);
-      if (!res.ok) throw new Error(`Erro ao carregar ${endpoint}`);
-      return res.json();
-    }
-
-    async function carregarEstatisticas() {
-      try {
-        // Carrega dados principais
-        const inicio = await getData(endpoints.inicio);
-        const genero = await getData(endpoints.genero);
-        const discipulado = await getData(endpoints.discipulado);
-        const oracao = await getData(endpoints.oracao);
-        const origem = await getData(endpoints.origem);
-        const mensal = await getData(endpoints.mensal);
-        const conversas = await getData(endpoints.conversas);
-
-        document.querySelector('#totalVisitantesInicio .value').textContent = inicio.total || 0;
-        document.querySelector('#discipuladosAtivos .value').textContent = discipulado.total || 0;
-        document.querySelector('#totalPedidosOracao .value').textContent = oracao.total || 0;
-        document.querySelector('#origemCadastro .value').textContent = origem.total || 'Diversas';
-        document.querySelector('#conversasEnviadasRecebidas .value').textContent =
-          `${conversas.enviadas || 0} / ${conversas.recebidas || 0}`;
-
-        // Gráfico de gênero
-        const generoCtxH = document.getElementById('chartGeneroHomens');
-        const generoCtxM = document.getElementById('chartGeneroMulheres');
-        if (generoCtxH && generoCtxM) {
-          new Chart(generoCtxH, {
-            type: 'doughnut',
-            data: {
-              labels: ['Homens', 'Mulheres'],
-              datasets: [{
-                data: [genero.homens || 0, genero.mulheres || 0],
-                backgroundColor: ['#2b6cb0', '#ed64a6']
-              }]
-            },
-            options: { plugins: { legend: { display: false } } }
-          });
-
-          new Chart(generoCtxM, {
-            type: 'pie',
-            data: {
-              labels: ['Homens', 'Mulheres'],
-              datasets: [{
-                data: [genero.homens || 0, genero.mulheres || 0],
-                backgroundColor: ['#63b3ed', '#f687b3']
-              }]
-            },
-            options: { plugins: { legend: { display: false } } }
-          });
-        }
-
-        // Gráfico de evolução mensal
-        const ctxMensal = document.getElementById('chartEvolucaoMensal');
-        if (ctxMensal && mensal?.dados) {
-          new Chart(ctxMensal, {
-            type: 'line',
-            data: {
-              labels: mensal.dados.map(m => m.mes),
-              datasets: [{
-                label: 'Cadastros',
-                data: mensal.dados.map(m => m.total),
-                borderColor: '#48bb78',
-                tension: 0.3,
-                fill: false
-              }]
-            },
-            options: {
-              scales: { y: { beginAtZero: true } }
-            }
-          });
-        }
-
-      } catch (error) {
-        console.error(error);
-        alert("Erro ao carregar as estatísticas. Verifique o servidor.");
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', carregarEstatisticas);
-  </script>
 </body>
 </html>
