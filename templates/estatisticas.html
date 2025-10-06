@@ -73,12 +73,12 @@
     <div style="text-align: center; margin-top: 40px;">
       <h3>Acessar Outros Módulos</h3>
       <div style="margin-top: 15px;">
-        <button onclick="window.location.href='visitantes.html'" class="btn-primary">👤 Visitantes</button>
-        <button onclick="window.location.href='membros.html'" class="btn-tertiary">👥 Membros</button>
-        <button onclick="window.location.href='acolhidos.html'" class="btn-quaternary">💬 Acolhidos</button>
-        <button onclick="window.location.href='ia.html'" class="btn-tertiary">🧠 Treinar IA</button>
-        <button onclick="window.location.href='campanhas.html'" class="btn-warning">📣 Campanhas</button>
-        <button onclick="window.location.href='login.html'" class="btn-secondary">⬅ Voltar ao Menu</button>
+        <button onclick="window.location.href='/app/visitantes'" class="btn-primary">👤 Visitantes</button>
+        <button onclick="window.location.href='/app/membros'" class="btn-tertiary">👥 Membros</button>
+        <button onclick="window.location.href='/app/acolhidos'" class="btn-quaternary">💬 Acolhidos</button>
+        <button onclick="window.location.href='/app/ia'" class="btn-tertiary">🧠 Treinar IA</button>
+        <button onclick="window.location.href='/app/campanhas'" class="btn-warning">📣 Campanhas</button>
+        <button onclick="window.location.href='/app/menu'" class="btn-secondary">⬅ Voltar ao Menu</button>
       </div>
     </div>
   </main>
@@ -86,5 +86,12 @@
   <footer>
     <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
   </footer>
+
+  <script>
+    // bloqueio simples se não estiver logado
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('jwt_token')) window.location.href = '/app/login';
+    });
+  </script>
 </body>
 </html>
