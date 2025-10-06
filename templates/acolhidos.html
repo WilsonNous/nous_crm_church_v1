@@ -1,1 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Cadastro de Acolhidos - Ministério de Integração">
+  <title>Cadastro de Acolhidos | CRM Church</title>
+
+  <link rel="stylesheet" href="/static/main.css">
+  <script src="/static/script.js" defer></script>
+</head>
+
+<body>
+  <header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>Cadastro de Acolhidos</h1>
+  </header>
+
+  <main>
+    <section>
+      <form id="acolhidoForm" onsubmit="handleAcolhidoFormSubmission(event)">
+        <div class="form-group">
+          <label for="nome">Nome Completo:</label>
+          <input type="text" id="nome" name="nome" required aria-describedby="nomeHelp">
+          <small id="nomeHelp">Digite o nome completo do acolhido.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="telefone">Telefone:</label>
+          <input type="tel" id="telefone" name="telefone" required pattern="[0-9]{11}" aria-describedby="telefoneHelp" placeholder="DDD + Número">
+          <small id="telefoneHelp">Digite o número de telefone do acolhido.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="situacao">Situação:</label>
+          <select id="situacao" name="situacao" required>
+            <option value="">Selecione</option>
+            <option value="reconciliado">Reconciliado(a)</option>
+            <option value="convertido">Convertido(a)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="observacao">Observações:</label>
+          <textarea id="observacao" name="observacao" rows="4" aria-describedby="observacaoHelp" placeholder="Anotações sobre o acolhimento..."></textarea>
+          <small id="observacaoHelp">Digite observações adicionais, se necessário.</small>
+        </div>
+
+        <button type="submit" class="btn-primary">Cadastrar Acolhido</button>
+        <button type="button" class="btn-secondary" onclick="window.location.href='login.html'">
+          ← Voltar ao Menu Principal
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+</body>
+</html>
 
