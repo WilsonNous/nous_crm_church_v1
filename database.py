@@ -154,51 +154,58 @@ def visitante_existe(telefone):
 # Função de Atualização de Status
 # =======================
 
-def atualizar_status(telefone, nova_fase, origem="integra+"):
+def atualizar_status(telefone, nome_fase, origem="integra+"):
     """
-    Atualiza o status/fase de um visitante com base no telefone.
-    Aceita telefones nos formatos: 48999999999, 5548999999999 ou +5548999999999.
+    Atualiza a fase do visitante com base no telefone.
+    Usa a tabela 'fase' como referência e a tabela 'status' como movimento.
     """
     try:
-        logging.info(f"Atualizando status para {nova_fase} para o número {telefone} no banco de dados.")
-
-        # 🔢 Normaliza o telefone para formato padrão (somente DDD + número, sem DDI)
-        telefone_normalizado = normalizar_para_recebimento(telefone)
-
-        with get_db_connection() as conn:
+        with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # 🔍 Busca o visitante pelo telefone normalizado
-            cursor.execute("""
-                SELECT id FROM visitantes
-                WHERE REPLACE(REPLACE(REPLACE(telefone, '+', ''), ' ', ''), '-', '') LIKE ?
-            """, (f"%{telefone_normalizado[-9:]}%",))
+            # 1️⃣ Encontra visitante pelo telefone
+            cursor.execute("SELECT id FROM visitantes WHERE telefone = ?", (telefone,))
             visitante = cursor.fetchone()
-
             if not visitante:
-                logging.error(f"Visitante com telefone '{telefone_normalizado}' não encontrado no banco de dados.")
-                return False
-
+                raise ValueError(f"Visitante com telefone '{telefone}' não encontrado no banco de dados.")
             visitante_id = visitante["id"] if isinstance(visitante, dict) else visitante[0]
 
-            # ✅ Atualiza ou insere o status na tabela de status
-            cursor.execute("""
-                INSERT INTO status (visitante_id, fase_id, ultima_atualizacao, origem)
-                VALUES (?, ?, datetime('now'), ?)
-                ON CONFLICT(visitante_id) DO UPDATE SET
-                    fase_id = excluded.fase_id,
-                    ultima_atualizacao = excluded.ultima_atualizacao,
-                    origem = excluded.origem
-            """, (visitante_id, nova_fase, origem))
+            # 2️⃣ Busca ID da fase correspondente
+            cursor.execute("SELECT id FROM fase WHERE nome = ?", (nome_fase,))
+            fase = cursor.fetchone()
+            if not fase:
+                raise ValueError(f"Fase '{nome_fase}' não encontrada na tabela 'fase'.")
+            fase_id = fase["id"] if isinstance(fase, dict) else fase[0]
+
+            # 3️⃣ Verifica se já existe status para o visitante
+            cursor.execute("SELECT id FROM status WHERE visitante_id = ?", (visitante_id,))
+            status_existente = cursor.fetchone()
+
+            # 4️⃣ Atualiza ou insere
+            if status_existente:
+                cursor.execute(
+                    """
+                    UPDATE status
+                    SET fase_id = ?, origem = ?, atualizado_em = CURRENT_TIMESTAMP
+                    WHERE visitante_id = ?
+                    """,
+                    (fase_id, origem, visitante_id)
+                )
+                logging.info(f"♻️ Status atualizado: visitante_id={visitante_id}, fase={nome_fase}")
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO status (visitante_id, fase_id, origem, criado_em)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    """,
+                    (visitante_id, fase_id, origem)
+                )
+                logging.info(f"🆕 Status criado: visitante_id={visitante_id}, fase={nome_fase}")
 
             conn.commit()
-            logging.info(f"✅ Status atualizado: visitante_id={visitante_id}, fase={nova_fase}")
-            return True
 
     except Exception as e:
         logging.error(f"Erro ao atualizar status para o telefone {telefone}: {e}")
-        return False
-
 
 # =======================
 # Funções de Estatísticas e Conversas
