@@ -1,84 +1,186 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="CRM para a gestão de visitantes e membros da Igreja Mais de Cristo Canasvieiras">
-    <meta name="keywords" content="igreja, CRM, visitantes, membros, cadastro, WhatsApp">
-    <meta name="author" content="Igreja Mais de Cristo">
-    <title>CRM - Estatísticas Church</title>
-    <link rel="stylesheet" href="/static/estatisticas.css">
-    <script src="/static/estatisticas.js" defer></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Painel de Estatísticas - CRM Igreja Mais de Cristo Canasvieiras">
+  <meta name="keywords" content="igreja, CRM, estatísticas, integração, visitantes, membros">
+  <meta name="author" content="Igreja Mais de Cristo">
+  <title>📊 Painel de Estatísticas | CRM Church</title>
+
+  <link rel="stylesheet" href="/static/estatisticas.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
-<header>
+  <header>
     <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1>Estatísticas do Ministério de Integração</h1>
-</header>
+    <h1>📈 Estatísticas do Ministério de Integração</h1>
+  </header>
 
-<main id="mainContent">
-    <!-- Cards de Estatísticas -->
+  <main>
     <section id="statisticsContainer">
-        <h2>Visão Geral das Estatísticas</h2>
+      <h2>Visão Geral</h2>
 
-        <div id="infoCardsContainer" class="info-cards">
-            <div class="info-row">
-                <div class="info-card" id="totalVisitantesInicio">
-                    <h3>Visitantes na Fase INICIO</h3>
-                    <p>Aguardando Respostas</p>
-                </div>
-                <div class="info-card" id="totalHomens">
-                    <h3>Visitantes Homens</h3>
-                    <p>Exibindo Percentual</p>
-                </div>
-                <div class="info-card" id="totalMulheres">
-                    <h3>Visitantes Mulheres</h3>
-                    <p>Exibindo Percentual</p>
-                </div>
-            </div>
+      <!-- CARDS DE RESUMO -->
+      <div class="info-cards">
+        <div class="info-row">
+          <div class="info-card" id="totalVisitantesInicio">
+            <h3>Visitantes (Fase INÍCIO)</h3>
+            <p class="value">...</p>
+          </div>
 
-            <div class="info-row">
-                <div class="info-card" id="discipuladosAtivos">
-                    <h3>Visitantes em Discipulado</h3>
-                    <p>Ativos</p>
-                </div>
-            </div>
+          <div class="info-card" id="discipuladosAtivos">
+            <h3>Visitantes em Discipulado</h3>
+            <p class="value">...</p>
+          </div>
 
-            <div class="info-row">
-                <div class="info-card" id="totalPedidosOracao">
-                    <h3>Pedidos de Oração</h3>
-                    <p>Total de Pedidos</p>
-                </div>
-            </div>
-
-            <div class="info-row">
-                <div class="info-card" id="origemCadastro">
-                    <h3>Origem dos Cadastros</h3>
-                    <p>Resumo</p>
-                </div>
-            </div>
-
-            <div class="info-row">
-                <div class="info-card" id="evolucaoMensal">
-                    <h3>Evolução Mensal dos Cadastros</h3>
-                    <p>Crescimento</p>
-                </div>
-            </div>
-
-            <div class="info-row">
-                <div class="info-card" id="conversasEnviadasRecebidas">
-                    <h3>Estatísticas de Conversas</h3>
-                    <p>Enviadas/Recebidas</p>
-                </div>
-            </div>
+          <div class="info-card" id="totalPedidosOracao">
+            <h3>Pedidos de Oração</h3>
+            <p class="value">...</p>
+          </div>
         </div>
+
+        <div class="info-row">
+          <div class="info-card" id="totalHomens">
+            <h3>Visitantes Homens</h3>
+            <canvas id="chartGeneroHomens"></canvas>
+          </div>
+
+          <div class="info-card" id="totalMulheres">
+            <h3>Visitantes Mulheres</h3>
+            <canvas id="chartGeneroMulheres"></canvas>
+          </div>
+
+          <div class="info-card" id="origemCadastro">
+            <h3>Origem dos Cadastros</h3>
+            <p class="value">...</p>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <div class="info-card" id="evolucaoMensal">
+            <h3>Evolução Mensal</h3>
+            <canvas id="chartEvolucaoMensal"></canvas>
+          </div>
+        </div>
+
+        <div class="info-row">
+          <div class="info-card" id="conversasEnviadasRecebidas">
+            <h3>Conversas WhatsApp</h3>
+            <p class="value">...</p>
+          </div>
+        </div>
+      </div>
     </section>
 
-    <button id="backToOptionsButton" class="btn-secondary">Voltar ao Menu</button>
-</main>
+    <!-- MENU DE NAVEGAÇÃO -->
+    <nav class="dashboard-menu">
+      <button onclick="window.location.href='visitantes.html'" class="btn-primary">👤 Visitantes</button>
+      <button onclick="window.location.href='membros.html'" class="btn-tertiary">👥 Membros</button>
+      <button onclick="window.location.href='acolhidos.html'" class="btn-quaternary">💬 Acolhidos</button>
+      <button onclick="window.location.href='ia.html'" class="btn-tertiary">🧠 Treinar IA</button>
+      <button onclick="window.location.href='campanhas.html'" class="btn-warning">📣 Campanhas</button>
+      <button onclick="window.location.href='login.html'" class="btn-secondary">⬅ Sair / Menu</button>
+    </nav>
+  </main>
 
-<footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 2.0</p>
-</footer>
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+
+  <script>
+    const endpoints = {
+      inicio: '/api/estatisticas/inicio',
+      genero: '/api/estatisticas/genero',
+      discipulado: '/api/estatisticas/discipulado',
+      oracao: '/api/estatisticas/oracao',
+      origem: '/api/estatisticas/origem',
+      mensal: '/api/estatisticas/mensal',
+      conversas: '/api/estatisticas/conversas'
+    };
+
+    async function getData(endpoint) {
+      const res = await fetch(endpoint);
+      if (!res.ok) throw new Error(`Erro ao carregar ${endpoint}`);
+      return res.json();
+    }
+
+    async function carregarEstatisticas() {
+      try {
+        // Carrega dados principais
+        const inicio = await getData(endpoints.inicio);
+        const genero = await getData(endpoints.genero);
+        const discipulado = await getData(endpoints.discipulado);
+        const oracao = await getData(endpoints.oracao);
+        const origem = await getData(endpoints.origem);
+        const mensal = await getData(endpoints.mensal);
+        const conversas = await getData(endpoints.conversas);
+
+        document.querySelector('#totalVisitantesInicio .value').textContent = inicio.total || 0;
+        document.querySelector('#discipuladosAtivos .value').textContent = discipulado.total || 0;
+        document.querySelector('#totalPedidosOracao .value').textContent = oracao.total || 0;
+        document.querySelector('#origemCadastro .value').textContent = origem.total || 'Diversas';
+        document.querySelector('#conversasEnviadasRecebidas .value').textContent =
+          `${conversas.enviadas || 0} / ${conversas.recebidas || 0}`;
+
+        // Gráfico de gênero
+        const generoCtxH = document.getElementById('chartGeneroHomens');
+        const generoCtxM = document.getElementById('chartGeneroMulheres');
+        if (generoCtxH && generoCtxM) {
+          new Chart(generoCtxH, {
+            type: 'doughnut',
+            data: {
+              labels: ['Homens', 'Mulheres'],
+              datasets: [{
+                data: [genero.homens || 0, genero.mulheres || 0],
+                backgroundColor: ['#2b6cb0', '#ed64a6']
+              }]
+            },
+            options: { plugins: { legend: { display: false } } }
+          });
+
+          new Chart(generoCtxM, {
+            type: 'pie',
+            data: {
+              labels: ['Homens', 'Mulheres'],
+              datasets: [{
+                data: [genero.homens || 0, genero.mulheres || 0],
+                backgroundColor: ['#63b3ed', '#f687b3']
+              }]
+            },
+            options: { plugins: { legend: { display: false } } }
+          });
+        }
+
+        // Gráfico de evolução mensal
+        const ctxMensal = document.getElementById('chartEvolucaoMensal');
+        if (ctxMensal && mensal?.dados) {
+          new Chart(ctxMensal, {
+            type: 'line',
+            data: {
+              labels: mensal.dados.map(m => m.mes),
+              datasets: [{
+                label: 'Cadastros',
+                data: mensal.dados.map(m => m.total),
+                borderColor: '#48bb78',
+                tension: 0.3,
+                fill: false
+              }]
+            },
+            options: {
+              scales: { y: { beginAtZero: true } }
+            }
+          });
+        }
+
+      } catch (error) {
+        console.error(error);
+        alert("Erro ao carregar as estatísticas. Verifique o servidor.");
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', carregarEstatisticas);
+  </script>
 </body>
 </html>
