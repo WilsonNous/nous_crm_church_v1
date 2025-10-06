@@ -26,6 +26,16 @@
           📝 Cadastro de Visitantes
         </button>
 
+        <!-- ✅ Novos botões -->
+        <button type="button" class="btn-secondary" onclick="goTo('monitor')">
+          📋 Monitorar Status
+        </button>
+
+        <button type="button" class="btn-success" onclick="goTo('whatsapp')">
+          💬 Enviar WhatsApp
+        </button>
+        <!-- ✅ fim dos novos -->
+
         <button type="button" class="btn-tertiary" onclick="goTo('membros')">
           🙋‍♂️ Cadastro de Membros
         </button>
@@ -73,7 +83,6 @@
     document.addEventListener('DOMContentLoaded', () => {
       const token = localStorage.getItem('jwt_token');
       if (!token) {
-        // Redireciona para login se não estiver logado
         window.location.href = '/app/login';
       }
     });
