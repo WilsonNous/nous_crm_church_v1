@@ -1,1 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>📋 Monitorar Status | CRM Church</title>
+  <link rel="stylesheet" href="/static/main.css" />
+  <script src="/static/script.js" defer></script>
+</head>
+<body>
+  <header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>Monitoramento de Status</h1>
+  </header>
+
+  <main>
+    <div style="margin-bottom:16px;">
+      <button class="btn-secondary" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
+      <button class="btn-primary" id="btnReload">Recarregar lista</button>
+    </div>
+
+    <!-- Compat com showError(logContainer) do script.js -->
+    <div id="logContainer" class="hidden"></div>
+
+    <table id="statusTable">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Nome</th>
+          <th>Telefone</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="statusList"></tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align:center;">
+            <button id="prevPageButton" class="btn-secondary">Anterior</button>
+            <span id="statusPageIndicator" style="margin:0 12px;"></span>
+            <button id="nextPageButton" class="btn-secondary">Próximo</button>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+
+  <script>
+    // Bloqueia acesso sem login
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('jwt_token');
+      if (!token) {
+        window.location.href = '/app/login';
+        return;
+      }
+
+      // Liga paginação do script.js e carrega a lista
+      if (typeof bindPagination === 'function') bindPagination();
+      if (typeof monitorStatus === 'function') {
+        monitorStatus();
+      } else {
+        // Fallback: busca direta caso script.js mude no futuro
+        fetch('/api/monitor-status')
+          .then(r => r.json())
+          .then(data => {
+            const tbody = document.getElementById('statusList');
+            tbody.innerHTML = (data || []).map(item => `
+              <tr>
+                <td>${item.id ?? ''}</td>
+                <td>${item.name ?? ''}</td>
+                <td>${item.phone ?? ''}</td>
+                <td>${item.status ?? ''}</td>
+              </tr>
+            `).join('');
+          })
+          .catch(() => {});
+      }
+
+      document.getElementById('btnReload')?.addEventListener('click', () => {
+        if (typeof monitorStatus === 'function') monitorStatus();
+      });
+    });
+  </script>
+</body>
+</html>
 
