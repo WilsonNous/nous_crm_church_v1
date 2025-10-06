@@ -5,12 +5,6 @@
 // Constantes
 const baseUrl = 'https://nous-crm-church-v1.onrender.com';
 
-// Estado da aplicação
-const appState = {
-  currentView: 'login', // 'login' | 'options' | 'form' | 'memberForm' | 'acolhidoForm' | 'whatsappLog' | 'statusLog' | 'iaTrainingPanel' | 'eventos'
-  user: null,
-};
-
 // ------------------------------
 // UTILITÁRIOS
 // ------------------------------
@@ -416,5 +410,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   // IMPORTANTE: Nada de loadDashboardData() automático aqui!
 });
+
 
 
