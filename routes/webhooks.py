@@ -27,7 +27,6 @@ def register(app):
             logging.error(f"❌ Erro no webhook TWILIO: {e}")
             return jsonify({"error": "Erro ao processar webhook Twilio"}), 500
 
-
     # --- Webhook Z-API ---
     @app.route('/api/webhook-zapi', methods=['POST'])
     def webhook_zapi():
@@ -38,8 +37,12 @@ def register(app):
                 logging.warning(f"⚠️ Webhook Z-API recebido como texto: {raw_body[:500]}")
                 return jsonify({"status": "ignored", "reason": "invalid_json"}), 200
     
-            # Log do payload completo
             logging.info(f"📦 Payload Z-API completo: {data}")
+    
+            # 🚫 Ignora mensagens enviadas pelo próprio bot
+            if data.get("fromMe") is True:
+                logging.info(f"🛑 Ignorado: mensagem enviada pelo próprio bot (fromMe=True).")
+                return jsonify({"status": "ignored", "reason": "from_bot"}), 200
     
             # Identificação dos campos principais
             from_number = data.get("phone") or data.get("sender") or data.get("from") or "?"
@@ -66,11 +69,8 @@ def register(app):
                 logging.warning(f"⚠️ Ignorando webhook sem mensagem. SID={message_sid}, From={from_number}")
                 return jsonify({"status": "ignored", "reason": "empty_message"}), 200
     
-            # ✅ Normaliza e processa
-            from database import normalizar_para_recebimento
+            # ✅ Normaliza e processa apenas mensagens recebidas
             from_number_normalizado = normalizar_para_recebimento(from_number)
-    
-            from botmsg import processar_mensagem
             processar_mensagem(from_number_normalizado, message_body, message_sid, origem=origem)
     
             return jsonify({"status": "success", "origem": origem}), 200
@@ -78,3 +78,4 @@ def register(app):
         except Exception as e:
             logging.error(f"❌ Erro no webhook Z-API: {e}", exc_info=True)
             return jsonify({"error": "Erro ao processar webhook Z-API"}), 500
+
