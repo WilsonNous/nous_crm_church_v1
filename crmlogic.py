@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from flask import Flask, render_template, jsonify
 from flask_cors import CORS
+from crmlogic.menu_routes import menu_bp
 
 try:
     from flask_jwt_extended import JWTManager
@@ -54,6 +55,9 @@ with app.app_context():
 @app.route("/", methods=["GET"])
 def login_page():
     return render_template("login.html")
+
+# Registro do grupo de rotas do menu principal
+app.register_blueprint(menu_bp)
 
 # Health check
 @app.route('/health', methods=['GET'])
