@@ -54,42 +54,63 @@ function updateUI() {
 }
 
 // ------------------------------
-// LOGIN (com fallback /api/login -> /login)
+// LOGIN (com redirecionamento para /app/menu)
 // ------------------------------
 function showLoginError(message) {
-  const c = $('loginErrorContainer'); if (!c) return;
+  const c = $('loginErrorContainer');
+  if (!c) return;
   c.innerHTML = `<div class="error-message">${message}</div>`;
 }
 
 async function handleLogin(event) {
   if (event) event.preventDefault();
+
   const username = $('username')?.value || '';
   const password = $('password')?.value || '';
+
+  if (!username || !password) {
+    showLoginError('Preencha usuário e senha.');
+    return;
+  }
+
   const payload = { username, password };
 
   try {
+    // Faz tentativa de autenticação na rota da API
     let res = await fetch(`${baseUrl}/api/login`, {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
+
+    // Fallback para rota /login se /api/login não existir
     if (res.status === 404) {
-      // fallback
       res = await fetch(`${baseUrl}/login`, {
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
     }
+
     if (!res.ok) throw new Error('Falha ao autenticar');
     const data = await res.json();
+
     if (data.status === 'success') {
-      try { localStorage.setItem('jwt_token', data.token); } catch(_) {}
-      appState.user = username;
-      appState.currentView = 'options';
-      updateUI();
+      // Salva o token JWT localmente
+      try {
+        localStorage.setItem('jwt_token', data.token);
+      } catch (_) {
+        console.warn('Não foi possível salvar o token localmente.');
+      }
+
+      // Redireciona para o menu principal
+      window.location.href = '/app/menu';
     } else {
       showLoginError(data.message || 'Usuário ou senha inválidos.');
     }
   } catch (err) {
     console.error('Erro no login:', err);
-    showLoginError('Erro ao tentar autenticar.');
+    showLoginError('Erro ao tentar autenticar. Verifique sua conexão.');
   }
 }
 
@@ -406,3 +427,4 @@ document.addEventListener('DOMContentLoaded', ()=>{
   updateUI();
   loadDashboardData();
 });
+
