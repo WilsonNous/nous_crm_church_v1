@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Menu Principal - CRM Church">
+  <title>Menu Principal | CRM Church</title>
+
+  <link rel="stylesheet" href="/static/main.css">
+  <script src="/static/script.js" defer></script>
+</head>
+
+<body>
+  <header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>Ministério de Integração</h1>
+  </header>
+
+  <main>
+    <section aria-label="Menu Principal">
+      <h2>Menu Principal</h2>
+      <p>Escolha uma das opções abaixo para continuar:</p>
+
+      <div id="buttonContainer">
+        <button type="button" class="btn-primary" onclick="goTo('visitantes')">
+          📝 Cadastro de Visitantes
+        </button>
+
+        <button type="button" class="btn-tertiary" onclick="goTo('membros')">
+          🙋‍♂️ Cadastro de Membros
+        </button>
+
+        <button type="button" class="btn-quaternary" onclick="goTo('acolhidos')">
+          🤝 Cadastro de Acolhidos
+        </button>
+
+        <button type="button" class="btn-success" onclick="goTo('campanhas')">
+          📢 Campanhas de Eventos
+        </button>
+
+        <button type="button" class="btn-tertiary" onclick="goTo('ia')">
+          🧠 Treinar IA
+        </button>
+
+        <button type="button" class="btn-info" onclick="goTo('estatisticas')">
+          📊 Estatísticas Gerais
+        </button>
+
+        <button type="button" class="btn-warning" onclick="logoutUser()">
+          🚪 Sair
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+
+  <script>
+    // Função de navegação (abre as rotas do Blueprint /app)
+    function goTo(page) {
+      window.location.href = `/app/${page}`;
+    }
+
+    // Função de logout
+    function logoutUser() {
+      localStorage.removeItem('jwt_token');
+      window.location.href = '/app/login';
+    }
+
+    // Verificação automática de login
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('jwt_token');
+      if (!token) {
+        // Redireciona para login se não estiver logado
+        window.location.href = '/app/login';
+      }
+    });
+  </script>
+</body>
+</html>
