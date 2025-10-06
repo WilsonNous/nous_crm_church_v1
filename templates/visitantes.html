@@ -98,7 +98,7 @@
         <div id="registerErrorContainer"></div>
 
         <button type="submit" class="btn-primary">Cadastrar Visitante</button>
-        <button type="button" class="btn-secondary" onclick="window.location.href='/app/login'">
+        <button type="button" class="btn-secondary" onclick="window.location.href='/app/menu'">
           ← Voltar ao Menu Principal
         </button>
       </form>
@@ -108,6 +108,12 @@
   <footer>
     <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
   </footer>
+
+  <script>
+    // bloqueio simples se não estiver logado
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('jwt_token')) window.location.href = '/app/login';
+    });
+  </script>
 </body>
 </html>
-
