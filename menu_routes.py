@@ -9,6 +9,7 @@ menu_bp = Blueprint("menu_bp", __name__)
 
 # Página inicial (Login)
 @menu_bp.route("/", methods=["GET"])
+@menu_bp.route("/login", methods=["GET"])   # ✅ nova rota explícita
 def login_page():
     return render_template("login.html")
 
