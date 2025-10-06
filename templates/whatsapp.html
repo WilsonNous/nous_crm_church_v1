@@ -1,1 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>💬 Enviar WhatsApp | CRM Church</title>
+  <link rel="stylesheet" href="/static/main.css" />
+  <script src="/static/script.js" defer></script>
+</head>
+<body>
+  <header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>Envio de Mensagens (WhatsApp)</h1>
+  </header>
+
+  <main>
+    <p>Esta tela envia mensagens de boas-vindas para visitantes sem fase definida (fase nula).</p>
+
+    <div style="margin: 16px 0;">
+      <button class="btn-secondary" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
+      <button class="btn-success" id="btnStartSend">Iniciar envio</button>
+    </div>
+
+    <section id="whatsappLog" aria-label="Log de Envio de WhatsApp">
+      <h2>Log de Envio</h2>
+      <div id="logContainer" style="max-height:320px; overflow:auto; background:#fff; border-radius:8px; padding:12px;"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+
+  <script>
+    // Bloqueia acesso sem login
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('jwt_token');
+      if (!token) {
+        window.location.href = '/app/login';
+        return;
+      }
+
+      // Botão para disparar o envio usando as funções já existentes no script.js
+      document.getElementById('btnStartSend')?.addEventListener('click', () => {
+        if (typeof fetchVisitorsAndSendMessagesManual === 'function') {
+          const ok = confirm('Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?');
+          if (ok) fetchVisitorsAndSendMessagesManual();
+        } else {
+          alert('Função de envio não encontrada. Verifique /static/script.js');
+        }
+      });
+    });
+  </script>
+</body>
+</html>
 
