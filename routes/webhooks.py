@@ -32,19 +32,20 @@ def register(app):
     @app.route('/api/webhook-zapi', methods=['POST'])
     def webhook_zapi():
         try:
-            data = request.get_json(force=True, silent=True) or {}
-            from_number = data.get("phone", "")
-
-            # 🔧 Extrai mensagem (pode vir em vários formatos)
-            raw_message = (
-                data.get("message")
-                or data.get("body")
-                or data.get("text")
-                or data.get("content")
-                or ""
-            )
-
-            # 🔍 Caso o campo seja dicionário, tenta várias profundidades
+            data = request.get_json(silent=True)
+            if not data:
+                # Caso o payload venha como texto (não JSON válido)
+                raw_body = request.data.decode('utf-8', errors='ignore')
+                logging.warning(f"⚠️ Webhook Z-API recebido como texto: {raw_body[:500]}")
+                return jsonify({"status": "ignored", "reason": "invalid_json"}), 200
+    
+            # Loga TODO o JSON para entender o formato exato
+            logging.info(f"📦 Payload Z-API completo: {data}")
+    
+            from_number = data.get("phone") or data.get("sender") or data.get("from") or "?"
+            raw_message = data.get("message") or data.get("body") or data.get("text") or data.get("content")
+    
+            # Se for dict (caso comum no Z-API v2), extrai texto interno
             if isinstance(raw_message, dict):
                 message_body = (
                     raw_message.get("text")
@@ -52,39 +53,31 @@ def register(app):
                     or raw_message.get("content")
                     or ""
                 )
-                # Se ainda for dicionário, tenta acessar subnível (ex: message["text"]["body"])
-                if isinstance(message_body, dict):
-                    message_body = (
-                        message_body.get("body")
-                        or message_body.get("text")
-                        or ""
-                    )
             else:
-                message_body = raw_message
-
+                message_body = raw_message or ""
+    
             message_body = str(message_body).strip()
-            message_sid = data.get("messageId", None)
+            message_sid = data.get("messageId") or data.get("id") or "?"
+    
             origem = request.args.get("origem", "integra+")
-
-            logging.info(
-                f"📥 Webhook Z-API | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}"
-            )
-
-            # 🚫 Ignora mensagens sem texto (notificações da Z-API)
+    
+            logging.info(f"📥 Webhook Z-API | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}")
+    
+            # 🚫 Ignora mensagens sem conteúdo
             if not message_body:
-                logging.warning(
-                    f"⚠️ Ignorando webhook sem mensagem. SID={message_sid}, From={from_number}"
-                )
+                logging.warning(f"⚠️ Ignorando webhook sem mensagem. SID={message_sid}, From={from_number}")
                 return jsonify({"status": "ignored", "reason": "empty_message"}), 200
-
-            # 🔢 Normaliza o número de telefone
+    
+            # ✅ Normaliza o número e processa
+            from database import normalizar_para_recebimento
             from_number_normalizado = normalizar_para_recebimento(from_number)
-
-            # 🧠 Processa a mensagem recebida
+    
+            from botmsg import processar_mensagem
             processar_mensagem(from_number_normalizado, message_body, message_sid, origem=origem)
-
+    
             return jsonify({"status": "success", "origem": origem}), 200
-
+    
         except Exception as e:
-            logging.error(f"❌ Erro no webhook Z-API: {e}")
+            logging.error(f"❌ Erro no webhook Z-API: {e}", exc_info=True)
             return jsonify({"error": "Erro ao processar webhook Z-API"}), 500
+
