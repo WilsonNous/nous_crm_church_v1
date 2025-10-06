@@ -353,6 +353,14 @@ def obter_nome_do_visitante(telefone: str) -> str:
 # Funções de Conversas
 # =======================
 
+def verificar_sid_existente(sid):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM conversas WHERE message_sid = ?", (sid,))
+    result = cursor.fetchone()
+    conn.close()
+    return result is not None
+
 def obter_estado_atual_do_banco(telefone):
     try:
         with closing(get_db_connection()) as conn:
