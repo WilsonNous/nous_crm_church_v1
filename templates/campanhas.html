@@ -1,1 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Envio de Campanhas e Eventos - CRM Igreja Mais de Cristo Canasvieiras">
+  <meta name="keywords" content="igreja, campanhas, eventos, visitantes, WhatsApp">
+  <meta name="author" content="Igreja Mais de Cristo">
+  <title>📢 Campanhas e Eventos | CRM Church</title>
+
+  <link rel="stylesheet" href="/static/main.css">
+  <script src="/static/script.js" defer></script>
+</head>
+
+<body>
+  <header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>📢 Campanhas e Eventos - Ministério de Integração</h1>
+  </header>
+
+  <main>
+    <section id="eventosContainer" aria-label="Campanhas de Eventos">
+      <div class="container">
+
+        <!-- FILTROS -->
+        <h2>Filtrar Visitantes</h2>
+        <form id="filtroVisitantesForm" onsubmit="filtrarVisitantes(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="dataInicio">Data de Cadastro - Início:</label>
+              <input type="date" id="dataInicio" name="dataInicio" required>
+            </div>
+            <div class="form-group">
+              <label for="dataFim">Data de Cadastro - Fim:</label>
+              <input type="date" id="dataFim" name="dataFim" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="idadeMin">Idade Mínima:</label>
+              <input type="number" id="idadeMin" name="idadeMin">
+            </div>
+            <div class="form-group">
+              <label for="idadeMax">Idade Máxima:</label>
+              <input type="number" id="idadeMax" name="idadeMax">
+            </div>
+            <div class="form-group">
+              <label for="genero">Gênero:</label>
+              <select id="genero" name="genero">
+                <option value="">Todos</option>
+                <option value="masculino">Masculino</option>
+                <option value="feminino">Feminino</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary">Filtrar Visitantes</button>
+        </form>
+
+        <!-- RESULTADOS -->
+        <section id="resultadoVisitantes" class="result-list">
+          <h3>Visitantes Filtrados</h3>
+          <div id="visitantesList">Nenhum visitante carregado.</div>
+        </section>
+
+        <!-- CAMPANHA -->
+        <h2>Nova Campanha de Evento</h2>
+        <form id="enviarEventoForm" onsubmit="enviarCampanha(event)">
+          <div class="form-group">
+            <label for="eventoNome">Nome do Evento:</label>
+            <input type="text" id="eventoNome" name="eventoNome" required placeholder="Ex: Conferência Mulheres Moldadas">
+          </div>
+
+          <div class="form-group">
+            <label for="mensagemEvento">Mensagem da Campanha:</label>
+            <textarea id="mensagemEvento" name="mensagemEvento" required placeholder="Digite aqui a mensagem que será enviada via WhatsApp..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="imagemUrl">Imagem (URL):</label>
+            <input type="text" id="imagemUrl" name="imagemUrl" placeholder="https://exemplo.com/imagem.jpg" required>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-success">📤 Enviar Campanha</button>
+            <button type="button" id="btnReprocessarFalhas" class="btn-warning" onclick="reprocessarFalhas()">🔄 Reprocessar Falhas</button>
+          </div>
+        </form>
+
+        <button type="button" id="backToOptionsEvento" class="btn-secondary" onclick="window.location.href='login.html'">
+          ← Voltar ao Menu Principal
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+
+  <script>
+    // Simples placeholders — podem ser substituídos por funções reais do script.js
+    function filtrarVisitantes(event) {
+      event.preventDefault();
+      alert("🔍 Filtro de visitantes ainda em desenvolvimento!");
+    }
+
+    function enviarCampanha(event) {
+      event.preventDefault();
+      alert("📢 Envio de campanha iniciado!");
+    }
+
+    function reprocessarFalhas() {
+      alert("🔄 Reprocessando falhas de envio...");
+    }
+  </script>
+</body>
+</html>
 
