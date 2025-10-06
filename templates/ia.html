@@ -1,1 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Painel de Treinamento da IA - Integra+">
+  <title>Painel de Treinamento da IA | CRM Church</title>
+
+  <link rel="stylesheet" href="/static/main.css">
+  <script src="/static/script.js" defer></script>
+</head>
+
+<body>
+  <header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>🧠 Painel de Treinamento do Integra+</h1>
+  </header>
+
+  <main>
+    <section id="iaTrainingPanel">
+      <div class="info-cards">
+        <div class="info-card">
+          <h3>Perguntas Pendentes</h3>
+          <p id="pendingQuestionsCount">0</p>
+        </div>
+        <div class="info-card">
+          <h3>Total de Conhecimento</h3>
+          <p id="knowledgeBaseCount">0</p>
+        </div>
+      </div>
+
+      <!-- Lista de perguntas pendentes -->
+      <div id="trainingList">
+        <h3>Perguntas Pendentes (Clique para ensinar)</h3>
+        <ul id="pendingQuestionsList"></ul>
+      </div>
+
+      <!-- Formulário de ensino -->
+      <div id="teachForm" class="form-container hidden">
+        <h3>Ensinar a IA</h3>
+        <form id="teachIAForm" onsubmit="handleTeachSubmit(event)">
+          <div class="form-group">
+            <label for="teachQuestion">Pergunta:</label>
+            <input type="text" id="teachQuestion" name="question" readonly required>
+          </div>
+
+          <div class="form-group">
+            <label for="teachAnswer">Resposta:</label>
+            <textarea id="teachAnswer" name="answer" required placeholder="Digite aqui a resposta que a IA deve aprender..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label
 
