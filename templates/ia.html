@@ -50,5 +50,42 @@
           </div>
 
           <div class="form-group">
-            <label
+            <label for="teachCategory">Categoria:</label>
+            <select id="teachCategory" name="category" required>
+              <option value="">Selecione uma categoria</option>
+              <option value="batismo">Batismo</option>
+              <option value="discipulado">Discipulado</option>
+              <option value="horarios">Horários dos Cultos</option>
+              <option value="ministerios">Ministérios</option>
+              <option value="oracao">Pedido de Oração</option>
+              <option value="geral">Geral</option>
+            </select>
+          </div>
 
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Salvar e Ensinar IA</button>
+            <button type="button" id="cancelTeachButton" class="btn-secondary">Cancelar</button>
+          </div>
+        </form>
+      </div>
+
+      <div style="text-align:center; margin-top:16px;">
+        <button type="button" class="btn-secondary" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+
+  <script>
+    // bloqueio simples se não estiver logado
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('jwt_token')) window.location.href = '/app/login';
+      // carrega perguntas pendentes automaticamente
+      if (typeof loadPendingQuestions === 'function') loadPendingQuestions();
+    });
+  </script>
+</body>
+</html>
