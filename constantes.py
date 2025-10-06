@@ -1,5 +1,17 @@
 from enum import Enum
 
+DEBUG = False
+
+FASES = {
+    "INICIO_SAUDADO": 99,
+    "INICIO": 1,
+    "INTERESSE_DISCIPULADO": 4,
+    "PEDIDO_ORACAO": 6,
+    "OUTRO": 7,
+    "FIM": 8,
+}
+
+
 # --- Enum para os diferentes estados do visitante ---
 
 
@@ -101,3 +113,4 @@ palavras_chave_ministerios = {
           "*Inscreva-se aqui:* \n"
           "https://docs.google.com/forms/d/e/1FAIpQLSdj0b3PF-3jwt9Fsw8FvOxv6rSheN7POC1e0bDzub6vEWJm2A/viewform"
 }
+
