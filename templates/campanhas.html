@@ -88,7 +88,7 @@
           </div>
         </form>
 
-        <button type="button" id="backToOptionsEvento" class="btn-secondary" onclick="window.location.href='login.html'">
+        <button type="button" id="backToOptionsEvento" class="btn-secondary" onclick="window.location.href='/app/menu'">
           ← Voltar ao Menu Principal
         </button>
       </div>
@@ -100,21 +100,23 @@
   </footer>
 
   <script>
-    // Simples placeholders — podem ser substituídos por funções reais do script.js
+    // bloqueio simples se não estiver logado
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('jwt_token')) window.location.href = '/app/login';
+    });
+
+    // Placeholders — troque quando integrar com as rotas reais
     function filtrarVisitantes(event) {
       event.preventDefault();
       alert("🔍 Filtro de visitantes ainda em desenvolvimento!");
     }
-
     function enviarCampanha(event) {
       event.preventDefault();
       alert("📢 Envio de campanha iniciado!");
     }
-
     function reprocessarFalhas() {
       alert("🔄 Reprocessando falhas de envio...");
     }
   </script>
 </body>
 </html>
-
