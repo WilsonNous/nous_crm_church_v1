@@ -154,58 +154,60 @@ def visitante_existe(telefone):
 # Função de Atualização de Status
 # =======================
 
-def atualizar_status(telefone, nome_fase, origem="integra+"):
+def atualizar_status(telefone: str, nova_fase_nome: str, origem="integra+"):
     """
-    Atualiza a fase do visitante com base no telefone.
-    Usa a tabela 'fase' como referência e a tabela 'status' como movimento.
+    Atualiza o status (fase atual) do visitante com base no nome da fase.
+    Se não houver registro de status, insere um novo.
     """
     try:
+        telefone = telefone.replace("+", "").replace(" ", "").strip()
+
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # 1️⃣ Encontra visitante pelo telefone
-            cursor.execute("SELECT id FROM visitantes WHERE telefone = ?", (telefone,))
+            # 1️⃣ Obter visitante
+            cursor.execute("SELECT id, nome FROM visitantes WHERE telefone = ?", (telefone,))
             visitante = cursor.fetchone()
             if not visitante:
-                raise ValueError(f"Visitante com telefone '{telefone}' não encontrado no banco de dados.")
-            visitante_id = visitante["id"] if isinstance(visitante, dict) else visitante[0]
+                logging.error(f"❌ Visitante com telefone '{telefone}' não encontrado no banco de dados.")
+                return False
 
-            # 2️⃣ Busca ID da fase correspondente
-            cursor.execute("SELECT id FROM fase WHERE nome = ?", (nome_fase,))
-            fase = cursor.fetchone()
-            if not fase:
-                raise ValueError(f"Fase '{nome_fase}' não encontrada na tabela 'fase'.")
-            fase_id = fase["id"] if isinstance(fase, dict) else fase[0]
+            visitante_id, nome_visitante = visitante
 
-            # 3️⃣ Verifica se já existe status para o visitante
-            cursor.execute("SELECT id FROM status WHERE visitante_id = ?", (visitante_id,))
+            # 2️⃣ Obter fase pelo nome
+            cursor.execute("SELECT id FROM fase WHERE nome = ?", (nova_fase_nome,))
+            fase_row = cursor.fetchone()
+            if not fase_row:
+                logging.error(f"❌ Fase '{nova_fase_nome}' não encontrada na tabela 'fase'.")
+                return False
+
+            fase_id = fase_row[0]
+
+            # 3️⃣ Verificar se já há status
+            cursor.execute("SELECT id, fase_id FROM status WHERE visitante_id = ?", (visitante_id,))
             status_existente = cursor.fetchone()
 
-            # 4️⃣ Atualiza ou insere
+            data_agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
             if status_existente:
-                cursor.execute(
-                    """
-                    UPDATE status
-                    SET fase_id = ?, origem = ?, atualizado_em = CURRENT_TIMESTAMP
-                    WHERE visitante_id = ?
-                    """,
-                    (fase_id, origem, visitante_id)
-                )
-                logging.info(f"♻️ Status atualizado: visitante_id={visitante_id}, fase={nome_fase}")
+                fase_anterior = status_existente[1]
+                cursor.execute("UPDATE status SET fase_id = ?, data_atualizacao = ? WHERE visitante_id = ?",
+                               (fase_id, data_agora, visitante_id))
+                conn.commit()
+                logging.info(f"🔄 {nome_visitante} ({telefone}) mudou de fase {fase_anterior} → {nova_fase_nome}")
             else:
                 cursor.execute(
-                    """
-                    INSERT INTO status (visitante_id, fase_id, origem, criado_em)
-                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                    """,
-                    (visitante_id, fase_id, origem)
+                    "INSERT INTO status (visitante_id, fase_id, data_atualizacao, origem) VALUES (?, ?, ?, ?)",
+                    (visitante_id, fase_id, data_agora, origem)
                 )
-                logging.info(f"🆕 Status criado: visitante_id={visitante_id}, fase={nome_fase}")
+                conn.commit()
+                logging.info(f"🆕 Status criado para {nome_visitante} ({telefone}) → {nova_fase_nome}")
 
-            conn.commit()
+            return True
 
     except Exception as e:
         logging.error(f"Erro ao atualizar status para o telefone {telefone}: {e}")
+        return False
 
 # =======================
 # Funções de Estatísticas e Conversas
