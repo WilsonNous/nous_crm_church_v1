@@ -152,7 +152,6 @@ def register(app):
             logging.error(f"❌ Erro em /api/send-message-manual: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
 
-
     @app.route('/api/visitantes/fase-null', methods=['GET'])
     def get_visitantes_fase_null():
         try:
@@ -162,16 +161,31 @@ def register(app):
                 SELECT v.id, v.nome, v.telefone
                 FROM visitantes v
                 LEFT JOIN status s ON v.id = s.visitante_id
-                WHERE s.fase_id IS NULL
+                WHERE s.fase_id IS NULL OR s.fase_id = ''
             """)
             rows = cursor.fetchall()
             cursor.close()
             conn.close()
-
-            rows_dict = [{"id": r[0], "nome": r[1], "telefone": r[2]} for r in rows]
-            logging.info(f"📊 {len(rows_dict)} visitantes encontrados sem fase.")
-
-            return jsonify({"status": "success", "visitantes": rows_dict}), 200
+    
+            # ✅ Converte resultados em lista de dicionários
+            visitantes = []
+            for row in rows:
+                if isinstance(row, dict):
+                    visitantes.append({
+                        "id": row.get("id"),
+                        "nome": row.get("nome"),
+                        "telefone": row.get("telefone")
+                    })
+                else:
+                    visitantes.append({
+                        "id": row[0],
+                        "nome": row[1],
+                        "telefone": row[2] if len(row) > 2 else None
+                    })
+    
+            logging.info(f"🔍 Visitantes com fase nula: {len(visitantes)} encontrados")
+            return jsonify({"status": "success", "visitantes": visitantes}), 200
+    
         except Exception as e:
             logging.error(f"Erro em /api/visitantes/fase-null: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
