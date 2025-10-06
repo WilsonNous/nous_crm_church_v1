@@ -1,1 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Cadastro de Visitantes - Ministério de Integração">
+  <title>Cadastro de Visitantes | CRM Church</title>
+  <link rel="stylesheet" href="/static/main.css">
+  <script src="/static/script.js" defer></script>
+</head>
+
+<body>
+  <header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>Cadastro de Visitantes</h1>
+  </header>
+
+  <main>
+    <section>
+      <form id="visitorForm" method="POST" action="/register">
+        <div class="form-group">
+          <label for="name">Nome Completo:</label>
+          <input type="text" id="name" name="name" required>
+        </div>
+
+        <div class="form-group">
+          <label for="phone">Telefone:</label>
+          <input type="tel" id="phone" name="phone" required pattern="[0-9]{11}" aria-describedby="phoneHelp">
+          <small id="phoneHelp">Digite seu telefone com 11 dígitos (DDD + Número).</small>
+        </div>
+
+        <div class="form-group">
+          <label for="email">E-mail:</label>
+          <input type="email" id="email" name="email" required>
+        </div>
+
+        <div class="form-group">
+          <label for="birthdate">Data de Nascimento:</label>
+          <input type="date" id="birthdate" name="birthdate" required>
+        </div>
+
+        <div class="form-group">
+          <label for="city">Cidade:</label>
+          <input type="text" id="city" name="city" required>
+        </div>
+
+        <div class="form-group">
+          <label for="gender">Gênero:</label>
+          <select id="gender" name="gender" required>
+            <option value="">Selecione</option>
+            <option value="masculino">Masculino</option>
+            <option value="feminino">Feminino</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="maritalStatus">Estado Civil:</label>
+          <select id="maritalStatus" name="maritalStatus" required>
+            <option value="">Selecione</option>
+            <option value="solteiro">Solteiro</option>
+            <option value="casado">Casado</option>
+            <option value="divorciado">Divorciado</option>
+            <option value="viuvo">Viúvo</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="currentChurch">Igreja Atual:</label>
+          <input type="text" id="currentChurch" name="currentChurch">
+        </div>
+
+        <div class="form-group">
+          <label for="attendingChurch">Frequenta a Igreja?</label>
+          <input type="checkbox" id="attendingChurch" name="attendingChurch">
+        </div>
+
+        <div class="form-group">
+          <label for="referral">Indicação:</label>
+          <input type="text" id="referral" name="referral">
+        </div>
+
+        <div class="form-group">
+          <label for="membership">Quer ser Membro?</label>
+          <input type="checkbox" id="membership" name="membership">
+        </div>
+
+        <div class="form-group">
+          <label for="prayerRequest">Pedido de Oração:</label>
+          <textarea id="prayerRequest" name="prayerRequest" rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="contactTime">Horário de Contato:</label>
+          <input type="text" id="contactTime" name="contactTime" placeholder="Ex: tarde, noite...">
+        </div>
+
+        <div id="registerErrorContainer"></div>
+
+        <button type="submit" class="btn-primary">Cadastrar Visitante</button>
+        <button type="button" class="btn-secondary" onclick="window.location.href='login.html'">
+          ← Voltar ao Menu Principal
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+</body>
+</html>
 
