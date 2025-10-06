@@ -1,1 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Cadastro de Membros - Ministério de Integração">
+  <title>Cadastro de Membros | CRM Church</title>
+
+  <link rel="stylesheet" href="/static/main.css">
+  <script src="/static/script.js" defer></script>
+</head>
+
+<body>
+  <header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+    <h1>Cadastro de Membros</h1>
+  </header>
+
+  <main>
+    <section>
+      <form id="memberForm" onsubmit="saveMember(event)">
+        <div class="form-group">
+          <label for="memberName">Nome Completo:</label>
+          <input type="text" id="memberName" name="nome" required>
+        </div>
+
+        <div class="form-group">
+          <label for="memberPhone">Telefone:</label>
+          <input type="tel" id="memberPhone" name="telefone" required pattern="[0-9]{11}" placeholder="DDD + Número">
+        </div>
+
+        <div class="form-group">
+          <label for="memberEmail">E-mail:</label>
+          <input type="email" id="memberEmail" name="email" required>
+        </div>
+
+        <div class="form-group">
+          <label for="memberBirthday">Data de Nascimento:</label>
+          <input type="date" id="memberBirthday" name="data_nascimento" required>
+        </div>
+
+        <div class="form-group">
+          <label for="cep">CEP:</label>
+          <input type="text" id="cep" name="cep" maxlength="9" placeholder="00000-000" required>
+        </div>
+
+        <div class="form-group">
+          <label for="memberNeighborhood">Bairro:</label>
+          <input type="text" id="memberNeighborhood" name="bairro" required>
+        </div>
+
+        <div class="form-group">
+          <label for="memberCity">Cidade:</label>
+          <input type="text" id="memberCity" name="cidade" required>
+        </div>
+
+        <div class="form-group">
+          <label for="memberState">Estado:</label>
+          <input type="text" id="memberState" name="estado" maxlength="2" placeholder="UF" required>
+        </div>
+
+        <div class="form-group">
+          <label for="memberStatus">Status do Membro:</label>
+          <select id="memberStatus" name="status_membro" required>
+            <option value="">Selecione</option>
+            <option value="ativo">Ativo</option>
+            <option value="inativo">Inativo</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn-primary">Cadastrar Membro</button>
+        <button type="button" class="btn-secondary" onclick="window.location.href='login.html'">
+          ← Voltar ao Menu Principal
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
+</body>
+</html>
 
