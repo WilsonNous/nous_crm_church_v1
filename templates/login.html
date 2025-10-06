@@ -1,355 +1,84 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="CRM para a gestão de visitantes e membros da Igreja Mais de Cristo Canasvieiras">
-    <meta name="keywords" content="igreja, CRM, visitantes, membros, cadastro, WhatsApp">
-    <meta name="author" content="Igreja Mais de Cristo">
-    <title>CRM - Gestão de Relacionamento Church</title>
-    <link rel="stylesheet" href="/static/main.css">
-    <script src="/static/script.js" defer></script> <!-- Garantir que o script seja carregado após o DOM -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CRM - Gestão de Relacionamento da Igreja Mais de Cristo Canasvieiras">
+  <meta name="keywords" content="igreja, CRM, visitantes, membros, discipulado, WhatsApp">
+  <meta name="author" content="Igreja Mais de Cristo">
+  <title>CRM Church - Login</title>
+
+  <link rel="stylesheet" href="/static/main.css">
+  <script src="/static/script.js" defer></script>
 </head>
+
 <body>
-<header>
+  <header>
     <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1>Bem-vindo ao Ministério de Integração</h1>
-</header>
+    <h1>Ministério de Integração</h1>
+  </header>
 
-<main id="mainContent">
-    <!-- Seção de Login -->
-    <section id="loginContainer" aria-label="Formulário de Login de Administrador">
-        <h2>Login de Administrador</h2>
-        <form id="loginForm" onsubmit="handleLogin(event)">
-            <div class="form-group">
-                <label for="username">Usuário:</label>
-                <input type="text" id="username" name="username" required aria-describedby="usernameHelp">
-                <small id="usernameHelp">Digite seu nome de usuário.</small>
-            </div>
-            <div class="form-group">
-                <label for="password">Senha:</label>
-                <input type="password" id="password" name="password" required aria-describedby="passwordHelp">
-                <small id="passwordHelp">Digite sua senha.</small>
-            </div>
-            <button type="submit" id="loginButton" class="btn-primary">Login</button>
-            <div id="loginErrorContainer" role="alert"></div>
-        </form>
-    </section>
-
-    <!-- Menu de Opções -->
-    <section id="options" class="hidden" aria-label="Menu de Opções">
-        <div id="buttonContainer">
-            <button type="button" id="showFormButton" class="btn-primary">Cadastro de Visitantes</button>
-            <button type="button" id="monitorStatusButton" class="btn-secondary">Monitorar Status</button>
-            <button type="button" id="sendWhatsappButton" class="btn-success">Enviar WhatsApp</button>
-            <button type="button" id="showMemberFormButton" class="btn-tertiary ">Cadastro de Membros</button>
-            <button type="button" id="showAcolhidoFormButton" class="btn-quaternary ">Cadastro de Acolhidos</button>
-            <!-- Novo Botão para Treinar IA -->
-            <button type="button" id="showIATrainingButton" class="btn-tertiary">🧠 Treinar IA</button>
-            <!-- Novo Botão de Estatísticas -->
-            <button type="button" class="btn-info" onclick="window.location.href='estatisticas.html'">📊 Estatísticas</button>
-            <!-- Botão extra no menu -->
-            <button type="button" id="showCampaignButton" class="btn-warning">📣 Campanhas</button>
+  <main id="mainContent">
+    <!-- LOGIN -->
+    <section id="loginContainer" aria-label="Formulário de Login">
+      <h2>Login de Administrador</h2>
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="username">Usuário:</label>
+          <input type="text" id="username" name="username" required>
         </div>
-    </section>
-
-     <!-- Formulário de Cadastro de Visitantes -->
-    <section id="formContainer" class="hidden" aria-label="Formulário de Cadastro de Visitantes">
-        <h2>Cadastro de Visitantes</h2>
-        <form id="visitorForm" method="POST" action="/register">
-            <div class="form-group">
-                <label for="name">Nome Completo:</label>
-                <input type="text" id="name" name="name" required>
-            </div>
-            <div class="form-group">
-                <label for="phone">Telefone:</label>
-                <input type="tel" id="phone" name="phone" required pattern="[0-9]{11}" aria-describedby="phoneHelp">
-                <small id="phoneHelp">Digite seu telefone com 11 dígitos (DDD + Número).</small>>
-            </div>
-            <div class="form-group">
-                <label for="email">E-mail:</label>
-                <input type="email" id="email" name="email" required>
-            </div>
-            <div class="form-group">
-                <label for="birthdate">Data de Nascimento:</label>
-                <input type="date" id="birthdate" name="birthdate" required>
-            </div>
-            <div class="form-group">
-                <label for="city">Cidade:</label>
-                <input type="text" id="city" name="city" required>
-            </div>
-            <div class="form-group">
-                <label for="gender">Gênero:</label>
-                <select id="gender" name="gender" required>
-                    <option value="masculino">Masculino</option>
-                    <option value="feminino">Feminino</option>
-                    <option value="outro">Outro</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="maritalStatus">Estado Civil:</label>
-                <select id="maritalStatus" name="maritalStatus" required>
-                    <option value="solteiro">Solteiro</option>
-                    <option value="casado">Casado</option>
-                    <option value="divorciado">Divorciado</option>
-                    <option value="viuvo">Viúvo</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="currentChurch">Igreja Atual:</label>
-                <input type="text" id="currentChurch" name="currentChurch" required>
-            </div>
-            <div class="form-group">
-                <label for="attendingChurch">Frequenta a Igreja?</label>
-                <input type="checkbox" id="attendingChurch" name="attendingChurch">
-            </div>
-            <div class="form-group">
-                <label for="referral">Indicação:</label>
-                <input type="text" id="referral" name="referral" required>
-            </div>
-            <div class="form-group">
-                <label for="membership">Quer ser Membro?</label>
-                <input type="checkbox" id="membership" name="membership">
-            </div>
-            <div class="form-group">
-                <label for="prayerRequest">Pedido de Oração:</label>
-                <textarea id="prayerRequest" name="prayerRequest"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="contactTime">Horário de Contato:</label>
-                <input type="text" id="contactTime" name="contactTime">
-            </div>
-            <div id="registerErrorContainer"></div>
-            <button type="submit" class="btn-primary">Cadastrar</button>
-            <button type="button" id="backToOptionsCadastroButton" class="btn-secondary" onclick="toggleForm('visitorFormContainer')">Voltar</button>
-        </form>
-    </section>
-
-    <!-- Formulário de Cadastro de Membros -->
-    <section id="memberFormContainer" class="hidden" aria-label="Formulário de Cadastro de Membros">
-        <h2>Cadastro de Membros</h2>
-        <form id="memberForm" onsubmit="saveMember(event)">
-            <div class="form-group">
-                <label for="memberName">Nome:</label>
-                <input type="text" id="memberName" name="nome" required>
-            </div>
-            <div class="form-group">
-                <label for="memberPhone">Telefone:</label>
-                <input type="tel" id="memberPhone" name="telefone" required>
-            </div>
-            <div class="form-group">
-                <label for="memberEmail">E-mail:</label>
-                <input type="email" id="memberEmail" name="email" required>
-            </div>
-            <div class="form-group">
-                <label for="memberBirthday">Data de Nascimento:</label>
-                <input type="date" id="memberBirthday" name="data_nascimento" required>
-            </div>
-            <div class="form-group">
-                <label for="cep">CEP:</label>
-                <input type="text" id="cep" name="cep" required>
-            </div>
-            <div class="form-group">
-                <label for="memberNeighborhood">Bairro:</label>
-                <input type="text" id="memberNeighborhood" name="bairro" required>
-            </div>
-            <div class="form-group">
-                <label for="memberCity">Cidade:</label>
-                <input type="text" id="memberCity" name="cidade" required>
-            </div>
-            <div class="form-group">
-                <label for="memberState">Estado:</label>
-                <input type="text" id="memberState" name="estado" required>
-            </div>
-            <div class="form-group">
-                <label for="memberStatus">Status do Membro:</label>
-                <select id="memberStatus" name="status_membro">
-                    <option value="ativo">Ativo</option>
-                    <option value="inativo">Inativo</option>
-                </select>
-            </div>
-            <button type="submit" class="btn-primary">Cadastrar</button>
-            <button type="button" id="backToOptionsCadastroMembro" class="btn-secondary" onclick="toggleForm('memberFormContainer')">Voltar</button>
-        </form>
-    </section>
-
-    <!-- Formulário de Cadastro de Acolhido -->
-    <section id="acolhidoFormContainer" class="hidden" aria-label="Formulário de Cadastro de Acolhido">
-        <h2>Cadastro de Acolhido</h2>
-        <form id="acolhidoForm" onsubmit="handleAcolhidoFormSubmission(event)">
-            <div class="form-group">
-                <label for="nome">Nome:</label>
-                <input type="text" id="nome" name="nome" required aria-describedby="nomeHelp">
-                <small id="nomeHelp">Digite o nome completo do acolhido.</small>
-            </div>
-            <div class="form-group">
-                <label for="telefone">Telefone:</label>
-                <input type="text" id="telefone" name="telefone" required aria-describedby="telefoneHelp">
-                <small id="telefoneHelp">Digite o número de telefone do acolhido.</small>
-            </div>
-            <div class="form-group">
-                <label for="situacao">Situação:</label>
-                <select id="situacao" name="situacao" required>
-                    <option value="reconciliado">Reconciliado(a)</option>
-                    <option value="convertido">Convertido(a)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="observacao">Observação:</label>
-                <textarea id="observacao" name="observacao" rows="4" aria-describedby="observacaoHelp"></textarea>
-                <small id="observacaoHelp">Digite observações adicionais.</small>
-            </div>
-            <button type="submit" class="btn-primary">Cadastrar</button>
-            <button type="button" id="backToOptionsCadastroAcolhido" class="btn-secondary" onclick="toggleForm('acolhidoFormContainer')">Voltar</button>
-
-        </form>
-    </section>
-
- <!-- Log de WhatsApp -->
-    <div id="whatsappLog" class="hidden" aria-label="Log de Envio de WhatsApp">
-        <h2>Envio para WhatsApp</h2>
-        <div id="logContainer"></div>
-        <button type="button" id="backToOptionsWhatsappButton" class="btn-secondary">Voltar</button>
-    </div>
-
- <!-- Monitoramento de Status -->
-    <div id="statusLog" class="hidden" aria-label="Monitoramento de Status de Visitantes">
-        <table id="statusTable">
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Nome</th>
-                    <th>Telefone</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody id="statusList">
-                <!-- Os dados serão inseridos aqui -->
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="4">
-                        <button id="prevPageButton" class="btn-secondary">Anterior</button>
-                        <button id="nextPageButton" class="btn-secondary">Próximo</button>
-                        <button type="button" id="backToOptionsStatusButton" class="btn-secondary">Voltar</button>
-                    </td>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
-
-    <!-- Novo Painel de Treinamento da IA -->
-    <section id="iaTrainingPanel" class="hidden" aria-label="Painel de Treinamento da IA">
-        <div class="container">
-            <h2>🧠 Painel de Treinamento do Integra+</h2>
-            <div class="info-cards">
-                <div class="info-card">
-                    <h3>Perguntas Pendentes</h3>
-                    <p id="pendingQuestionsCount">0</p>
-                </div>
-                <div class="info-card">
-                    <h3>Total de Conhecimento</h3>
-                    <p id="knowledgeBaseCount">0</p>
-                </div>
-            </div>
-
-            <div id="trainingList">
-                <h3>Perguntas Pendentes (Clique para ensinar)</h3>
-                <ul id="pendingQuestionsList"></ul>
-            </div>
-
-            <div id="teachForm" class="form-container hidden">
-                <h3>Ensinar a IA</h3>
-                <form id="teachIAForm" onsubmit="handleTeachSubmit(event)">
-                    <div class="form-group">
-                        <label for="teachQuestion">Pergunta:</label>
-                        <input type="text" id="teachQuestion" name="question" readonly required>
-                    </div>
-                    <div class="form-group">
-                        <label for="teachAnswer">Resposta:</label>
-                        <textarea id="teachAnswer" name="answer" required></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="teachCategory">Categoria:</label>
-                        <select id="teachCategory" name="category" required>
-                            <option value="">Selecione uma categoria</option>
-                            <option value="batismo">Batismo</option>
-                            <option value="discipulado">Discipulado</option>
-                            <option value="horarios">Horários dos Cultos</option>
-                            <option value="ministerios">Ministérios</option>
-                            <option value="oracao">Pedido de Oração</option>
-                            <option value="geral">Geral</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn-primary">Salvar e Ensinar IA</button>
-                    <button type="button" id="cancelTeachButton" class="btn-secondary">Cancelar</button>
-                </form>
-            </div>
-
-            <button type="button" id="backToOptionsIAButton" class="btn-secondary">← Voltar ao Menu</button>
+        <div class="form-group">
+          <label for="password">Senha:</label>
+          <input type="password" id="password" name="password" required>
         </div>
+        <button type="submit" id="loginButton" class="btn-primary">Entrar</button>
+        <div id="loginErrorContainer" role="alert"></div>
+      </form>
     </section>
-    <!-- Novo Painel de Campanhas de Eventos -->
-    <section id="eventosContainer" class="hidden" aria-label="Campanhas de Eventos">
-        <div class="container">
-            <h2>📢 Campanha de Eventos</h2>
-    
-            <!-- Filtros -->
-            <form id="filtroVisitantesForm">
-                <div class="form-group">
-                    <label for="dataInicio">Data de Cadastro - Início:</label>
-                    <input type="date" id="dataInicio" name="dataInicio" required>
-                </div>
-                <div class="form-group">
-                    <label for="dataFim">Data de Cadastro - Fim:</label>
-                    <input type="date" id="dataFim" name="dataFim" required>
-                </div>
-                <div class="form-group">
-                    <label for="idadeMin">Idade Mínima:</label>
-                    <input type="number" id="idadeMin" name="idadeMin">
-                </div>
-                <div class="form-group">
-                    <label for="idadeMax">Idade Máxima:</label>
-                    <input type="number" id="idadeMax" name="idadeMax">
-                </div>
-                <div class="form-group">
-                    <label for="genero">Gênero:</label>
-                    <select id="genero" name="genero">
-                        <option value="">Todos</option>
-                        <option value="masculino">Masculino</option>
-                        <option value="feminino">Feminino</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn-primary">Filtrar</button>
-            </form>
-    
-            <!-- Lista de Visitantes filtrados -->
-            <div id="resultadoVisitantes" class="result-list"></div>
-    
-            <!-- Dados da Campanha -->
-            <form id="enviarEventoForm">
-                <div class="form-group">
-                    <label for="eventoNome">Nome do Evento:</label>
-                    <input type="text" id="eventoNome" name="eventoNome" required>
-                </div>
-                <div class="form-group">
-                    <label for="mensagemEvento">Mensagem:</label>
-                    <textarea id="mensagemEvento" name="mensagemEvento" required></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="imagemUrl">Imagem (URL):</label>
-                    <input type="text" id="imagemUrl" name="imagemUrl" required>
-                </div>
-                <button type="submit" class="btn-success">Enviar Campanha</button>
-                <button type="button" id="btnReprocessarFalhas" class="btn-warning">🔄 Reprocessar Falhas</button>
-                <button type="button" id="backToOptionsEvento" class="btn-secondary">Voltar</button>
-            </form>
-        </div>
-    </section>
-</main>
-<footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 2.0</p>
-</footer>
 
+    <!-- MENU PRINCIPAL -->
+    <section id="options" class="hidden" aria-label="Menu Principal">
+      <h2>Menu Principal</h2>
+      <p>Escolha uma das opções abaixo para continuar:</p>
+
+      <div id="buttonContainer">
+        <button type="button" class="btn-primary" onclick="window.location.href='visitantes.html'">
+          📝 Cadastro de Visitantes
+        </button>
+
+        <button type="button" class="btn-tertiary" onclick="window.location.href='membros.html'">
+          🙋‍♂️ Cadastro de Membros
+        </button>
+
+        <button type="button" class="btn-quaternary" onclick="window.location.href='acolhidos.html'">
+          🤝 Cadastro de Acolhidos
+        </button>
+
+        <button type="button" class="btn-success" onclick="window.location.href='whatsapp.html'">
+          💬 Enviar WhatsApp
+        </button>
+
+        <button type="button" class="btn-secondary" onclick="window.location.href='monitor.html'">
+          📋 Monitorar Status
+        </button>
+
+        <button type="button" class="btn-warning" onclick="window.location.href='campanhas.html'">
+          📢 Campanhas de Eventos
+        </button>
+
+        <button type="button" class="btn-tertiary" onclick="window.location.href='ia.html'">
+          🧠 Treinar IA
+        </button>
+
+        <button type="button" class="btn-info" onclick="window.location.href='estatisticas.html'">
+          📊 Estatísticas Gerais
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+  </footer>
 </body>
 </html>
