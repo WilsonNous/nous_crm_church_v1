@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from flask import Flask, render_template, jsonify
 from flask_cors import CORS
-from crmlogic.menu_routes import menu_bp
+from menu_routes import menu_bp
 
 try:
     from flask_jwt_extended import JWTManager
