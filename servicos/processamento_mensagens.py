@@ -1,4 +1,5 @@
 import logging
+import re
 from database import salvar_conversa, atualizar_status, obter_estado_atual_do_banco, obter_nome_do_visitante, salvar_novo_visitante
 from constantes import EstadoVisitante
 from utilitarios.texto import normalizar_texto
@@ -81,6 +82,52 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # ========== Fluxo normal de transições ==========
     proximo_estado = obter_proximo_estado(estado_atual, texto_normalizado)
 
+    def detectar_intencao_pastores(texto: str) -> bool:
+        """
+        Detecta se o visitante está perguntando ou pedindo informação sobre os pastores.
+        Ignora contextos neutros ou de teste.
+        """
+        texto = texto.lower().strip()
+    
+        # Padrões que indicam pergunta real
+        padroes_validos = [
+            r"quem (é|são) (os|o|as)? ?pastores?",
+            r"quem (são|é) (o|os)? ?pastor(es)?",
+            r"qual (é|são) (o|os)? ?pastor(es)?",
+            r"quem é o pastor",
+            r"quem são os líderes",
+            r"pastores? da igreja",
+            r"nome dos pastores",
+            r"falar com o pastor",
+        ]
+    
+        # Padrões que devem ser ignorados
+        padroes_ignorados = [
+            r"pastor [a-z]",  # Ex: "Pastor Alisson", "Pastor Fábio"
+            r"pastora [a-z]",
+            r"teste",
+            r"não precisa responder",
+            r"mensagem de teste",
+        ]
+    
+        if any(re.search(p, texto) for p in padroes_ignorados):
+            return False
+    
+        return any(re.search(p, texto) for p in padroes_validos)
+
+    # Verifica intenção específica antes do fluxo principal
+    if detectar_intencao_pastores(texto_normalizado):
+        resposta = (
+            "Nossos pastores atuais são:\n"
+            "- *Pr. Fábio Ferreira*\n"
+            "- *Pra. Cláudia Ferreira*\n\n"
+            "Você pode seguir o Pr. Fábio no Instagram: @prfabioferreirasoficial\n"
+            "E a Pra. Cláudia em: @claudiaferreiras1"
+        )
+        enviar_mensagem_para_fila(numero_normalizado, resposta)
+        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+        return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": estado_atual.name}
+    
     if proximo_estado:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         resposta = obter_mensagem_estado(proximo_estado, visitor_name)
