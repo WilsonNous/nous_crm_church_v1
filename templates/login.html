@@ -19,7 +19,6 @@
   </header>
 
   <main id="mainContent">
-    <!-- LOGIN -->
     <section id="loginContainer" aria-label="Formulário de Login">
       <h2>Login de Administrador</h2>
       <form id="loginForm" onsubmit="handleLogin(event)">
@@ -27,50 +26,30 @@
           <label for="username">Usuário:</label>
           <input type="text" id="username" name="username" required>
         </div>
+
         <div class="form-group">
           <label for="password">Senha:</label>
           <input type="password" id="password" name="password" required>
         </div>
+
         <button type="submit" id="loginButton" class="btn-primary">Entrar</button>
         <div id="loginErrorContainer" role="alert"></div>
       </form>
-    </section>
-
-    <!-- MENU PRINCIPAL -->
-    <section id="options" class="hidden" aria-label="Menu Principal">
-      <h2>Menu Principal</h2>
-      <p>Escolha uma das opções abaixo para continuar:</p>
-
-      <div id="buttonContainer">
-        <button type="button" class="btn-primary" onclick="window.location.href='/app/visitantes'">
-          📝 Cadastro de Visitantes
-        </button>
-
-        <button type="button" class="btn-tertiary" onclick="window.location.href='/app/membros'">
-          🙋‍♂️ Cadastro de Membros
-        </button>
-
-        <button type="button" class="btn-quaternary" onclick="window.location.href='/app/acolhidos'">
-          🤝 Cadastro de Acolhidos
-        </button>
-
-        <button type="button" class="btn-success" onclick="window.location.href='/app/campanhas'">
-          📢 Campanhas de Eventos
-        </button>
-
-        <button type="button" class="btn-tertiary" onclick="window.location.href='/app/ia'">
-          🧠 Treinar IA
-        </button>
-
-        <button type="button" class="btn-info" onclick="window.location.href='/app/estatisticas'">
-          📊 Estatísticas Gerais
-        </button>
-      </div>
     </section>
   </main>
 
   <footer>
     <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
   </footer>
+
+  <script>
+    // Redireciona para o menu se já estiver logado
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('jwt_token');
+      if (token) {
+        window.location.href = '/app/menu';
+      }
+    });
+  </script>
 </body>
 </html>
