@@ -8,9 +8,10 @@ ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
 ZAPI_TOKEN = os.getenv("ZAPI_TOKEN")
 ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN")
 
-def enviar_mensagem(numero_destino: str, corpo_mensagem: str, imagem_url: str = None):
+def enviar_mensagem(numero_destino: str, corpo_mensagem: str, imagem_url: str = None) -> bool:
     """
-    Envia mensagem de texto ou imagem via Z-API
+    Envia mensagem de texto ou imagem via Z-API.
+    Retorna True se o envio foi bem-sucedido, False caso contrário.
     """
     try:
         numero_normalizado = normalizar_para_envio(numero_destino)
@@ -38,11 +39,15 @@ def enviar_mensagem(numero_destino: str, corpo_mensagem: str, imagem_url: str = 
 
         if not response.ok:
             logging.error(f"❌ Falha no envio para {numero_normalizado}: {response.status_code} {response.text}")
+            return False
         else:
             logging.info(f"✅ Mensagem enviada para {numero_normalizado}")
+            return True
 
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem via Z-API: {e}")
+        return False
+
 
 def enviar_mensagem_manual(numero_destino: str, titulo: str, params: dict):
     """
@@ -63,4 +68,3 @@ def enviar_mensagem_manual(numero_destino: str, titulo: str, params: dict):
 
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem manual via Z-API: {e}")
-
