@@ -157,34 +157,81 @@
     if (!container) {
       container = document.createElement('section');
       container.id = 'statusCampanhas';
-      container.innerHTML = '<h3>Status das Campanhas</h3>';
       document.querySelector('main').appendChild(container);
     }
-
+  
     if (!statusList.length) {
-      container.innerHTML = '<p>Nenhuma campanha registrada ainda.</p>';
+      container.innerHTML = `
+        <h3>Status das Campanhas</h3>
+        <p>Nenhuma campanha registrada.</p>
+      `;
       return;
     }
-
-    const html = `
+  
+    // Agrupar por evento
+    const grupos = {};
+    statusList.forEach(s => {
+      const evento = s.nome_evento || 'Campanha Desconhecida';
+      if (!grupos[evento]) grupos[evento] = [];
+      grupos[evento].push(s);
+    });
+  
+    let html = `
       <h3>Status das Campanhas</h3>
-      <table class="table-list">
-        <thead>
-          <tr><th>Data</th><th>Evento</th><th>Enviados</th><th>Falhas</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          ${statusList.map(s => `
-            <tr>
-              <td>${s.data_envio}</td>
-              <td>${s.nome_evento}</td>
-              <td>${s.enviados}</td>
-              <td>${s.falhas}</td>
-              <td>${s.status}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
+      <button class="btn-danger" onclick="limparStatus()">🧹 Limpar Histórico</button>
     `;
+  
+    for (const evento in grupos) {
+      const itens = grupos[evento];
+      html += `
+        <details class="status-box" open>
+          <summary><strong>${evento}</strong> <small>(${itens.length} registros)</small></summary>
+          <div class="scroll-area">
+            <table class="table-list compact">
+              <thead>
+                <tr><th>Data</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                ${itens.map(s => `
+                  <tr>
+                    <td>${s.data_envio || '-'}</td>
+                    <td class="status-${s.status?.toLowerCase() || 'pendente'}">${formatarStatus(s.status)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      `;
+    }
+  
     container.innerHTML = html;
+  }
+  
+  function formatarStatus(status) {
+    if (!status) return '-';
+    const s = status.toLowerCase();
+    if (s.includes('enviado')) return '✅ Enviado';
+    if (s.includes('pendente')) return '⚠️ Pendente';
+    if (s.includes('falha') || s.includes('erro')) return '❌ Falha';
+    return status;
+  }
+  
+  async function limparStatus() {
+    if (!confirm("🧹 Deseja limpar todos os registros de campanhas?")) return;
+  
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/campanhas/limpar`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }
+      });
+      const data = await resp.json();
+      alert(data.message || 'Histórico limpo!');
+      carregarStatus();
+    } catch (err) {
+      console.error('Erro ao limpar status:', err);
+      alert('Erro ao limpar histórico.');
+    }
   }
 
   // -----------------------------------------------------------
