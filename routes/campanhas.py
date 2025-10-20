@@ -150,3 +150,16 @@ def register(app):
         except Exception as e:
             logging.exception(f"Erro ao obter status de campanhas: {e}")
             return jsonify({"error": "Falha ao carregar status"}), 500
+
+    # ------------------------------------------------
+    # 🧹 5. Limpar Histórico de Campanhas
+    # ------------------------------------------------
+    @app.route('/api/campanhas/limpar', methods=['DELETE'])
+    def limpar_campanhas():
+        try:
+            total = database.limpar_envios_eventos()
+            logging.info(f"🧹 {total} registros de campanhas removidos do histórico.")
+            return jsonify({"message": f"🧹 {total} registros removidos."}), 200
+        except Exception as e:
+            logging.exception(f"Erro ao limpar histórico: {e}")
+            return jsonify({"error": "Erro ao limpar histórico"}), 500
