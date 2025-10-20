@@ -183,14 +183,17 @@ def register(app):
 
 
     # ------------------------------------------------
-    # 🧹 5. Limpar Histórico de Campanhas
+    # 🧹 5. Limpar histórico de campanhas
     # ------------------------------------------------
-    @app.route('/api/campanhas/limpar', methods=['DELETE'])
+    @app.route('/api/campanhas/limpar', methods=['POST'])
     def limpar_campanhas():
         try:
             total = database.limpar_envios_eventos()
-            logging.info(f"🧹 {total} registros de campanhas removidos do histórico.")
-            return jsonify({"message": f"🧹 {total} registros removidos."}), 200
+            logging.info(f"🧹 {total} registros de campanhas apagados com sucesso.")
+            return jsonify({
+                "message": f"🧹 Histórico limpo ({total} registros removidos)."
+            }), 200
         except Exception as e:
             logging.exception(f"Erro ao limpar histórico: {e}")
-            return jsonify({"error": "Erro ao limpar histórico"}), 500
+            return jsonify({"error": "Falha ao limpar histórico"}), 500
+
