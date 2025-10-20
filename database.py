@@ -1072,29 +1072,19 @@ def filtrar_visitantes_para_evento(data_inicio=None, data_fim=None, idade_min=No
 # ============================================================
 
 def limpar_envios_eventos():
-    """
-    Remove todos os registros da tabela de eventos_envios.
-    Retorna o número total de registros removidos.
-    """
+    """Remove todos os registros de campanhas enviadas."""
     try:
-        with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
-
-            # Contar registros antes de excluir
-            cursor.execute("SELECT COUNT(*) AS total FROM eventos_envios")
-            total = cursor.fetchone()["total"] or 0
-
-            # Excluir registros
-            cursor.execute("DELETE FROM eventos_envios")
-            conn.commit()
-
-            logging.info(f"🧹 {total} registros removidos da tabela eventos_envios.")
-            return total
-
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM eventos_envios")
+        total = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return total
     except Exception as e:
-        logging.error(f"Erro ao limpar histórico de eventos: {e}")
+        logging.error(f"Erro ao limpar envios: {e}")
         return 0
-
 
 # ============================================================
 # 📊 Função para agrupar status de campanhas por evento
