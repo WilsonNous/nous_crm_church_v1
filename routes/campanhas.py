@@ -8,7 +8,8 @@
 import logging
 from flask import request, jsonify
 from datetime import datetime
-import database
+import database  # 👈 precisa estar aqui
+from database import salvar_conversa
 from servicos.fila_mensagens import adicionar_na_fila
 
 def register(app):
@@ -110,6 +111,15 @@ def register(app):
 
                     # 🔹 Adiciona mensagem na fila (envio sequencial)
                     adicionar_na_fila(telefone, mensagem, imagem)
+                    # 💬 Salva no histórico de conversas (tipo enviada)
+                    salvar_conversa(
+                        numero=telefone,
+                        mensagem=mensagem,
+                        tipo="enviada",
+                        sid=None,
+                        origem="campanha"
+                    )
+                    # 🔄 Atualiza status do envio no banco                    
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "enviado")
                     logging.info(f"📬 Visitante {nome} adicionado à fila de envio.")
                     enviados += 1
