@@ -1063,6 +1063,74 @@ def filtrar_visitantes_para_evento(data_inicio=None, data_fim=None, idade_min=No
             cursor.execute(query, tuple(params))
             return cursor.fetchall()
 
+# ============================================================
+# 🧹 Função para limpar histórico de campanhas/eventos
+# ============================================================
+
+def limpar_envios_eventos():
+    """
+    Remove todos os registros da tabela de eventos_envios.
+    Retorna o número total de registros removidos.
+    """
+    try:
+        with closing(get_db_connection()) as conn:
+            cursor = conn.cursor()
+
+            # Contar registros antes de excluir
+            cursor.execute("SELECT COUNT(*) AS total FROM eventos_envios")
+            total = cursor.fetchone()["total"] or 0
+
+            # Excluir registros
+            cursor.execute("DELETE FROM eventos_envios")
+            conn.commit()
+
+            logging.info(f"🧹 {total} registros removidos da tabela eventos_envios.")
+            return total
+
+    except Exception as e:
+        logging.error(f"Erro ao limpar histórico de eventos: {e}")
+        return 0
+
+
+# ============================================================
+# 📊 Função para agrupar status de campanhas por evento
+# ============================================================
+
+def obter_resumo_campanhas(limit=100):
+    """
+    Retorna um resumo agrupado das campanhas:
+    - nome do evento
+    - total de envios
+    - enviados, pendentes e falhas
+    """
+    try:
+        with closing(get_db_connection()) as conn:
+            cursor = conn.cursor()
+
+            query = """
+                SELECT 
+                    evento_nome,
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) AS pendentes,
+                    SUM(CASE WHEN status = 'falha' THEN 1 ELSE 0 END) AS falhas,
+                    SUM(CASE WHEN status IN ('enviado', 'reprocessado') THEN 1 ELSE 0 END) AS enviados,
+                    MAX(data_envio) AS ultima_data
+                FROM eventos_envios
+                GROUP BY evento_nome
+                ORDER BY ultima_data DESC
+                LIMIT %s
+            """
+            cursor.execute(query, (limit,))
+            rows = cursor.fetchall()
+
+            logging.info(f"📊 {len(rows)} campanhas resumidas com sucesso.")
+            return rows
+
+    except Exception as e:
+        logging.error(f"Erro ao obter resumo de campanhas: {e}")
+        return []
+ 
+
     except Exception as e:
         logging.error(f"❌ Erro ao filtrar visitantes para evento: {e}")
         return []
