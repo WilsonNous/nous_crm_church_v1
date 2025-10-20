@@ -99,25 +99,5 @@
   <footer>
     <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
   </footer>
-
-  <script>
-    // bloqueio simples se não estiver logado
-    document.addEventListener('DOMContentLoaded', () => {
-      if (!localStorage.getItem('jwt_token')) window.location.href = '/app/login';
-    });
-
-    // Placeholders — troque quando integrar com as rotas reais
-    function filtrarVisitantes(event) {
-      event.preventDefault();
-      alert("🔍 Filtro de visitantes ainda em desenvolvimento!");
-    }
-    function enviarCampanha(event) {
-      event.preventDefault();
-      alert("📢 Envio de campanha iniciado!");
-    }
-    function reprocessarFalhas() {
-      alert("🔄 Reprocessando falhas de envio...");
-    }
-  </script>
 </body>
 </html>
