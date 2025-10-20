@@ -66,17 +66,13 @@ def register(app):
             mensagem = data.get("mensagem")
             imagem = data.get("imagem")
     
-            if not nome_evento or not mensagem:
-                return jsonify({"error": "Nome do evento e mensagem são obrigatórios."}), 400
-    
-            # ✅ captura filtros do payload
             data_inicio = data.get("dataInicio")
             data_fim = data.get("dataFim")
             idade_min = data.get("idadeMin")
             idade_max = data.get("idadeMax")
             genero = data.get("genero")
     
-            # ✅ aplica filtros corretamente
+            # 🔍 1. Buscar visitantes filtrados
             visitantes = database.filtrar_visitantes_para_evento(
                 data_inicio=data_inicio,
                 data_fim=data_fim,
@@ -86,38 +82,79 @@ def register(app):
             )
     
             if not visitantes:
-                logging.info(f"📭 Nenhum visitante encontrado para envio do evento '{nome_evento}'")
                 return jsonify({"message": "Nenhum visitante encontrado para envio."}), 200
     
-            enviados = 0
-            falhas = 0
+            # ⚙️ 2. Configuração Z-API
+            zapi_base = config.ZAPI_BASE_URL
+            zapi_instance = config.ZAPI_INSTANCE
+            zapi_token = config.ZAPI_CLIENT_TOKEN
+            headers = {
+                "Client-Token": zapi_token,
+                "Content-Type": "application/json"
+            }
     
+            enviados, falhas = 0, 0
+    
+            # 📨 3. Loop de envio
             for v in visitantes:
-                ok = database.salvar_envio_evento(
-                    visitante_id=v["id"],
+                visitante_id = v["id"]
+                telefone = v.get("telefone")
+    
+                # Primeiro grava o registro pendente
+                database.salvar_envio_evento(
+                    visitante_id=visitante_id,
                     evento_nome=nome_evento,
                     mensagem=mensagem,
                     imagem_url=imagem,
                     status="pendente",
                     origem="integra+"
                 )
-                if ok:
-                    enviados += 1
-                else:
-                    falhas += 1
     
-            logging.info(f"📢 Campanha '{nome_evento}' concluída: {enviados} enviados, {falhas} falhas.")
+                # ⚠️ Se não tiver telefone, marca falha e continua
+                if not telefone:
+                    database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
+                    logging.warning(f"⚠️ Visitante sem telefone: {v['nome']}")
+                    falhas += 1
+                    continue
+    
+                try:
+                    # Define o endpoint correto (texto ou imagem)
+                    if imagem:
+                        url = f"{zapi_base}/message/sendImage/{zapi_instance}"
+                        payload = {"phone": telefone, "message": mensagem, "image": imagem}
+                    else:
+                        url = f"{zapi_base}/message/sendText/{zapi_instance}"
+                        payload = {"phone": telefone, "message": mensagem}
+    
+                    # Envia via Z-API
+                    resp = requests.post(url, json=payload, headers=headers, timeout=20)
+    
+                    # Atualiza status conforme retorno
+                    if resp.status_code == 200:
+                        database.atualizar_status_envio_evento(visitante_id, nome_evento, "enviado")
+                        enviados += 1
+                        logging.info(f"✅ Mensagem enviada com sucesso para {telefone}")
+                    else:
+                        database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
+                        falhas += 1
+                        logging.warning(f"⚠️ Falha ao enviar para {telefone}: {resp.status_code} - {resp.text}")
+    
+                except Exception as e:
+                    database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
+                    falhas += 1
+                    logging.error(f"❌ Erro no envio via Z-API para {telefone}: {e}")
+    
+            # 🧾 4. Resumo
+            logging.info(f"📢 Campanha '{nome_evento}' finalizada → {enviados} enviados, {falhas} falhas.")
             return jsonify({
-                "message": f"Campanha '{nome_evento}' registrada com sucesso!",
+                "message": f"📢 Campanha '{nome_evento}' concluída.",
                 "enviados": enviados,
                 "falhas": falhas
             }), 200
     
         except Exception as e:
-            import traceback
-            logging.error(f"❌ Erro ao enviar campanha: {e}\n{traceback.format_exc()}")
-            return jsonify({"error": str(e)}), 500
-
+            logging.exception(f"Erro geral ao enviar campanha: {e}")
+            return jsonify({"error": "Erro ao enviar campanha"}), 500
 
 
     # ------------------------------------------------
