@@ -1,7 +1,15 @@
+# ==============================================
+# servicos/zapi_cliente.py
+# ==============================================
+# 📡 Cliente de integração com Z-API (unificado)
+# Agora registra histórico de mensagens enviadas.
+# ==============================================
+
 import os
 import logging
 import requests
-from database import normalizar_para_envio
+from datetime import datetime
+from database import normalizar_para_envio, salvar_log_whatsapp
 
 # 🔄 Configurações Z-API (carregadas do ambiente)
 ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
@@ -40,31 +48,19 @@ def enviar_mensagem(numero_destino: str, corpo_mensagem: str, imagem_url: str = 
         if not response.ok:
             logging.error(f"❌ Falha no envio para {numero_normalizado}: {response.status_code} {response.text}")
             return False
-        else:
-            logging.info(f"✅ Mensagem enviada para {numero_normalizado}")
-            return True
+
+        # ✅ Registro no histórico de mensagens
+        salvar_log_whatsapp(
+            telefone=numero_normalizado,
+            mensagem=corpo_mensagem,
+            direcao="enviada",
+            origem="campanha" if "campanha" in corpo_mensagem.lower() else "bot",
+            data_envio=datetime.now()
+        )
+
+        logging.info(f"✅ Mensagem enviada e registrada para {numero_normalizado}")
+        return True
 
     except Exception as e:
         logging.error(f"Erro ao enviar mensagem via Z-API: {e}")
         return False
-
-
-def enviar_mensagem_manual(numero_destino: str, titulo: str, params: dict):
-    """
-    Envia mensagem formatada manualmente via Z-API (substitui template do Twilio).
-    Exemplo:
-      enviar_mensagem_manual("48999999999", "Dados de Contato", {"Nome": "João", "Idade": "30"})
-    """
-    try:
-        numero_normalizado = normalizar_para_envio(numero_destino)
-
-        # Monta a mensagem com título + parâmetros
-        msg = f"📌 {titulo}\n\n"
-        for k, v in params.items():
-            msg += f"- {k.capitalize()}: {v}\n"
-
-        enviar_mensagem(numero_normalizado, msg)
-        logging.info(f"✅ Mensagem manual enviada para {numero_normalizado}")
-
-    except Exception as e:
-        logging.error(f"Erro ao enviar mensagem manual via Z-API: {e}")
