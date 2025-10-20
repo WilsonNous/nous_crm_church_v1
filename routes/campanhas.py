@@ -5,6 +5,7 @@
 # Integra-se com database.py (PyMySQL)
 # ================================================
 
+import os
 from concurrent.futures import ThreadPoolExecutor
 import requests
 import logging
