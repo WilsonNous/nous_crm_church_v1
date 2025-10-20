@@ -8,7 +8,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import requests
 import logging
-import config
 import database
 from flask import request, jsonify
 from datetime import datetime
@@ -86,9 +85,9 @@ def register(app):
             if not visitantes:
                 return jsonify({"message": "Nenhum visitante encontrado para envio."}), 200
     
-            zapi_base = config.ZAPI_BASE_URL
-            zapi_instance = config.ZAPI_INSTANCE
-            zapi_token = config.ZAPI_CLIENT_TOKEN
+            zapi_base = os.getenv("ZAPI_BASE_URL")
+            zapi_instance = os.getenv("ZAPI_INSTANCE")
+            zapi_token = os.getenv("ZAPI_CLIENT_TOKEN")
             headers = {"Client-Token": zapi_token, "Content-Type": "application/json"}
     
             enviados, falhas = 0, 0
