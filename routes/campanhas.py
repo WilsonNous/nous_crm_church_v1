@@ -9,7 +9,7 @@ import logging
 from flask import request, jsonify
 from datetime import datetime
 import database
-from servicos.fila_envio import adicionar_na_fila
+from servicos.fila_mensagens import adicionar_na_fila
 
 def register(app):
 
