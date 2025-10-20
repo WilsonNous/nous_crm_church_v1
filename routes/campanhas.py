@@ -5,7 +5,7 @@
 # Integra-se com database.py (PyMySQL)
 # ================================================
 
-import zapi_cliente
+from servicos import zapi_cliente
 from concurrent.futures import ThreadPoolExecutor
 import requests
 import logging
