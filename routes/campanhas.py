@@ -5,7 +5,7 @@
 # Integra-se com database.py (PyMySQL)
 # ================================================
 
-import os
+import zapi_cliente
 from concurrent.futures import ThreadPoolExecutor
 import requests
 import logging
@@ -86,11 +86,6 @@ def register(app):
             if not visitantes:
                 return jsonify({"message": "Nenhum visitante encontrado para envio."}), 200
     
-            zapi_base = os.getenv("ZAPI_BASE_URL")
-            zapi_instance = os.getenv("ZAPI_INSTANCE")
-            zapi_token = os.getenv("ZAPI_CLIENT_TOKEN")
-            headers = {"Client-Token": zapi_token, "Content-Type": "application/json"}
-    
             enviados, falhas = 0, 0
     
             # ======================================================
@@ -101,7 +96,7 @@ def register(app):
                 telefone = v.get("telefone")
                 nome = v.get("nome")
     
-                # registra como pendente
+                # Registrar no banco como pendente
                 database.salvar_envio_evento(
                     visitante_id=visitante_id,
                     evento_nome=nome_evento,
@@ -113,32 +108,18 @@ def register(app):
     
                 if not telefone:
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                    logging.warning(f"⚠️ Sem telefone: {nome}")
+                    logging.warning(f"⚠️ Visitante sem telefone: {nome}")
                     return ("falha", telefone)
     
                 try:
-                    # Define tipo de mensagem
-                    if imagem:
-                        url = f"{zapi_base}/message/sendImage/{zapi_instance}"
-                        payload = {"phone": telefone, "message": mensagem, "image": imagem}
-                    else:
-                        url = f"{zapi_base}/message/sendText/{zapi_instance}"
-                        payload = {"phone": telefone, "message": mensagem}
-    
-                    resp = requests.post(url, json=payload, headers=headers, timeout=20)
-    
-                    if resp.status_code == 200:
-                        database.atualizar_status_envio_evento(visitante_id, nome_evento, "enviado")
-                        logging.info(f"✅ Enviado: {telefone} ({nome})")
-                        return ("enviado", telefone)
-                    else:
-                        database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                        logging.warning(f"⚠️ Falha {telefone}: {resp.status_code} - {resp.text}")
-                        return ("falha", telefone)
-    
+                    # Envio via Z-API (padronizado)
+                    zapi_cliente.enviar_mensagem(telefone, mensagem, imagem_url=imagem)
+                    database.atualizar_status_envio_evento(visitante_id, nome_evento, "enviado")
+                    logging.info(f"✅ Enviado: {telefone} ({nome})")
+                    return ("enviado", telefone)
                 except Exception as e:
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                    logging.error(f"❌ Erro Z-API {telefone}: {e}")
+                    logging.error(f"❌ Erro ao enviar para {telefone}: {e}")
                     return ("falha", telefone)
     
             # ======================================================
@@ -147,7 +128,7 @@ def register(app):
             with ThreadPoolExecutor(max_workers=10) as executor:
                 results = list(executor.map(processar_envio, visitantes))
     
-            # contagem final
+            # Contagem final
             enviados = sum(1 for r, _ in results if r == "enviado")
             falhas = sum(1 for r, _ in results if r == "falha")
     
