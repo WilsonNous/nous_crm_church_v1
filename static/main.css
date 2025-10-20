@@ -421,3 +421,58 @@ button#backToOptionsButtonStatus:hover {
 #iaTrainingPanel .hidden {
     display: none;
 }
+
+/* ====== Status das Campanhas ====== */
+.status-box {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  margin-bottom: 15px;
+  padding: 10px;
+}
+
+.status-box summary {
+  cursor: pointer;
+  font-size: 1.1em;
+  color: #333;
+}
+
+.scroll-area {
+  max-height: 220px;
+  overflow-y: auto;
+  border-top: 1px solid #ddd;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.table-list.compact td, 
+.table-list.compact th {
+  padding: 4px 8px;
+  font-size: 0.85em;
+}
+
+.status-enviado {
+  color: #1a7f37;
+  font-weight: bold;
+}
+
+.status-pendente {
+  color: #b8860b;
+  font-weight: bold;
+}
+
+.status-falha, .status-erro {
+  color: #a70000;
+  font-weight: bold;
+}
+
+.btn-danger {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.btn-danger:hover { background: #a93226; }
