@@ -1,8 +1,9 @@
 // ============================================
-// campanhas.js - CRM Church (v3.1)
+// campanhas.js - CRM Church (v3.2)
 // ============================================
 // Controle de Campanhas e Eventos - Ministério de Integração
-// ---------------------------------------------
+// Envio 100% texto (sem imagem)
+// ============================================
 (() => {
   const API_BASE_URL = 'https://nous-crm-church-v1.onrender.com';
 
@@ -82,49 +83,49 @@
   }
 
   // -----------------------------------------------------------
-  // 📢 ENVIAR CAMPANHA
+  // 📢 ENVIAR CAMPANHA (texto puro)
   // -----------------------------------------------------------
   async function enviarCampanha(event) {
-  event.preventDefault();
-  const form = event.target;
+    event.preventDefault();
+    const form = event.target;
 
-  // Coleta filtros ativos na tela
-  const filtroForm = document.getElementById('filtroVisitantesForm');
-  const filtros = {
-    dataInicio: filtroForm.dataInicio.value,
-    dataFim: filtroForm.dataFim.value,
-    idadeMin: filtroForm.idadeMin.value || null,
-    idadeMax: filtroForm.idadeMax.value || null,
-    genero: filtroForm.genero.value || null,
-  };
+    // Coleta filtros ativos na tela
+    const filtroForm = document.getElementById('filtroVisitantesForm');
+    const filtros = {
+      dataInicio: filtroForm.dataInicio.value,
+      dataFim: filtroForm.dataFim.value,
+      idadeMin: filtroForm.idadeMin.value || null,
+      idadeMax: filtroForm.idadeMax.value || null,
+      genero: filtroForm.genero.value || null,
+    };
 
-  const payload = {
-    nome_evento: form.eventoNome.value,
-    mensagem: form.mensagemEvento.value,
-    imagem: form.imagemUrl.value,
-    ...filtros // ✅ junta filtros no payload
-  };
+    // 🔹 Monta payload (sem imagem)
+    const payload = {
+      nome_evento: form.eventoNome.value,
+      mensagem: form.mensagemEvento.value,
+      ...filtros
+    };
 
-  if (!confirm(`Deseja enviar a campanha "${payload.nome_evento}"?`)) return;
+    if (!confirm(`Deseja enviar a campanha "${payload.nome_evento}"?`)) return;
 
-  try {
-    const resp = await fetch(`${API_BASE_URL}/api/campanhas/enviar`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-      },
-      body: JSON.stringify(payload)
-    });
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/campanhas/enviar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+        },
+        body: JSON.stringify(payload)
+      });
 
-    const data = await resp.json();
-    alert(data.message || '✅ Campanha enviada com sucesso!');
-    carregarStatus();
-  } catch (err) {
-    console.error('Erro ao enviar campanha:', err);
-    alert('❌ Erro ao enviar campanha.');
+      const data = await resp.json();
+      alert(data.message || '✅ Campanha enviada com sucesso!');
+      carregarStatus();
+    } catch (err) {
+      console.error('Erro ao enviar campanha:', err);
+      alert('❌ Erro ao enviar campanha.');
+    }
   }
-}
 
   // -----------------------------------------------------------
   // 🔄 REPROCESSAR FALHAS
@@ -170,7 +171,7 @@
       container.id = 'statusCampanhas';
       document.querySelector('main').appendChild(container);
     }
-  
+
     if (!statusList.length) {
       container.innerHTML = `
         <h3>Status das Campanhas</h3>
@@ -178,7 +179,7 @@
       `;
       return;
     }
-  
+
     // Agrupar por evento
     const grupos = {};
     statusList.forEach(s => {
@@ -186,12 +187,12 @@
       if (!grupos[evento]) grupos[evento] = [];
       grupos[evento].push(s);
     });
-  
+
     let html = `
       <h3>Status das Campanhas</h3>
       <button class="btn-danger" onclick="limparStatus()">🧹 Limpar Histórico</button>
     `;
-  
+
     for (const evento in grupos) {
       const itens = grupos[evento];
       html += `
@@ -215,10 +216,10 @@
         </details>
       `;
     }
-  
+
     container.innerHTML = html;
   }
-  
+
   function formatarStatus(status) {
     if (!status) return '-';
     const s = status.toLowerCase();
@@ -227,13 +228,13 @@
     if (s.includes('falha') || s.includes('erro')) return '❌ Falha';
     return status;
   }
-  
+
   // -----------------------------------------------------------
   // 🧹 LIMPAR HISTÓRICO DE CAMPANHAS
   // -----------------------------------------------------------
   async function limparStatus() {
     if (!confirm("Tem certeza que deseja limpar o histórico de campanhas?")) return;
-  
+
     try {
       const resp = await fetch(`${API_BASE_URL}/api/campanhas/limpar`, {
         method: "POST",
@@ -241,7 +242,7 @@
           "Authorization": `Bearer ${localStorage.getItem('jwt_token')}`
         }
       });
-  
+
       const data = await resp.json();
       alert(data.message || "🧹 Histórico de campanhas limpo com sucesso!");
       carregarStatus();
@@ -250,15 +251,12 @@
       alert("❌ Falha ao limpar histórico de campanhas.");
     }
   }
-  
-  // expõe para o HTML
-  window.limparStatus = limparStatus;
 
-  
   // -----------------------------------------------------------
   // 🔗 Expõe funções globais usadas no HTML
   // -----------------------------------------------------------
   window.filtrarVisitantes = filtrarVisitantes;
   window.enviarCampanha = enviarCampanha;
   window.reprocessarFalhas = reprocessarFalhas;
+  window.limparStatus = limparStatus;
 })();
