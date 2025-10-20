@@ -5,10 +5,13 @@
 # Integra-se com database.py (PyMySQL)
 # ================================================
 
+from concurrent.futures import ThreadPoolExecutor
+import requests
 import logging
+import config
+import database
 from flask import request, jsonify
 from datetime import datetime
-import database
 
 def register(app):
 
@@ -72,7 +75,6 @@ def register(app):
             idade_max = data.get("idadeMax")
             genero = data.get("genero")
     
-            # 🔍 1. Buscar visitantes filtrados
             visitantes = database.filtrar_visitantes_para_evento(
                 data_inicio=data_inicio,
                 data_fim=data_fim,
@@ -84,23 +86,22 @@ def register(app):
             if not visitantes:
                 return jsonify({"message": "Nenhum visitante encontrado para envio."}), 200
     
-            # ⚙️ 2. Configuração Z-API
             zapi_base = config.ZAPI_BASE_URL
             zapi_instance = config.ZAPI_INSTANCE
             zapi_token = config.ZAPI_CLIENT_TOKEN
-            headers = {
-                "Client-Token": zapi_token,
-                "Content-Type": "application/json"
-            }
+            headers = {"Client-Token": zapi_token, "Content-Type": "application/json"}
     
             enviados, falhas = 0, 0
     
-            # 📨 3. Loop de envio
-            for v in visitantes:
+            # ======================================================
+            # 🔹 Função interna de envio individual
+            # ======================================================
+            def processar_envio(v):
                 visitante_id = v["id"]
                 telefone = v.get("telefone")
+                nome = v.get("nome")
     
-                # Primeiro grava o registro pendente
+                # registra como pendente
                 database.salvar_envio_evento(
                     visitante_id=visitante_id,
                     evento_nome=nome_evento,
@@ -110,15 +111,13 @@ def register(app):
                     origem="integra+"
                 )
     
-                # ⚠️ Se não tiver telefone, marca falha e continua
                 if not telefone:
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                    logging.warning(f"⚠️ Visitante sem telefone: {v['nome']}")
-                    falhas += 1
-                    continue
+                    logging.warning(f"⚠️ Sem telefone: {nome}")
+                    return ("falha", telefone)
     
                 try:
-                    # Define o endpoint correto (texto ou imagem)
+                    # Define tipo de mensagem
                     if imagem:
                         url = f"{zapi_base}/message/sendImage/{zapi_instance}"
                         payload = {"phone": telefone, "message": mensagem, "image": imagem}
@@ -126,28 +125,35 @@ def register(app):
                         url = f"{zapi_base}/message/sendText/{zapi_instance}"
                         payload = {"phone": telefone, "message": mensagem}
     
-                    # Envia via Z-API
                     resp = requests.post(url, json=payload, headers=headers, timeout=20)
     
-                    # Atualiza status conforme retorno
                     if resp.status_code == 200:
                         database.atualizar_status_envio_evento(visitante_id, nome_evento, "enviado")
-                        enviados += 1
-                        logging.info(f"✅ Mensagem enviada com sucesso para {telefone}")
+                        logging.info(f"✅ Enviado: {telefone} ({nome})")
+                        return ("enviado", telefone)
                     else:
                         database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                        falhas += 1
-                        logging.warning(f"⚠️ Falha ao enviar para {telefone}: {resp.status_code} - {resp.text}")
+                        logging.warning(f"⚠️ Falha {telefone}: {resp.status_code} - {resp.text}")
+                        return ("falha", telefone)
     
                 except Exception as e:
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                    falhas += 1
-                    logging.error(f"❌ Erro no envio via Z-API para {telefone}: {e}")
+                    logging.error(f"❌ Erro Z-API {telefone}: {e}")
+                    return ("falha", telefone)
     
-            # 🧾 4. Resumo
+            # ======================================================
+            # 🚀 ThreadPoolExecutor para envios simultâneos
+            # ======================================================
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                results = list(executor.map(processar_envio, visitantes))
+    
+            # contagem final
+            enviados = sum(1 for r, _ in results if r == "enviado")
+            falhas = sum(1 for r, _ in results if r == "falha")
+    
             logging.info(f"📢 Campanha '{nome_evento}' finalizada → {enviados} enviados, {falhas} falhas.")
             return jsonify({
-                "message": f"📢 Campanha '{nome_evento}' concluída.",
+                "message": f"📢 Campanha '{nome_evento}' concluída com {enviados} enviados e {falhas} falhas.",
                 "enviados": enviados,
                 "falhas": falhas
             }), 200
