@@ -128,28 +128,35 @@ def register(app):
 
 
     # ------------------------------------------------
-    # 📊 4. Status de Campanhas
+    # 📊 4. Status de Campanhas (Resumo Agrupado)
     # ------------------------------------------------
     @app.route('/api/campanhas/status', methods=['GET'])
     def status_campanhas():
         try:
-            envios = database.listar_envios_eventos(limit=100)
-            if not envios:
+            campanhas = database.obter_resumo_campanhas(limit=100)
+            if not campanhas:
                 return jsonify({"status": []}), 200
-
+    
             resultado = []
-            for e in envios:
+            for c in campanhas:
                 resultado.append({
-                    "data_envio": e["data_envio"].strftime("%d/%m/%Y %H:%M") if e["data_envio"] else "-",
-                    "nome_evento": e["evento_nome"],
-                    "status": e["status"]
+                    "nome_evento": c["evento_nome"],
+                    "data_envio": c["ultima_data"].strftime("%d/%m/%Y %H:%M") if c.get("ultima_data") else "-",
+                    "enviados": c.get("enviados", 0),
+                    "falhas": c.get("falhas", 0),
+                    "pendentes": c.get("pendentes", 0),
+                    "status": (
+                        "✅ Concluída" if c["falhas"] == 0 and c["pendentes"] == 0
+                        else "⚠️ Parcial"
+                    )
                 })
-
+    
             return jsonify({"status": resultado}), 200
-
+    
         except Exception as e:
             logging.exception(f"Erro ao obter status de campanhas: {e}")
             return jsonify({"error": "Falha ao carregar status"}), 500
+
 
     # ------------------------------------------------
     # 🧹 5. Limpar Histórico de Campanhas
