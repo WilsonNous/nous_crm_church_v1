@@ -1063,6 +1063,10 @@ def filtrar_visitantes_para_evento(data_inicio=None, data_fim=None, idade_min=No
             cursor.execute(query, tuple(params))
             return cursor.fetchall()
 
+    except Exception as e:
+        logging.error(f"❌ Erro ao filtrar visitantes para evento: {e}")
+        return []
+
 # ============================================================
 # 🧹 Função para limpar histórico de campanhas/eventos
 # ============================================================
@@ -1128,9 +1132,4 @@ def obter_resumo_campanhas(limit=100):
 
     except Exception as e:
         logging.error(f"Erro ao obter resumo de campanhas: {e}")
-        return []
- 
-
-    except Exception as e:
-        logging.error(f"❌ Erro ao filtrar visitantes para evento: {e}")
         return []
