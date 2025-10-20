@@ -2,15 +2,16 @@
 # routes/campanhas.py
 # ================================================
 # 📢 Rotas de Campanhas e Eventos - CRM Church
-# Integra-se com database.py e servicos/zapi_cliente.py
+# Envio 100% texto (sem imagem) para máxima entregabilidade
 # ================================================
 
 import logging
 from flask import request, jsonify
 from datetime import datetime
-import database  # 👈 precisa estar aqui
+import database
 from database import salvar_conversa
 from servicos.fila_mensagens import adicionar_na_fila
+
 
 def register(app):
 
@@ -58,7 +59,7 @@ def register(app):
 
 
     # ------------------------------------------------
-    # 📢 2. Enviar Campanha (com fila controlada)
+    # 📢 2. Enviar Campanha (modo texto puro)
     # ------------------------------------------------
     @app.route('/api/campanhas/enviar', methods=['POST'])
     def enviar_campanha():
@@ -66,7 +67,9 @@ def register(app):
             data = request.get_json() or {}
             nome_evento = data.get("nome_evento")
             mensagem = data.get("mensagem")
-            imagem = data.get("imagem")
+            
+            # 🔹 Ignora imagem — envio sempre em modo texto puro
+            imagem = None  
 
             data_inicio = data.get("dataInicio")
             data_fim = data.get("dataFim")
@@ -98,9 +101,9 @@ def register(app):
                         visitante_id=visitante_id,
                         evento_nome=nome_evento,
                         mensagem=mensagem,
-                        imagem_url=imagem,
+                        imagem_url=None,  # garante que não salva mídia
                         status="pendente",
-                        origem="integra+"
+                        origem="campanha"
                     )
 
                     if not telefone:
@@ -109,9 +112,10 @@ def register(app):
                         falhas += 1
                         continue
 
-                    # 🔹 Adiciona mensagem na fila (envio sequencial)
-                    adicionar_na_fila(telefone, mensagem, imagem)
-                    # 💬 Salva no histórico de conversas (tipo enviada)
+                    # 🔹 Envia apenas texto via fila
+                    adicionar_na_fila(telefone, mensagem)
+
+                    # 💬 Salva no histórico de conversas
                     salvar_conversa(
                         numero=telefone,
                         mensagem=mensagem,
@@ -119,7 +123,8 @@ def register(app):
                         sid=None,
                         origem="campanha"
                     )
-                    # 🔄 Atualiza status do envio no banco                    
+
+                    # 🔄 Atualiza status do envio no banco
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "enviado")
                     logging.info(f"📬 Visitante {nome} adicionado à fila de envio.")
                     enviados += 1
@@ -152,7 +157,7 @@ def register(app):
             reprocessados = 0
 
             for f in falhas:
-                adicionar_na_fila(f["telefone"], f["mensagem"], f["imagem_url"])
+                adicionar_na_fila(f["telefone"], f["mensagem"])
                 reprocessados += 1
 
             return jsonify({
@@ -165,7 +170,7 @@ def register(app):
 
 
     # ------------------------------------------------
-    # 📊 4. Status de Campanhas (Resumo Agrupado)
+    # 📊 4. Status de Campanhas
     # ------------------------------------------------
     @app.route('/api/campanhas/status', methods=['GET'])
     def status_campanhas():
