@@ -2,44 +2,18 @@
 # routes/campanhas.py
 # ================================================
 # 📢 Rotas de Campanhas e Eventos - CRM Church
-# -----------------------------------------------
-# Funções:
-# - Filtro de visitantes por data, idade e gênero
-# - Envio de campanhas via Z-API
-# - Reprocessamento de falhas
-# - Consulta de status das campanhas
+# Integra-se com o database.py (PyMySQL)
 # ================================================
 
 from flask import Blueprint, request, jsonify
-from datetime import datetime, date
-from models import db, Visitante, Campanha, EnvioWhatsApp
-from utils.jwt_utils import verificar_token
+from datetime import datetime
 import logging
-import requests
+
+from utils.jwt_utils import verificar_token
+import database  # usa as funções do seu database.py
 
 bp_campanhas = Blueprint('campanhas', __name__, url_prefix='/api')
-
-# ------------------------------------------------
-# 🔧 Configurações Z-API (ajuste conforme ambiente)
-# ------------------------------------------------
-ZAPI_URL = "https://api.z-api.io/instances/YOUR_INSTANCE/token/YOUR_TOKEN/send-messages"
-ZAPI_INSTANCE = "YOUR_INSTANCE"
-ZAPI_TOKEN = "YOUR_TOKEN"
-
 logger = logging.getLogger("campanhas")
-logger.setLevel(logging.INFO)
-
-
-# ------------------------------------------------
-# 🧩 Função auxiliar: cálculo de idade
-# ------------------------------------------------
-def calcular_idade(data_nascimento):
-    if not data_nascimento:
-        return None
-    hoje = date.today()
-    return hoje.year - data_nascimento.year - (
-        (hoje.month, hoje.day) < (data_nascimento.month, data_nascimento.day)
-    )
 
 
 # ------------------------------------------------
@@ -49,43 +23,42 @@ def calcular_idade(data_nascimento):
 @verificar_token
 def filtrar_visitantes(usuario_atual):
     try:
-        data = request.get_json()
-        data_inicio = datetime.strptime(data['dataInicio'], "%Y-%m-%d").date()
-        data_fim = datetime.strptime(data['dataFim'], "%Y-%m-%d").date()
-        idade_min = data.get('idadeMin')
-        idade_max = data.get('idadeMax')
-        genero = data.get('genero')
+        filtros = request.get_json()
+        data_inicio = filtros.get("dataInicio")
+        data_fim = filtros.get("dataFim")
+        idade_min = filtros.get("idadeMin")
+        idade_max = filtros.get("idadeMax")
+        genero = filtros.get("genero")
 
-        query = Visitante.query.filter(
-            Visitante.data_cadastro.between(data_inicio, data_fim)
+        visitantes = database.filtrar_visitantes_para_evento(
+            data_inicio, data_fim, idade_min, idade_max, genero
         )
-
-        if genero:
-            query = query.filter(Visitante.genero == genero)
-
-        visitantes = query.all()
 
         resultado = []
         for v in visitantes:
-            idade = calcular_idade(v.data_nascimento)
-            if idade_min and idade < int(idade_min):
-                continue
-            if idade_max and idade > int(idade_max):
-                continue
+            # calcula idade se houver data de nascimento
+            idade = None
+            if v.get("data_nascimento"):
+                nasc = v["data_nascimento"]
+                if isinstance(nasc, datetime):
+                    idade = datetime.now().year - nasc.year - (
+                        (datetime.now().month, datetime.now().day) < (nasc.month, nasc.day)
+                    )
 
             resultado.append({
-                "nome": v.nome,
-                "genero": v.genero,
+                "id": v["id"],
+                "nome": v["nome"],
+                "telefone": v["telefone"],
+                "genero": v["genero"],
                 "idade": idade,
-                "telefone": v.telefone,
-                "data_cadastro": v.data_cadastro.strftime("%d/%m/%Y")
+                "data_cadastro": v["data_cadastro"].strftime("%d/%m/%Y") if v.get("data_cadastro") else "-"
             })
 
-        return jsonify({"visitantes": resultado})
+        return jsonify({"visitantes": resultado}), 200
 
     except Exception as e:
-        logger.error(f"Erro no filtro de visitantes: {e}")
-        return jsonify({"error": "Falha ao processar filtros"}), 500
+        logger.exception(f"❌ Erro ao filtrar visitantes: {e}")
+        return jsonify({"error": "Erro ao filtrar visitantes"}), 500
 
 
 # ------------------------------------------------
@@ -100,62 +73,30 @@ def enviar_campanha(usuario_atual):
         mensagem = data.get("mensagem")
         imagem = data.get("imagem")
 
-        # Cria registro de campanha
-        campanha = Campanha(
-            nome_evento=nome_evento,
-            mensagem=mensagem,
-            imagem=imagem,
-            criado_por=usuario_atual,
-            data_envio=datetime.now()
-        )
-        db.session.add(campanha)
-        db.session.commit()
-
-        # Busca visitantes ativos (poderia vir dos filtros também)
-        visitantes = Visitante.query.all()
-        enviados, falhas = 0, 0
+        visitantes = database.filtrar_visitantes_para_evento()  # pega todos ou filtrados
+        enviados = 0
+        falhas = 0
 
         for v in visitantes:
-            try:
-                payload = {
-                    "phone": v.telefone,
-                    "message": f"📢 {mensagem}",
-                    "image": imagem
-                }
-
-                # Exemplo: envio real (pode ser desativado em dev)
-                # requests.post(ZAPI_URL, json=payload, timeout=10)
-
+            ok = database.salvar_envio_evento(
+                visitante_id=v["id"],
+                evento_nome=nome_evento,
+                mensagem=mensagem,
+                imagem_url=imagem,
+                status="pendente",
+                origem="integra+"
+            )
+            if ok:
                 enviados += 1
-                envio = EnvioWhatsApp(
-                    visitante_id=v.id,
-                    campanha_id=campanha.id,
-                    status="enviado",
-                    data_envio=datetime.now()
-                )
-                db.session.add(envio)
-            except Exception as e:
+            else:
                 falhas += 1
-                envio = EnvioWhatsApp(
-                    visitante_id=v.id,
-                    campanha_id=campanha.id,
-                    status="falha",
-                    data_envio=datetime.now()
-                )
-                db.session.add(envio)
-                logger.error(f"Falha no envio para {v.telefone}: {e}")
 
-        campanha.status = "finalizada"
-        campanha.enviados = enviados
-        campanha.falhas = falhas
-        db.session.commit()
-
-        logger.info(f"Campanha '{nome_evento}' enviada: {enviados} enviados, {falhas} falhas.")
-        return jsonify({"message": f"Campanha '{nome_evento}' enviada com sucesso!"})
+        logger.info(f"📢 Campanha '{nome_evento}' registrada: {enviados} enviados, {falhas} falhas.")
+        return jsonify({"message": f"Campanha '{nome_evento}' enviada com sucesso!", "enviados": enviados, "falhas": falhas}), 200
 
     except Exception as e:
-        logger.error(f"Erro ao enviar campanha: {e}")
-        return jsonify({"error": "Falha ao enviar campanha"}), 500
+        logger.exception(f"Erro ao enviar campanha: {e}")
+        return jsonify({"error": "Erro ao enviar campanha"}), 500
 
 
 # ------------------------------------------------
@@ -165,37 +106,26 @@ def enviar_campanha(usuario_atual):
 @verificar_token
 def reprocessar_falhas(usuario_atual):
     try:
-        ultima_campanha = Campanha.query.order_by(Campanha.id.desc()).first()
-        if not ultima_campanha:
-            return jsonify({"message": "Nenhuma campanha encontrada."})
-
-        falhas = EnvioWhatsApp.query.filter_by(
-            campanha_id=ultima_campanha.id,
-            status="falha"
-        ).all()
-
+        envios = database.listar_envios_eventos(limit=200)
+        falhas = [e for e in envios if e["status"] == "falha"]
         reprocessados = 0
-        for envio in falhas:
-            visitante = Visitante.query.get(envio.visitante_id)
-            if not visitante:
-                continue
-            try:
-                payload = {
-                    "phone": visitante.telefone,
-                    "message": ultima_campanha.mensagem,
-                    "image": ultima_campanha.imagem
-                }
-                # requests.post(ZAPI_URL, json=payload, timeout=10)
-                envio.status = "reprocessado"
-                reprocessados += 1
-            except Exception as e:
-                logger.error(f"Erro ao reprocessar {visitante.telefone}: {e}")
 
-        db.session.commit()
-        return jsonify({"message": f"🔄 {reprocessados} falhas reprocessadas com sucesso."})
+        for f in falhas:
+            ok = database.salvar_envio_evento(
+                visitante_id=f["id"],
+                evento_nome=f["evento_nome"],
+                mensagem=f["mensagem"],
+                imagem_url=f["imagem_url"],
+                status="reprocessado",
+                origem=f.get("origem", "integra+")
+            )
+            if ok:
+                reprocessados += 1
+
+        return jsonify({"message": f"🔄 {reprocessados} falhas reprocessadas com sucesso."}), 200
 
     except Exception as e:
-        logger.error(f"Erro ao reprocessar falhas: {e}")
+        logger.exception(f"Erro ao reprocessar falhas: {e}")
         return jsonify({"error": "Falha ao reprocessar"}), 500
 
 
@@ -206,18 +136,22 @@ def reprocessar_falhas(usuario_atual):
 @verificar_token
 def status_campanhas(usuario_atual):
     try:
-        campanhas = Campanha.query.order_by(Campanha.data_envio.desc()).limit(10).all()
+        envios = database.listar_envios_eventos(limit=100)
+        if not envios:
+            return jsonify({"status": []}), 200
+
         resultado = []
-        for c in campanhas:
+        for e in envios:
             resultado.append({
-                "data_envio": c.data_envio.strftime("%d/%m/%Y %H:%M"),
-                "nome_evento": c.nome_evento,
-                "enviados": c.enviados or 0,
-                "falhas": c.falhas or 0,
-                "status": c.status
+                "data_envio": e["data_envio"].strftime("%d/%m/%Y %H:%M") if e["data_envio"] else "-",
+                "nome_evento": e["evento_nome"],
+                "enviados": "-",  # pode ser adicionado se quiser agregar
+                "falhas": "-",
+                "status": e["status"]
             })
-        return jsonify({"status": resultado})
+
+        return jsonify({"status": resultado}), 200
 
     except Exception as e:
-        logger.error(f"Erro ao obter status: {e}")
+        logger.exception(f"Erro ao obter status de campanhas: {e}")
         return jsonify({"error": "Falha ao carregar status"}), 500
