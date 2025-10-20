@@ -217,23 +217,33 @@
     return status;
   }
   
+  // -----------------------------------------------------------
+  // 🧹 LIMPAR HISTÓRICO DE CAMPANHAS
+  // -----------------------------------------------------------
   async function limparStatus() {
-    if (!confirm("🧹 Deseja limpar todos os registros de campanhas?")) return;
+    if (!confirm("Tem certeza que deseja limpar o histórico de campanhas?")) return;
   
     try {
       const resp = await fetch(`${API_BASE_URL}/api/campanhas/limpar`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('jwt_token')}` }
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem('jwt_token')}`
+        }
       });
+  
       const data = await resp.json();
-      alert(data.message || 'Histórico limpo!');
+      alert(data.message || "🧹 Histórico de campanhas limpo com sucesso!");
       carregarStatus();
     } catch (err) {
-      console.error('Erro ao limpar status:', err);
-      alert('Erro ao limpar histórico.');
+      console.error("Erro ao limpar histórico:", err);
+      alert("❌ Falha ao limpar histórico de campanhas.");
     }
   }
+  
+  // expõe para o HTML
+  window.limparStatus = limparStatus;
 
+  
   // -----------------------------------------------------------
   // 🔗 Expõe funções globais usadas no HTML
   // -----------------------------------------------------------
