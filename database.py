@@ -990,6 +990,24 @@ def salvar_envio_evento(
         logging.error(f"Erro ao salvar envio de evento: {e}")
         return False
 
+def atualizar_status_envio_evento(visitante_id, evento_nome, novo_status):
+    """Atualiza o status de um envio específico."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE eventos_envios
+            SET status = %s, data_envio = NOW()
+            WHERE visitante_id = %s AND evento_nome = %s
+        """, (novo_status, visitante_id, evento_nome))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logging.debug(f"🟢 Status atualizado para {novo_status} ({visitante_id} - {evento_nome})")
+        return True
+    except Exception as e:
+        logging.error(f"Erro ao atualizar status do envio: {e}")
+        return False
 
 def listar_envios_eventos(limit=100, origem: str = None):
     """Lista os últimos envios de eventos/campanhas, opcionalmente filtrando por origem."""
