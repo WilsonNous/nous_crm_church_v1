@@ -2,16 +2,14 @@
 # routes/campanhas.py
 # ================================================
 # 📢 Rotas de Campanhas e Eventos - CRM Church
-# Integra-se com database.py (PyMySQL)
+# Integra-se com database.py e servicos/zapi_cliente.py
 # ================================================
 
-from servicos import zapi_cliente
-from concurrent.futures import ThreadPoolExecutor
-import requests
 import logging
-import database
 from flask import request, jsonify
 from datetime import datetime
+import database
+from servicos.fila_envio import adicionar_na_fila
 
 def register(app):
 
@@ -59,7 +57,7 @@ def register(app):
 
 
     # ------------------------------------------------
-    # 📢 2. Enviar Campanha
+    # 📢 2. Enviar Campanha (com fila controlada)
     # ------------------------------------------------
     @app.route('/api/campanhas/enviar', methods=['POST'])
     def enviar_campanha():
@@ -68,13 +66,13 @@ def register(app):
             nome_evento = data.get("nome_evento")
             mensagem = data.get("mensagem")
             imagem = data.get("imagem")
-    
+
             data_inicio = data.get("dataInicio")
             data_fim = data.get("dataFim")
             idade_min = data.get("idadeMin")
             idade_max = data.get("idadeMax")
             genero = data.get("genero")
-    
+
             visitantes = database.filtrar_visitantes_para_evento(
                 data_inicio=data_inicio,
                 data_fim=data_fim,
@@ -82,63 +80,52 @@ def register(app):
                 idade_max=idade_max,
                 genero=genero
             )
-    
+
             if not visitantes:
                 return jsonify({"message": "Nenhum visitante encontrado para envio."}), 200
-    
+
             enviados, falhas = 0, 0
-    
-            # ======================================================
-            # 🔹 Função interna de envio individual
-            # ======================================================
-            def processar_envio(v):
+
+            for v in visitantes:
                 visitante_id = v["id"]
                 telefone = v.get("telefone")
                 nome = v.get("nome")
-    
-                # Registrar no banco como pendente
-                database.salvar_envio_evento(
-                    visitante_id=visitante_id,
-                    evento_nome=nome_evento,
-                    mensagem=mensagem,
-                    imagem_url=imagem,
-                    status="pendente",
-                    origem="integra+"
-                )
-    
-                if not telefone:
-                    database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                    logging.warning(f"⚠️ Visitante sem telefone: {nome}")
-                    return ("falha", telefone)
-    
+
                 try:
-                    # Envio via Z-API (padronizado)
-                    zapi_cliente.enviar_mensagem(telefone, mensagem, imagem_url=imagem)
+                    # Registra como pendente
+                    database.salvar_envio_evento(
+                        visitante_id=visitante_id,
+                        evento_nome=nome_evento,
+                        mensagem=mensagem,
+                        imagem_url=imagem,
+                        status="pendente",
+                        origem="integra+"
+                    )
+
+                    if not telefone:
+                        database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
+                        logging.warning(f"⚠️ Visitante sem telefone: {nome}")
+                        falhas += 1
+                        continue
+
+                    # 🔹 Adiciona mensagem na fila (envio sequencial)
+                    adicionar_na_fila(telefone, mensagem, imagem)
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "enviado")
-                    logging.info(f"✅ Enviado: {telefone} ({nome})")
-                    return ("enviado", telefone)
+                    logging.info(f"📬 Visitante {nome} adicionado à fila de envio.")
+                    enviados += 1
+
                 except Exception as e:
+                    falhas += 1
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                    logging.error(f"❌ Erro ao enviar para {telefone}: {e}")
-                    return ("falha", telefone)
-    
-            # ======================================================
-            # 🚀 ThreadPoolExecutor para envios simultâneos
-            # ======================================================
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                results = list(executor.map(processar_envio, visitantes))
-    
-            # Contagem final
-            enviados = sum(1 for r, _ in results if r == "enviado")
-            falhas = sum(1 for r, _ in results if r == "falha")
-    
-            logging.info(f"📢 Campanha '{nome_evento}' finalizada → {enviados} enviados, {falhas} falhas.")
+                    logging.error(f"❌ Erro ao processar visitante {nome}: {e}")
+
+            logging.info(f"📢 Campanha '{nome_evento}' concluída → {enviados} enviados, {falhas} falhas.")
             return jsonify({
-                "message": f"📢 Campanha '{nome_evento}' concluída com {enviados} enviados e {falhas} falhas.",
+                "message": f"📢 Campanha '{nome_evento}' concluída: {enviados} enviados, {falhas} falhas.",
                 "enviados": enviados,
                 "falhas": falhas
             }), 200
-    
+
         except Exception as e:
             logging.exception(f"Erro geral ao enviar campanha: {e}")
             return jsonify({"error": "Erro ao enviar campanha"}), 500
@@ -155,19 +142,11 @@ def register(app):
             reprocessados = 0
 
             for f in falhas:
-                ok = database.salvar_envio_evento(
-                    visitante_id=f["id"],
-                    evento_nome=f["evento_nome"],
-                    mensagem=f["mensagem"],
-                    imagem_url=f["imagem_url"],
-                    status="reprocessado",
-                    origem=f.get("origem", "integra+")
-                )
-                if ok:
-                    reprocessados += 1
+                adicionar_na_fila(f["telefone"], f["mensagem"], f["imagem_url"])
+                reprocessados += 1
 
             return jsonify({
-                "message": f"🔄 {reprocessados} falhas reprocessadas com sucesso."
+                "message": f"🔄 {reprocessados} mensagens com falha reprocessadas via fila."
             }), 200
 
         except Exception as e:
@@ -184,7 +163,7 @@ def register(app):
             campanhas = database.obter_resumo_campanhas(limit=100)
             if not campanhas:
                 return jsonify({"status": []}), 200
-    
+
             resultado = []
             for c in campanhas:
                 resultado.append({
@@ -198,9 +177,10 @@ def register(app):
                         else "⚠️ Parcial"
                     )
                 })
-    
+
+            logging.info(f"📊 {len(resultado)} campanhas resumidas com sucesso.")
             return jsonify({"status": resultado}), 200
-    
+
         except Exception as e:
             logging.exception(f"Erro ao obter status de campanhas: {e}")
             return jsonify({"error": "Falha ao carregar status"}), 500
@@ -220,4 +200,3 @@ def register(app):
         except Exception as e:
             logging.exception(f"Erro ao limpar histórico: {e}")
             return jsonify({"error": "Falha ao limpar histórico"}), 500
-
