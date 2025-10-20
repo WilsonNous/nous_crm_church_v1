@@ -36,9 +36,9 @@ routes_ok = False
 routes_error = None
 try:
     from routes import register_routes
-    from routes.campanhas import bp_campanhas  # 👈 Adicionado
+    from routes import campanhas  # 👈 importa o módulo inteiro
     register_routes(app)
-    app.register_blueprint(bp_campanhas)      # 👈 Adicionado
+    campanhas.register(app)       # 👈 chama a função register(app)
     routes_ok = True
     logging.info("✅ Rotas API registradas com sucesso.")
 except Exception as e:
