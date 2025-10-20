@@ -85,35 +85,46 @@
   // 📢 ENVIAR CAMPANHA
   // -----------------------------------------------------------
   async function enviarCampanha(event) {
-    event.preventDefault();
-    const form = event.target;
+  event.preventDefault();
+  const form = event.target;
 
-    const payload = {
-      nome_evento: form.eventoNome.value,
-      mensagem: form.mensagemEvento.value,
-      imagem: form.imagemUrl.value
-    };
+  // Coleta filtros ativos na tela
+  const filtroForm = document.getElementById('filtroVisitantesForm');
+  const filtros = {
+    dataInicio: filtroForm.dataInicio.value,
+    dataFim: filtroForm.dataFim.value,
+    idadeMin: filtroForm.idadeMin.value || null,
+    idadeMax: filtroForm.idadeMax.value || null,
+    genero: filtroForm.genero.value || null,
+  };
 
-    if (!confirm(`Deseja enviar a campanha "${payload.nome_evento}"?`)) return;
+  const payload = {
+    nome_evento: form.eventoNome.value,
+    mensagem: form.mensagemEvento.value,
+    imagem: form.imagemUrl.value,
+    ...filtros // ✅ junta filtros no payload
+  };
 
-    try {
-      const resp = await fetch(`${API_BASE_URL}/api/campanhas/enviar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
-        },
-        body: JSON.stringify(payload)
-      });
+  if (!confirm(`Deseja enviar a campanha "${payload.nome_evento}"?`)) return;
 
-      const data = await resp.json();
-      alert(data.message || '✅ Campanha enviada com sucesso!');
-      carregarStatus();
-    } catch (err) {
-      console.error('Erro ao enviar campanha:', err);
-      alert('❌ Erro ao enviar campanha.');
-    }
+  try {
+    const resp = await fetch(`${API_BASE_URL}/api/campanhas/enviar`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await resp.json();
+    alert(data.message || '✅ Campanha enviada com sucesso!');
+    carregarStatus();
+  } catch (err) {
+    console.error('Erro ao enviar campanha:', err);
+    alert('❌ Erro ao enviar campanha.');
   }
+}
 
   // -----------------------------------------------------------
   // 🔄 REPROCESSAR FALHAS
