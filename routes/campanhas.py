@@ -61,15 +61,37 @@ def register(app):
     @app.route('/api/campanhas/enviar', methods=['POST'])
     def enviar_campanha():
         try:
-            data = request.get_json()
+            data = request.get_json() or {}
             nome_evento = data.get("nome_evento")
             mensagem = data.get("mensagem")
             imagem = data.get("imagem")
-
-            visitantes = database.filtrar_visitantes_para_evento()
+    
+            if not nome_evento or not mensagem:
+                return jsonify({"error": "Nome do evento e mensagem são obrigatórios."}), 400
+    
+            # ✅ captura filtros do payload
+            data_inicio = data.get("dataInicio")
+            data_fim = data.get("dataFim")
+            idade_min = data.get("idadeMin")
+            idade_max = data.get("idadeMax")
+            genero = data.get("genero")
+    
+            # ✅ aplica filtros corretamente
+            visitantes = database.filtrar_visitantes_para_evento(
+                data_inicio=data_inicio,
+                data_fim=data_fim,
+                idade_min=idade_min,
+                idade_max=idade_max,
+                genero=genero
+            )
+    
+            if not visitantes:
+                logging.info(f"📭 Nenhum visitante encontrado para envio do evento '{nome_evento}'")
+                return jsonify({"message": "Nenhum visitante encontrado para envio."}), 200
+    
             enviados = 0
             falhas = 0
-
+    
             for v in visitantes:
                 ok = database.salvar_envio_evento(
                     visitante_id=v["id"],
@@ -83,17 +105,19 @@ def register(app):
                     enviados += 1
                 else:
                     falhas += 1
-
-            logging.info(f"📢 Campanha '{nome_evento}' registrada: {enviados} enviados, {falhas} falhas.")
+    
+            logging.info(f"📢 Campanha '{nome_evento}' concluída: {enviados} enviados, {falhas} falhas.")
             return jsonify({
-                "message": f"Campanha '{nome_evento}' enviada com sucesso!",
+                "message": f"Campanha '{nome_evento}' registrada com sucesso!",
                 "enviados": enviados,
                 "falhas": falhas
             }), 200
-
+    
         except Exception as e:
-            logging.exception(f"Erro ao enviar campanha: {e}")
-            return jsonify({"error": "Erro ao enviar campanha"}), 500
+            import traceback
+            logging.error(f"❌ Erro ao enviar campanha: {e}\n{traceback.format_exc()}")
+            return jsonify({"error": str(e)}), 500
+
 
 
     # ------------------------------------------------
