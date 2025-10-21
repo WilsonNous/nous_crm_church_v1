@@ -24,11 +24,24 @@ def register(app):
             if not conn:
                 raise Exception("get_db_connection() retornou None")
     
-            cursor = conn.cursor()
+            cursor = conn.cursor()  # mantém DictCursor, se padrão
             cursor.execute("SELECT id, user_id, question, created_at FROM unknown_questions WHERE status='pending'")
             rows = cursor.fetchall()
-            perguntas = [{"id": r[0], "user_id": r[1], "question": r[2], "created_at": r[3]} for r in rows]
-            cursor.close(); conn.close()
+            logging.info(f"🧠 Resultado bruto: {rows[:2]}")  # para confirmar formato
+    
+            # ✅ Usa chaves, pois DictCursor retorna dicts
+            perguntas = [
+                {
+                    "id": r["id"],
+                    "user_id": r["user_id"],
+                    "question": r["question"],
+                    "created_at": r["created_at"]
+                } for r in rows
+            ]
+    
+            cursor.close()
+            conn.close()
+    
             logging.info(f"✅ Total perguntas: {len(perguntas)}")
             return jsonify({"questions": perguntas}), 200
     
