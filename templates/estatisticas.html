@@ -21,11 +21,8 @@
 
   <main id="mainContent">
     <section id="statisticsContainer">
-      <h2>Visão Geral das Estatísticas</h2>
-
-      <!-- 🔹 Filtro -->
       <div id="filtroPeriodo">
-        <label for="periodoSelect">Filtrar por período:</label>
+        <label for="periodoSelect">📅 Filtrar por período:</label>
         <select id="periodoSelect">
           <option value="3">Últimos 3 meses</option>
           <option value="6" selected>Últimos 6 meses</option>
@@ -34,28 +31,29 @@
         </select>
       </div>
 
-      <!-- 🔹 Gráficos principais -->
-      <div class="info-row">
-        <div class="info-card" id="evolucaoMensal">
+      <!-- 🔹 Gráficos Principais -->
+      <h2>📈 Indicadores Gerais</h2>
+      <div class="grid-2">
+        <div class="info-card">
           <h3>Evolução Mensal dos Cadastros</h3>
           <canvas id="graficoMensal"></canvas>
         </div>
-        <div class="info-card" id="origemCadastro">
+        <div class="info-card">
           <h3>Origem dos Cadastros</h3>
           <canvas id="graficoOrigem"></canvas>
         </div>
       </div>
 
-      <div class="info-row">
-        <div class="info-card" id="graficoFaseCard">
+      <div class="grid-1">
+        <div class="info-card">
           <h3>Distribuição por Fase / Status</h3>
           <canvas id="graficoFases"></canvas>
         </div>
       </div>
 
-      <!-- 🔹 Demografia -->
-      <h2>Perfil Demográfico</h2>
-      <div class="info-row">
+      <!-- 🔹 Perfil Demográfico -->
+      <h2>👥 Perfil Demográfico</h2>
+      <div class="grid-3">
         <div class="info-card" id="idadeMedia">
           <h3>Idade Média e Faixas Etárias</h3>
           <p>Carregando...</p>
@@ -71,14 +69,14 @@
       </div>
 
       <!-- 🔹 Totais -->
-      <h2>Resumo Numérico</h2>
-      <div class="info-row">
+      <h2>📊 Resumo Numérico</h2>
+      <div class="grid-3">
         <div class="info-card" id="totalVisitantesInicio">
           <h3>Visitantes na Fase INÍCIO</h3>
           <p>Carregando...</p>
         </div>
         <div class="info-card" id="discipuladosAtivos">
-          <h3>Visitantes em Discipulado</h3>
+          <h3>Em Discipulado</h3>
           <p>Carregando...</p>
         </div>
         <div class="info-card" id="totalPedidosOracao">
@@ -87,26 +85,26 @@
         </div>
       </div>
 
-      <div class="info-row">
+      <div class="grid-3">
         <div class="info-card" id="totalHomens">
-          <h3>Visitantes Homens</h3>
+          <h3>Homens</h3>
           <p>Carregando...</p>
         </div>
         <div class="info-card" id="totalMulheres">
-          <h3>Visitantes Mulheres</h3>
+          <h3>Mulheres</h3>
           <p>Carregando...</p>
         </div>
         <div class="info-card" id="conversasEnviadasRecebidas">
-          <h3>Conversas Enviadas/Recebidas</h3>
+          <h3>Conversas</h3>
           <p>Carregando...</p>
         </div>
       </div>
     </section>
 
     <!-- MENU -->
-    <div style="text-align:center;margin-top:40px;">
+    <section id="menuLinks">
       <h3>Acessar Outros Módulos</h3>
-      <div style="margin-top:15px;">
+      <div class="menu-buttons">
         <button onclick="window.location.href='/app/visitantes'" class="btn-primary">👤 Visitantes</button>
         <button onclick="window.location.href='/app/membros'" class="btn-tertiary">👥 Membros</button>
         <button onclick="window.location.href='/app/acolhidos'" class="btn-quaternary">💬 Acolhidos</button>
@@ -114,11 +112,11 @@
         <button onclick="window.location.href='/app/campanhas'" class="btn-warning">📣 Campanhas</button>
         <button onclick="window.location.href='/app/menu'" class="btn-secondary">⬅ Voltar ao Menu</button>
       </div>
-    </div>
+    </section>
   </main>
 
   <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.4</p>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.5</p>
   </footer>
 </body>
 </html>
