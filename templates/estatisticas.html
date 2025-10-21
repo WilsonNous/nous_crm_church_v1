@@ -34,60 +34,71 @@
         </select>
       </div>
 
-      <div id="infoCardsContainer" class="info-cards">
-        <!-- Linha 1 -->
-        <div class="info-row">
-          <div class="info-card" id="totalVisitantesInicio">
-            <h3>Visitantes na Fase INÍCIO</h3>
-            <p>Carregando...</p>
-            <span class="kpi-change" id="kpiInicio"></span>
-          </div>
-          <div class="info-card" id="discipuladosAtivos">
-            <h3>Visitantes em Discipulado</h3>
-            <p>Carregando...</p>
-            <span class="kpi-change" id="kpiDiscipulado"></span>
-          </div>
-          <div class="info-card" id="totalPedidosOracao">
-            <h3>Pedidos de Oração</h3>
-            <p>Carregando...</p>
-            <span class="kpi-change" id="kpiOracao"></span>
-          </div>
+      <!-- 🔹 Gráficos principais -->
+      <div class="info-row">
+        <div class="info-card" id="evolucaoMensal">
+          <h3>Evolução Mensal dos Cadastros</h3>
+          <canvas id="graficoMensal"></canvas>
         </div>
-
-        <!-- Linha 2 -->
-        <div class="info-row">
-          <div class="info-card" id="totalHomens">
-            <h3>Visitantes Homens</h3>
-            <p>Carregando...</p>
-          </div>
-          <div class="info-card" id="totalMulheres">
-            <h3>Visitantes Mulheres</h3>
-            <p>Carregando...</p>
-          </div>
-          <div class="info-card" id="conversasEnviadasRecebidas">
-            <h3>Conversas Enviadas/Recebidas</h3>
-            <p>Carregando...</p>
-          </div>
+        <div class="info-card" id="origemCadastro">
+          <h3>Origem dos Cadastros</h3>
+          <canvas id="graficoOrigem"></canvas>
         </div>
+      </div>
 
-        <!-- Linha 3 -->
-        <div class="info-row">
-          <div class="info-card" id="evolucaoMensal">
-            <h3>Evolução Mensal dos Cadastros</h3>
-            <canvas id="graficoMensal"></canvas>
-          </div>
-          <div class="info-card" id="origemCadastro">
-            <h3>Origem dos Cadastros</h3>
-            <canvas id="graficoOrigem"></canvas>
-          </div>
+      <div class="info-row">
+        <div class="info-card" id="graficoFaseCard">
+          <h3>Distribuição por Fase / Status</h3>
+          <canvas id="graficoFases"></canvas>
         </div>
+      </div>
 
-        <!-- Linha 4 -->
-        <div class="info-row">
-          <div class="info-card" id="graficoFaseCard">
-            <h3>Distribuição por Fase / Status</h3>
-            <canvas id="graficoFases"></canvas>
-          </div>
+      <!-- 🔹 Demografia -->
+      <h2>Perfil Demográfico</h2>
+      <div class="info-row">
+        <div class="info-card" id="idadeMedia">
+          <h3>Idade Média e Faixas Etárias</h3>
+          <p>Carregando...</p>
+        </div>
+        <div class="info-card">
+          <h3>Distribuição por Estado Civil</h3>
+          <canvas id="graficoEstadoCivil"></canvas>
+        </div>
+        <div class="info-card">
+          <h3>Principais Cidades</h3>
+          <canvas id="graficoCidades"></canvas>
+        </div>
+      </div>
+
+      <!-- 🔹 Totais -->
+      <h2>Resumo Numérico</h2>
+      <div class="info-row">
+        <div class="info-card" id="totalVisitantesInicio">
+          <h3>Visitantes na Fase INÍCIO</h3>
+          <p>Carregando...</p>
+        </div>
+        <div class="info-card" id="discipuladosAtivos">
+          <h3>Visitantes em Discipulado</h3>
+          <p>Carregando...</p>
+        </div>
+        <div class="info-card" id="totalPedidosOracao">
+          <h3>Pedidos de Oração</h3>
+          <p>Carregando...</p>
+        </div>
+      </div>
+
+      <div class="info-row">
+        <div class="info-card" id="totalHomens">
+          <h3>Visitantes Homens</h3>
+          <p>Carregando...</p>
+        </div>
+        <div class="info-card" id="totalMulheres">
+          <h3>Visitantes Mulheres</h3>
+          <p>Carregando...</p>
+        </div>
+        <div class="info-card" id="conversasEnviadasRecebidas">
+          <h3>Conversas Enviadas/Recebidas</h3>
+          <p>Carregando...</p>
         </div>
       </div>
     </section>
@@ -107,7 +118,7 @@
   </main>
 
   <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.2</p>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.4</p>
   </footer>
 </body>
 </html>
