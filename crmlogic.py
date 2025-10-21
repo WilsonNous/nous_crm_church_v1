@@ -37,8 +37,10 @@ routes_error = None
 try:
     from routes import register_routes
     from routes import campanhas  # 👈 importa o módulo inteiro
+    from routes import app_monitor
     register_routes(app)
     campanhas.register(app)       # 👈 chama a função register(app)
+    app_monitor.register(app)
     routes_ok = True
     logging.info("✅ Rotas API registradas com sucesso.")
 except Exception as e:
