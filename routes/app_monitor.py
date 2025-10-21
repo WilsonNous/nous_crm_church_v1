@@ -4,12 +4,12 @@ from database import get_db_connection
 
 def register(app):
 
-    # 🔹 Página principal do painel de monitoramento
+    # Página principal do painel de monitoramento
     @app.route('/app/monitor')
     def app_monitor_page():
         return render_template('app_monitor.html')
 
-    # 🔹 Endpoint: listar visitantes
+    # Endpoint: listar visitantes
     @app.route('/api/monitor/visitantes', methods=['GET'])
     def monitor_visitantes():
         try:
@@ -23,7 +23,7 @@ def register(app):
             logging.error(f"Erro em /api/monitor/visitantes: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
 
-    # 🔹 Endpoint: listar conversas por visitante
+    # Endpoint: listar conversas por visitante
     @app.route('/api/monitor/conversas/<int:visitante_id>', methods=['GET'])
     def monitor_conversas_visitante(visitante_id):
         try:
