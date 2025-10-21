@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Monitor de Conversas - Integra+</title>
+  <link rel="stylesheet" href="/static/main.css">
+  <style>
+    body { font-family: Arial; background: #f8f9fb; }
+    .container { max-width: 1100px; margin: 30px auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h2 { color: #1E4D8F; margin-bottom: 15px; }
+    .chat-area { border: 1px solid #ddd; border-radius: 10px; padding: 10px; max-height: 500px; overflow-y: auto; background: #fefefe; }
+    .msg { padding: 10px 14px; border-radius: 12px; margin: 8px 0; max-width: 75%; }
+    .msg.bot { background: #e0f7fa; margin-left: auto; text-align: right; }
+    .msg.user { background: #fff8e1; margin-right: auto; }
+    .msg small { display: block; font-size: 0.8em; color: #666; margin-top: 4px; }
+    .form-envio { display: flex; gap: 10px; margin-top: 20px; }
+    .form-envio input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ccc; }
+    .form-envio button { background: #1E4D8F; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; }
+    .form-envio button:hover { background: #163b6a; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>📡 Painel de Conversas - Integra+</h2>
+
+    <div>
+      <label for="visitanteSelect"><strong>Selecione o Visitante:</strong></label>
+      <select id="visitanteSelect" onchange="carregarConversas()"></select>
+    </div>
+
+    <div id="chatArea" class="chat-area"></div>
+
+    <form class="form-envio" onsubmit="enviarMensagemManual(event)">
+      <input id="mensagemInput" type="text" placeholder="Digite sua mensagem pastoral..." required>
+      <button type="submit">Enviar ✉️</button>
+    </form>
+  </div>
+
+  <script>
+    async function carregarVisitantes() {
+      const res = await fetch('/api/get-visitors');
+      const data = await res.json();
+      const select = document.getElementById('visitanteSelect');
+      data.visitors.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = `${v.name} (${v.phone})`;
+        select.appendChild(opt);
+      });
+    }
+
+    async function carregarConversas() {
+      const visitanteId = document.getElementById('visitanteSelect').value;
+      if (!visitanteId) return;
+      const res = await fetch(`/api/conversas/${visitanteId}`);
+      const data = await res.json();
+      const area = document.getElementById('chatArea');
+      area.innerHTML = '';
+
+      if (data.status === 'success') {
+        data.conversas.forEach(c => {
+          const msg = document.createElement('div');
+          msg.classList.add('msg', c.tipo === 'enviada' ? 'bot' : 'user');
+          msg.innerHTML = `<p>${c.mensagem}</p><small>${c.autor} • ${new Date(c.data_hora).toLocaleString('pt-BR')}</small>`;
+          area.appendChild(msg);
+        });
+        area.scrollTop = area.scrollHeight;
+      }
+    }
+
+    async function enviarMensagemManual(e) {
+      e.preventDefault();
+      const visitanteSelect = document.getElementById('visitanteSelect');
+      const visitanteId = visitanteSelect.value;
+      const numero = visitanteSelect.options[visitanteSelect.selectedIndex].text.match(/\((.*?)\)/)[1];
+      const mensagem = document.getElementById('mensagemInput').value;
+
+      const res = await fetch('/api/send-message-manual', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ numero, mensagem })
+      });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('mensagemInput').value = '';
+        carregarConversas();
+      } else {
+        alert('Erro ao enviar: ' + data.error);
+      }
+    }
+
+    carregarVisitantes();
+  </script>
+</body>
+</html>
