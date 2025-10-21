@@ -18,15 +18,18 @@ def register(app):
     @app.route('/api/ia/pending-questions', methods=['GET'])
     def ia_pending_questions():
         try:
+            logging.info("🔍 Iniciando consulta em unknown_questions")
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT id, user_id, question, created_at FROM unknown_questions WHERE status='pending'")
             rows = cursor.fetchall()
-            cursor.close(); conn.close()
             perguntas = [{"id": r[0], "user_id": r[1], "question": r[2], "created_at": r[3]} for r in rows]
+            cursor.close()
+            conn.close()
+            logging.info(f"✅ Consulta concluída: {len(perguntas)} perguntas retornadas")
             return jsonify({"questions": perguntas}), 200
         except Exception as e:
-            logging.error(f"Erro em /api/ia/pending-questions: {e}")
+            logging.exception("❌ Erro em /api/ia/pending-questions:")
             return jsonify({"error": str(e)}), 500
 
     @app.route('/api/ia/teach', methods=['POST'])
