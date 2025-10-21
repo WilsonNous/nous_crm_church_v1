@@ -29,3 +29,34 @@ def register(app):
             logging.error(f"Erro em /api/ia/pending-questions: {e}")
             return jsonify({"error": str(e)}), 500
 
+    @app.route('/api/ia/teach', methods=['POST'])
+    def ia_teach():
+        try:
+            data = request.get_json()
+            question = data.get('question')
+            answer = data.get('answer')
+            category = data.get('category')
+    
+            if not all([question, answer, category]):
+                return jsonify({"error": "Campos obrigatórios ausentes."}), 400
+    
+            conn = get_db_connection()
+            cursor = conn.cursor()
+    
+            # Atualiza pergunta na base e adiciona ao conhecimento
+            cursor.execute("""
+                UPDATE unknown_questions SET status='answered' WHERE question=%s
+            """, (question,))
+            cursor.execute("""
+                INSERT INTO knowledge_base (question, answer, category, created_at)
+                VALUES (%s, %s, %s, NOW())
+            """, (question, answer, category))
+            conn.commit()
+            cursor.close()
+            conn.close()
+    
+            return jsonify({"success": True}), 200
+    
+        except Exception as e:
+            logging.error(f"Erro em /api/ia/teach: {e}")
+            return jsonify({"error": str(e)}), 500
