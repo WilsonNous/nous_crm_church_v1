@@ -6,35 +6,48 @@
   <title>📋 Monitorar Status | CRM Church</title>
   <link rel="stylesheet" href="/static/main.css" />
   <script src="/static/script.js" defer></script>
+  <style>
+    .btn-chat {
+      background: #1E4D8F;
+      color: white;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .btn-chat:hover {
+      background: #163B6A;
+    }
+  </style>
 </head>
 <body>
   <header>
     <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1>Monitoramento de Status</h1>
+    <h1>Monitoramento de Status Pastoral</h1>
   </header>
 
   <main>
     <div style="margin-bottom:16px;">
       <button class="btn-secondary" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
-      <button class="btn-primary" id="btnReload">Recarregar lista</button>
+      <button class="btn-primary" id="btnReload">🔄 Recarregar lista</button>
     </div>
 
-    <!-- Compat com showError(logContainer) do script.js -->
     <div id="logContainer" class="hidden"></div>
 
     <table id="statusTable">
       <thead>
         <tr>
-          <th>Código</th>
+          <th>ID</th>
           <th>Nome</th>
           <th>Telefone</th>
           <th>Status</th>
+          <th>Ação</th>
         </tr>
       </thead>
       <tbody id="statusList"></tbody>
       <tfoot>
         <tr>
-          <td colspan="4" style="text-align:center;">
+          <td colspan="5" style="text-align:center;">
             <button id="prevPageButton" class="btn-secondary">Anterior</button>
             <span id="statusPageIndicator" style="margin:0 12px;"></span>
             <button id="nextPageButton" class="btn-secondary">Próximo</button>
@@ -49,7 +62,6 @@
   </footer>
 
   <script>
-    // Bloqueia acesso sem login
     document.addEventListener('DOMContentLoaded', () => {
       const token = localStorage.getItem('jwt_token');
       if (!token) {
@@ -57,33 +69,43 @@
         return;
       }
 
-      // Liga paginação do script.js e carrega a lista
       if (typeof bindPagination === 'function') bindPagination();
-      if (typeof monitorStatus === 'function') {
-        monitorStatus();
-      } else {
-        // Fallback: busca direta caso script.js mude no futuro
-        fetch('/api/monitor-status')
-          .then(r => r.json())
-          .then(data => {
-            const tbody = document.getElementById('statusList');
-            tbody.innerHTML = (data || []).map(item => `
-              <tr>
-                <td>${item.id ?? ''}</td>
-                <td>${item.name ?? ''}</td>
-                <td>${item.phone ?? ''}</td>
-                <td>${item.status ?? ''}</td>
-              </tr>
-            `).join('');
-          })
-          .catch(() => {});
-      }
+      carregarStatus();
 
-      document.getElementById('btnReload')?.addEventListener('click', () => {
-        if (typeof monitorStatus === 'function') monitorStatus();
-      });
+      document.getElementById('btnReload')?.addEventListener('click', carregarStatus);
     });
+
+    async function carregarStatus() {
+      try {
+        const res = await fetch('/api/monitor-status');
+        const data = await res.json();
+        const tbody = document.getElementById('statusList');
+        tbody.innerHTML = '';
+
+        data.forEach(v => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${v.id ?? ''}</td>
+            <td>${v.name ?? ''}</td>
+            <td>${v.phone ?? ''}</td>
+            <td>${v.status ?? ''}</td>
+            <td>
+              <button class="btn-chat" onclick="abrirConversa('${v.id}')">
+                💬 Ver Conversas
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        console.error('Erro ao carregar status:', e);
+      }
+    }
+
+    function abrirConversa(visitanteId) {
+      // Redireciona com query param, para o painel de conversa já aberto
+      window.location.href = `/app/monitor?visitante=${visitanteId}`;
+    }
   </script>
 </body>
 </html>
-
