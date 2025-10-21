@@ -256,31 +256,43 @@ def salvar_conversa(numero, mensagem, tipo="recebida", sid=None, origem="integra
         return False
 
 def monitorar_status_visitantes():
-    """Retorna o status de todos os visitantes cadastrados, excluindo a fase ID 11 (Importados)."""
+    """Retorna o status mais recente de todos os visitantes cadastrados, excluindo a fase ID 11 (Importados)."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT v.id, v.nome, v.telefone, COALESCE(f.descricao, 'Cadastrado') AS fase_atual
-                FROM visitantes v 
-                LEFT JOIN status s ON v.id = s.visitante_id
-                LEFT JOIN fases f ON s.fase_id = f.id
-                WHERE f.id != 11 OR f.id IS NULL;
+                SELECT 
+                    v.id,
+                    v.nome,
+                    v.telefone,
+                    COALESCE(f.descricao, 'Cadastrado') AS fase_atual
+                FROM visitantes v
+                LEFT JOIN status s 
+                    ON s.id = (
+                        SELECT MAX(s2.id)
+                        FROM status s2
+                        WHERE s2.visitante_id = v.id
+                    )
+                LEFT JOIN fases f 
+                    ON s.fase_id = f.id
+                WHERE f.id != 11 OR f.id IS NULL
+                ORDER BY v.id DESC;
             ''')
             rows = cursor.fetchall()
 
             if not rows:
-                logging.error("Nenhum status encontrado para os visitantes.")
+                logging.warning("Nenhum status encontrado para os visitantes.")
                 return []
 
-            status_info = []
-            for row in rows:
-                status_info.append({
+            status_info = [
+                {
                     'id': row['id'],
                     'name': row['nome'],
                     'phone': row['telefone'],
                     'status': row['fase_atual'] if row['fase_atual'] else 'Cadastrado'
-                })
+                }
+                for row in rows
+            ]
 
             logging.info(f"Status de {len(status_info)} visitantes monitorados com sucesso.")
             return status_info
@@ -288,6 +300,7 @@ def monitorar_status_visitantes():
     except Exception as e:
         logging.error(f"Erro ao buscar status de visitantes no banco de dados: {e}")
         return None
+
 
 def registrar_estatistica(numero, estado_atual, proximo_estado):
     try:
