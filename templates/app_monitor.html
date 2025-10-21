@@ -70,6 +70,7 @@
   <main>
     <div style="margin-bottom:16px;">
       <button class="btn-secondary" onclick="window.location.href='/app/monitor-status'">← Voltar ao Status</button>
+      <button class="btn-secondary" onclick="window.location.href='/app/menu'">🏠 Voltar ao Menu</button>
       <button class="btn-primary" id="btnReload">🔄 Recarregar Conversas</button>
     </div>
 
@@ -95,22 +96,23 @@
   <script>
     // ========= CARREGAR VISITANTES =========
     async function carregarVisitantes() {
-      const res = await fetch('/api/get-visitors');
+      const res = await fetch('/api/monitor/visitantes');
       const data = await res.json();
       const select = document.getElementById('visitanteSelect');
       select.innerHTML = '';
-    
-      // Adapta para ambos formatos: inglês ou português
-      (data.visitors || data).forEach(v => {
-        const id = v.id || v.visitante_id || v.codigo;
-        const nome = v.name || v.nome || 'Sem nome';
-        const telefone = v.phone || v.telefone || 'Sem telefone';
+
+      if (data.status !== 'success') {
+        select.innerHTML = '<option>Erro ao carregar visitantes</option>';
+        return;
+      }
+
+      data.visitantes.forEach(v => {
         const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = `${nome} (${telefone})`;
+        opt.value = v.id;
+        opt.textContent = `${v.nome} (${v.telefone})`;
         select.appendChild(opt);
       });
-    
+
       // Se veio da rota /app/monitor?visitante=123
       const urlParams = new URLSearchParams(window.location.search);
       const visitanteId = urlParams.get('visitante');
@@ -137,7 +139,7 @@
       // Atualiza título dinâmico
       title.textContent = `💬 Conversas com ${visitanteNome.split('(')[0].trim()}`;
 
-      const res = await fetch(`/api/conversas/${visitanteId}`);
+      const res = await fetch(`/api/monitor/conversas/${visitanteId}`);
       const data = await res.json();
       area.innerHTML = '';
 
@@ -161,7 +163,6 @@
     async function enviarMensagemManual(e) {
       e.preventDefault();
       const visitanteSelect = document.getElementById('visitanteSelect');
-      const visitanteId = visitanteSelect.value;
       const numero = visitanteSelect.options[visitanteSelect.selectedIndex].text.match(/\((.*?)\)/)[1];
       const mensagem = document.getElementById('mensagemInput').value.trim();
 
