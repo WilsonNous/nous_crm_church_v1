@@ -2,7 +2,6 @@
 // ia_training.js - Módulo Integra+ IA
 // ==============================
 
-const baseUrl = 'https://nous-crm-church-v1.onrender.com';
 
 // Utilitários locais
 function $(id) { return document.getElementById(id); }
