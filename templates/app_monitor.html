@@ -99,13 +99,18 @@
       const data = await res.json();
       const select = document.getElementById('visitanteSelect');
       select.innerHTML = '';
-      data.visitors.forEach(v => {
+    
+      // Adapta para ambos formatos: inglês ou português
+      (data.visitors || data).forEach(v => {
+        const id = v.id || v.visitante_id || v.codigo;
+        const nome = v.name || v.nome || 'Sem nome';
+        const telefone = v.phone || v.telefone || 'Sem telefone';
         const opt = document.createElement('option');
-        opt.value = v.id;
-        opt.textContent = `${v.name} (${v.phone})`;
+        opt.value = id;
+        opt.textContent = `${nome} (${telefone})`;
         select.appendChild(opt);
       });
-
+    
       // Se veio da rota /app/monitor?visitante=123
       const urlParams = new URLSearchParams(window.location.search);
       const visitanteId = urlParams.get('visitante');
