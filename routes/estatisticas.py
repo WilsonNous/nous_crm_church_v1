@@ -14,28 +14,38 @@ def register(app):
             if meses > 0:
                 filtro_data = f"WHERE v.data_cadastro >= DATE_SUB(CURDATE(), INTERVAL {meses} MONTH)"
 
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COUNT(DISTINCT v.id) AS total
                 FROM visitantes v
                 JOIN status s ON v.id = s.visitante_id
                 JOIN fases f ON s.fase_id = f.id
-                WHERE f.descricao = 'INICIO';
+                {filtro_data} AND f.descricao = 'INICIO';
             """)
             inicio = cursor.fetchone()
 
-            cursor.execute("SELECT SUM(v.genero='masculino') AS homens, SUM(v.genero='feminino') AS mulheres, COUNT(*) AS total FROM visitantes v;")
+            cursor.execute(f"""
+                SELECT SUM(v.genero='masculino') AS homens,
+                       SUM(v.genero='feminino') AS mulheres,
+                       COUNT(*) AS total
+                FROM visitantes v
+                {filtro_data};
+            """)
             genero = cursor.fetchone()
 
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COUNT(DISTINCT v.id) AS total_discipulado
                 FROM visitantes v
                 JOIN status s ON v.id = s.visitante_id
                 JOIN fases f ON s.fase_id = f.id
-                WHERE f.descricao LIKE '%DISCIPULADO%';
+                {filtro_data} AND f.descricao LIKE '%DISCIPULADO%';
             """)
             discipulado = cursor.fetchone()
 
-            cursor.execute("SELECT COUNT(*) AS total_pedidos FROM visitantes v WHERE v.pedido_oracao IS NOT NULL;")
+            cursor.execute(f"""
+                SELECT COUNT(*) AS total_pedidos
+                FROM visitantes v
+                {filtro_data} AND v.pedido_oracao IS NOT NULL;
+            """)
             oracao = cursor.fetchone()
 
             cursor.execute(f"""
@@ -69,6 +79,38 @@ def register(app):
             """)
             fases = cursor.fetchall()
 
+            # 🔹 Demografia
+            cursor.execute(f"""
+                SELECT ROUND(AVG(TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE())),1) AS idade_media,
+                       SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) BETWEEN 12 AND 17 THEN 1 ELSE 0 END) AS adolescentes,
+                       SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) BETWEEN 18 AND 29 THEN 1 ELSE 0 END) AS jovens,
+                       SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) BETWEEN 30 AND 59 THEN 1 ELSE 0 END) AS adultos,
+                       SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) >= 60 THEN 1 ELSE 0 END) AS idosos
+                FROM visitantes v
+                {filtro_data};
+            """)
+            idade = cursor.fetchone()
+
+            cursor.execute(f"""
+                SELECT COALESCE(v.estado_civil, 'Não Informado') AS estado_civil, COUNT(*) AS total
+                FROM visitantes v
+                {filtro_data}
+                GROUP BY v.estado_civil
+                ORDER BY total DESC
+                LIMIT 10;
+            """)
+            estado_civil = cursor.fetchall()
+
+            cursor.execute(f"""
+                SELECT COALESCE(v.cidade, 'Não Informada') AS cidade, COUNT(*) AS total
+                FROM visitantes v
+                {filtro_data}
+                GROUP BY v.cidade
+                ORDER BY total DESC
+                LIMIT 10;
+            """)
+            cidades = cursor.fetchall()
+
             cursor.close()
             conn.close()
 
@@ -80,7 +122,12 @@ def register(app):
                 "origem": origem,
                 "mensal": mensal,
                 "conversas": conversas,
-                "fases": fases
+                "fases": fases,
+                "demografia": {
+                    "idade": idade,
+                    "estado_civil": estado_civil,
+                    "cidades": cidades
+                }
             }), 200
 
         except Exception as e:
