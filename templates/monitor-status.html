@@ -1,111 +1,299 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>📋 Monitorar Status | CRM Church</title>
-  <link rel="stylesheet" href="/static/main.css" />
-  <script src="/static/script.js" defer></script>
-  <style>
-    .btn-chat {
-      background: #1E4D8F;
-      color: white;
-      border: none;
-      padding: 6px 10px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    .btn-chat:hover {
-      background: #163B6A;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1>Monitoramento de Status Pastoral</h1>
-  </header>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>📋 Monitorar Status | CRM Church</title>
+    <link rel="stylesheet" href="/static/main.css" />
+    <script src="/static/script.js" defer></script>
 
-  <main>
-    <div style="margin-bottom:16px;">
-      <button class="btn-secondary" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
-      <button class="btn-primary" id="btnReload">🔄 Recarregar lista</button>
-    </div>
-
-    <div id="logContainer" class="hidden"></div>
-
-    <table id="statusTable">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Nome</th>
-          <th>Telefone</th>
-          <th>Status</th>
-          <th>Ação</th>
-        </tr>
-      </thead>
-      <tbody id="statusList"></tbody>
-      <tfoot>
-        <tr>
-          <td colspan="5" style="text-align:center;">
-            <button id="prevPageButton" class="btn-secondary">Anterior</button>
-            <span id="statusPageIndicator" style="margin:0 12px;"></span>
-            <button id="nextPageButton" class="btn-secondary">Próximo</button>
-          </td>
-        </tr>
-      </tfoot>
-    </table>
-  </main>
-
-  <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
-  </footer>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const token = localStorage.getItem('jwt_token');
-      if (!token) {
-        window.location.href = '/app/login';
-        return;
+    <style>
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #f4f6f9;
+        margin: 0;
+        padding: 0;
       }
 
-      if (typeof bindPagination === 'function') bindPagination();
-      carregarStatus();
+      header {
+        text-align: center;
+        padding: 20px 10px;
+        background: #fff;
+        border-bottom: 3px solid #1e4d8f;
+      }
 
-      document.getElementById('btnReload')?.addEventListener('click', carregarStatus);
-    });
+      header img {
+        max-height: 70px;
+      }
 
-    async function carregarStatus() {
-      try {
-        const res = await fetch('/api/monitor-status');
-        const data = await res.json();
-        const tbody = document.getElementById('statusList');
-        tbody.innerHTML = '';
+      header h1 {
+        color: #1e4d8f;
+        margin-top: 10px;
+        font-weight: 600;
+      }
 
-        data.forEach(v => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${v.id ?? ''}</td>
-            <td>${v.name ?? ''}</td>
-            <td>${v.phone ?? ''}</td>
-            <td>${v.status ?? ''}</td>
-            <td>
-              <button class="btn-chat" onclick="abrirConversa('${v.id}')">
-                💬 Ver Conversas
+      main {
+        padding: 20px;
+        overflow-x: auto;
+      }
+
+      footer {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 0.9em;
+        color: #555;
+        padding-bottom: 15px;
+      }
+
+      /* ====== TABELA ====== */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        table-layout: auto;
+      }
+
+      th,
+      td {
+        padding: 10px 8px;
+        border-bottom: 1px solid #ddd;
+        text-align: center;
+        word-break: break-word;
+      }
+
+      th {
+        background: #1e4d8f;
+        color: white;
+        font-weight: 600;
+      }
+
+      tr:nth-child(even) {
+        background: #f9fafc;
+      }
+
+      tr:hover {
+        background: #eef4ff;
+      }
+
+      /* ====== BOTÕES ====== */
+      .btn-primary,
+      .btn-secondary {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        margin-right: 8px;
+        transition: background 0.2s ease;
+      }
+
+      .btn-primary {
+        background: #1e4d8f;
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        background: #163b6a;
+      }
+
+      .btn-secondary {
+        background: #eee;
+        color: #333;
+      }
+
+      .btn-secondary:hover {
+        background: #ddd;
+      }
+
+      /* ====== BOTÃO CHAT ====== */
+      .btn-chat {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        background: #1e4d8f;
+        color: white;
+        border: none;
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+        font-size: 14px;
+        max-width: 100%;
+      }
+
+      .btn-chat:hover {
+        background: #163b6a;
+      }
+
+      /* ====== RESPONSIVIDADE ====== */
+      @media (max-width: 800px) {
+        table {
+          font-size: 14px;
+        }
+
+        th,
+        td {
+          padding: 8px 6px;
+        }
+
+        .btn-chat {
+          padding: 6px;
+          font-size: 13px;
+        }
+
+        .btn-primary,
+        .btn-secondary {
+          margin-bottom: 6px;
+        }
+      }
+
+      @media (max-width: 550px) {
+        table thead {
+          display: none;
+        }
+
+        table,
+        tbody,
+        tr,
+        td {
+          display: block;
+          width: 100%;
+        }
+
+        tr {
+          margin-bottom: 15px;
+          border-radius: 8px;
+          background: white;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+          padding: 10px;
+        }
+
+        td {
+          text-align: left;
+          padding: 6px 10px;
+        }
+
+        td::before {
+          content: attr(data-label);
+          font-weight: 600;
+          display: block;
+          color: #1e4d8f;
+          margin-bottom: 3px;
+        }
+
+        .btn-chat {
+          width: 100%;
+          text-align: center;
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <img
+        src="/static/logo_maisdecristo_b2.png"
+        alt="Logo Igreja Mais de Cristo"
+        id="logo"
+      />
+      <h1>Monitoramento de Status Pastoral</h1>
+    </header>
+
+    <main>
+      <div style="margin-bottom: 16px;">
+        <button
+          class="btn-secondary"
+          onclick="window.location.href='/app/menu'"
+        >
+          ← Voltar ao Menu
+        </button>
+        <button class="btn-primary" id="btnReload">🔄 Recarregar lista</button>
+      </div>
+
+      <div id="logContainer" class="hidden"></div>
+
+      <table id="statusTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>Telefone</th>
+            <th>Status</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="statusList"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5" style="text-align: center;">
+              <button id="prevPageButton" class="btn-secondary">
+                Anterior
+              </button>
+              <span id="statusPageIndicator" style="margin: 0 12px;"></span>
+              <button id="nextPageButton" class="btn-secondary">
+                Próximo
               </button>
             </td>
-          `;
-          tbody.appendChild(tr);
-        });
-      } catch (e) {
-        console.error('Erro ao carregar status:', e);
-      }
-    }
+          </tr>
+        </tfoot>
+      </table>
+    </main>
 
-    function abrirConversa(visitanteId) {
-      // Redireciona com query param, para o painel de conversa já aberto
-      window.location.href = `/app/monitor?visitante=${visitanteId}`;
-    }
-  </script>
-</body>
+    <footer>
+      <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.1</p>
+    </footer>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const token = localStorage.getItem("jwt_token");
+        if (!token) {
+          window.location.href = "/app/login";
+          return;
+        }
+
+        if (typeof bindPagination === "function") bindPagination();
+        carregarStatus();
+
+        document
+          .getElementById("btnReload")
+          ?.addEventListener("click", carregarStatus);
+      });
+
+      async function carregarStatus() {
+        try {
+          const res = await fetch("/api/monitor-status");
+          const data = await res.json();
+          const tbody = document.getElementById("statusList");
+          tbody.innerHTML = "";
+
+          data.forEach((v) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td data-label="ID">${v.id ?? ""}</td>
+              <td data-label="Nome">${v.name ?? ""}</td>
+              <td data-label="Telefone">${v.phone ?? ""}</td>
+              <td data-label="Status">${v.status ?? ""}</td>
+              <td data-label="Ação">
+                <button class="btn-chat" onclick="abrirConversa('${v.id}')">
+                  💬 Ver Conversas
+                </button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        } catch (e) {
+          console.error("Erro ao carregar status:", e);
+        }
+      }
+
+      function abrirConversa(visitanteId) {
+        window.location.href = `/app/monitor?visitante=${visitanteId}`;
+      }
+    </script>
+  </body>
 </html>
