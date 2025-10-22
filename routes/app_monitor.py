@@ -28,14 +28,21 @@ def register(app):
             return jsonify({"status": "error", "message": str(e)}), 500
 
     # Endpoint: listar conversas por visitante
+    # ====================================
+    # Conversas do Visitante (JSON para Integra+)
+    # ====================================
     @app.route('/api/monitor/conversas/<int:visitante_id>', methods=['GET'])
     def monitor_conversas_visitante(visitante_id):
         try:
+            # Usa a função que já gera o HTML, mas vamos extrair os dados brutos
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT 
-                    c.id, c.mensagem, c.tipo, c.data_hora,
+                    c.id,
+                    c.mensagem,
+                    c.tipo,
+                    c.data_hora,
                     v.nome AS visitante_nome,
                     CASE 
                         WHEN LOWER(c.tipo) = 'enviada' THEN 'Integra+'
@@ -47,12 +54,15 @@ def register(app):
                 WHERE v.id = %s
                 ORDER BY c.data_hora ASC
             """, (visitante_id,))
-
+    
+            # Converte o resultado em dicionário
             columns = [col[0] for col in cursor.description]
             conversas = [dict(zip(columns, row)) for row in cursor.fetchall()]
-
-            cursor.close(); conn.close()
+            cursor.close()
+            conn.close()
+    
             return jsonify({"status": "success", "conversas": conversas}), 200
+    
         except Exception as e:
             logging.error(f"Erro em /api/monitor/conversas/{visitante_id}: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
