@@ -69,7 +69,23 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         return processar_evento_enviado(numero_normalizado, visitor_name, message_sid, origem)
 
-    # ========== Pedido de oração ==========
+    # ========== Novo tratamento direto da opção 3 (Pedido de Oração) ==========
+    if texto_normalizado in ["3", "3.", "3️⃣", "pedido de oração", "pedido de oracao"]:
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        texto_pedido_generico = "Pedido de oração solicitado pelo visitante."
+        
+        logging.info(f"🙏 Pedido de oração automático iniciado para {visitor_name} ({numero_normalizado})")
+
+        # Processa automaticamente o pedido genérico
+        return processar_pedido_oracao(
+            numero=numero_normalizado,
+            nome_visitante=visitor_name,
+            texto_recebido=texto_pedido_generico,
+            message_sid=message_sid,
+            origem=origem
+        )
+
+    # ========== Pedido de oração (mensagem complementar) ==========
     if estado_atual == EstadoVisitante.PEDIDO_ORACAO:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         return processar_pedido_oracao(numero_normalizado, visitor_name, texto_recebido, message_sid, origem)
@@ -88,8 +104,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         Ignora contextos neutros ou de teste.
         """
         texto = texto.lower().strip()
-    
-        # Padrões que indicam pergunta real
+
         padroes_validos = [
             r"quem (é|são) (os|o|as)? ?pastores?",
             r"quem (são|é) (o|os)? ?pastor(es)?",
@@ -100,22 +115,21 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"nome dos pastores",
             r"falar com o pastor",
         ]
-    
-        # Padrões que devem ser ignorados
+
         padroes_ignorados = [
-            r"pastor [a-z]",  # Ex: "Pastor Alisson", "Pastor Fábio"
+            r"pastor [a-z]",
             r"pastora [a-z]",
             r"teste",
             r"não precisa responder",
             r"mensagem de teste",
         ]
-    
+
         if any(re.search(p, texto) for p in padroes_ignorados):
             return False
-    
+
         return any(re.search(p, texto) for p in padroes_validos)
 
-    # Verifica intenção específica antes do fluxo principal
+    # ========== Intenção: saber sobre os pastores ==========
     if detectar_intencao_pastores(texto_normalizado):
         resposta = (
             "Nossos pastores atuais são:\n"
@@ -127,7 +141,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         enviar_mensagem_para_fila(numero_normalizado, resposta)
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": estado_atual.name}
-    
+
+    # ========== Fluxo normal ==========
     if proximo_estado:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         resposta = obter_mensagem_estado(proximo_estado, visitor_name)
