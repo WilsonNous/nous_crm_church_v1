@@ -6,7 +6,7 @@ from servicos.zapi_cliente import enviar_mensagem
 from servicos.fila_mensagens import enviar_mensagem_para_fila
 
 # 📜 Lista de números dos intercessores
-LISTA_INTERCESSORES = ['48984949649', '48999449961']
+LISTA_INTERCESSORES = ['48984949640', '48999449961']
 
 
 def enviar_pedido_oracao(lista_intercessores: list, nome_visitante: str, numero_visitante: str, texto_recebido: str):
