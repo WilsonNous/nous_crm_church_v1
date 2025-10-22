@@ -1,192 +1,385 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>💬 Monitor de Conversas | CRM Church</title>
-  <link rel="stylesheet" href="/static/main.css" />
-  <script src="/static/script.js" defer></script>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f4f6f9; }
-    .chat-container {
-      max-width: 1100px;
-      margin: 20px auto;
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      padding: 20px;
-    }
-    h2 { color: #1E4D8F; margin-bottom: 15px; }
-    select {
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-      margin-bottom: 12px;
-      width: 100%;
-    }
-    .chat-area {
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 10px;
-      max-height: 500px;
-      overflow-y: auto;
-      background: #fefefe;
-    }
-    .msg {
-      padding: 10px 14px;
-      border-radius: 12px;
-      margin: 8px 0;
-      max-width: 75%;
-      word-break: break-word;
-    }
-    .msg.bot { background: #e0f7fa; margin-left: auto; text-align: right; }
-    .msg.user { background: #fff8e1; margin-right: auto; }
-    .msg small { display: block; font-size: 0.8em; color: #666; margin-top: 4px; }
-    .form-envio { display: flex; gap: 10px; margin-top: 20px; }
-    .form-envio input {
-      flex: 1;
-      padding: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-    }
-    .form-envio button {
-      background: #1E4D8F;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    .form-envio button:hover { background: #163B6A; }
-  </style>
-</head>
-
-<body>
-  <header>
-    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1 id="chatTitle">Monitor de Conversas do Integra+</h1>
-  </header>
-
-  <main>
-    <div style="margin-bottom:16px;">
-      <button class="btn-secondary" onclick="window.location.href='/app/monitor-status'">← Voltar ao Status</button>
-      <button class="btn-secondary" onclick="window.location.href='/app/menu'">🏠 Voltar ao Menu</button>
-      <button class="btn-primary" id="btnReload">🔄 Recarregar Conversas</button>
-    </div>
-
-    <div class="chat-container">
-      <h2>📡 Conversas Recentes</h2>
-
-      <label for="visitanteSelect"><strong>Selecione o Visitante:</strong></label>
-      <select id="visitanteSelect" onchange="carregarConversas()"></select>
-
-      <div id="chatArea" class="chat-area"></div>
-
-      <form class="form-envio" onsubmit="enviarMensagemManual(event)">
-        <input id="mensagemInput" type="text" placeholder="Digite sua mensagem pastoral..." required>
-        <button type="submit">Enviar ✉️</button>
-      </form>
-    </div>
-  </main>
-
-  <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
-  </footer>
-
-  <script>
-    // ========= CARREGAR VISITANTES =========
-    async function carregarVisitantes() {
-      const res = await fetch('/api/monitor/visitantes');
-      const data = await res.json();
-      const select = document.getElementById('visitanteSelect');
-      select.innerHTML = '';
-
-      if (data.status !== 'success') {
-        select.innerHTML = '<option>Erro ao carregar visitantes</option>';
-        return;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>💬 Monitor de Conversas | CRM Church</title>
+    <link rel="stylesheet" href="/static/main.css" />
+    <script src="/static/script.js" defer></script>
+    <style>
+      /* ======== BASE ======== */
+      body {
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #f4f6f9;
+        margin: 0;
+        padding: 0;
       }
 
-      data.visitantes.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v.id;
-        opt.textContent = `${v.nome} (${v.telefone})`;
-        select.appendChild(opt);
-      });
-
-      // Se veio da rota /app/monitor?visitante=123
-      const urlParams = new URLSearchParams(window.location.search);
-      const visitanteId = urlParams.get('visitante');
-      if (visitanteId) {
-        select.value = visitanteId;
-        carregarConversas();
-      }
-    }
-
-    // ========= CARREGAR CONVERSAS =========
-    async function carregarConversas() {
-      const visitanteSelect = document.getElementById('visitanteSelect');
-      const visitanteId = visitanteSelect.value;
-      const visitanteNome = visitanteSelect.options[visitanteSelect.selectedIndex]?.text || '';
-      const area = document.getElementById('chatArea');
-      const title = document.getElementById('chatTitle');
-
-      if (!visitanteId) {
-        title.textContent = 'Monitor de Conversas do Integra+';
-        area.innerHTML = '<p style="text-align:center; color:#888;">Selecione um visitante para visualizar as mensagens.</p>';
-        return;
+      header {
+        text-align: center;
+        padding: 20px 10px 10px;
+        background: #fff;
+        border-bottom: 3px solid #1e4d8f;
       }
 
-      // Atualiza título dinâmico
-      title.textContent = `💬 Conversas com ${visitanteNome.split('(')[0].trim()}`;
+      header img {
+        max-height: 70px;
+      }
 
-      const res = await fetch(`/api/monitor/conversas/${visitanteId}`);
-      const data = await res.json();
-      area.innerHTML = '';
+      header h1 {
+        color: #1e4d8f;
+        margin: 10px 0 0;
+        font-weight: 600;
+      }
 
-      if (data.status === 'success' && data.conversas.length > 0) {
-        data.conversas.forEach(c => {
-          const msg = document.createElement('div');
-          msg.classList.add('msg', c.tipo === 'enviada' ? 'bot' : 'user');
-          msg.innerHTML = `
-            <p>${c.mensagem}</p>
-            <small>${c.autor} • ${new Date(c.data_hora).toLocaleString('pt-BR')}</small>
-          `;
-          area.appendChild(msg);
+      main {
+        padding: 20px;
+      }
+
+      footer {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 0.9em;
+        color: #555;
+        padding-bottom: 15px;
+      }
+
+      /* ======== CONTAINER ======== */
+      .chat-container {
+        max-width: 1100px;
+        margin: 20px auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        padding: 24px;
+      }
+
+      h2 {
+        color: #1e4d8f;
+        margin-bottom: 15px;
+      }
+
+      select {
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        margin-bottom: 14px;
+        width: 100%;
+        font-size: 15px;
+      }
+
+      /* ======== CHAT AREA ======== */
+      .chat-area {
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 12px;
+        max-height: 500px;
+        overflow-y: auto;
+        background: #fcfcfc;
+        scroll-behavior: smooth;
+      }
+
+      .msg {
+        padding: 10px 14px;
+        border-radius: 12px;
+        margin: 8px 0;
+        max-width: 75%;
+        word-break: break-word;
+        position: relative;
+        animation: fadeIn 0.3s ease-in;
+      }
+
+      .msg.bot {
+        background: #e3f2fd;
+        color: #0d47a1;
+        margin-left: auto;
+        text-align: right;
+        border: 1px solid #bbdefb;
+      }
+
+      .msg.user {
+        background: #fff8e1;
+        color: #5d4037;
+        margin-right: auto;
+        border: 1px solid #ffe082;
+      }
+
+      .msg small {
+        display: block;
+        font-size: 0.8em;
+        color: #777;
+        margin-top: 6px;
+      }
+
+      .msg.bot::before {
+        content: "✔️";
+        position: absolute;
+        left: -25px;
+        top: 10px;
+        font-size: 14px;
+      }
+
+      .msg.user::before {
+        content: "📥";
+        position: absolute;
+        right: -25px;
+        top: 10px;
+        font-size: 14px;
+      }
+
+      /* ======== FORM ======== */
+      .form-envio {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+      }
+
+      .form-envio input {
+        flex: 1;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        font-size: 15px;
+      }
+
+      .form-envio button {
+        background: #1e4d8f;
+        color: white;
+        border: none;
+        padding: 12px 18px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+
+      .form-envio button:hover {
+        background: #163b6a;
+      }
+
+      /* ======== BUTTONS ======== */
+      .btn-primary,
+      .btn-secondary {
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        margin: 4px;
+        transition: background 0.2s;
+      }
+
+      .btn-primary {
+        background: #1e4d8f;
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        background: #163b6a;
+      }
+
+      .btn-secondary {
+        background: #eee;
+        color: #333;
+      }
+
+      .btn-secondary:hover {
+        background: #ddd;
+      }
+
+      /* ======== ANIMAÇÕES ======== */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <img
+        src="/static/logo_maisdecristo_b2.png"
+        alt="Logo Igreja Mais de Cristo"
+        id="logo"
+      />
+      <h1 id="chatTitle">Monitor de Conversas do Integra+</h1>
+    </header>
+
+    <main>
+      <div style="margin-bottom: 16px; text-align: center;">
+        <button
+          class="btn-secondary"
+          onclick="window.location.href='/app/monitor-status'"
+        >
+          ← Voltar ao Status
+        </button>
+        <button
+          class="btn-secondary"
+          onclick="window.location.href='/app/menu'"
+        >
+          🏠 Voltar ao Menu
+        </button>
+        <button class="btn-primary" id="btnReload">
+          🔄 Recarregar Conversas
+        </button>
+      </div>
+
+      <div class="chat-container">
+        <h2>📡 Conversas Recentes</h2>
+
+        <label for="visitanteSelect"
+          ><strong>Selecione o Visitante:</strong></label
+        >
+        <select id="visitanteSelect" onchange="carregarConversas()"></select>
+
+        <div id="chatArea" class="chat-area">
+          <p style="text-align:center; color:#888;">Carregando visitantes...</p>
+        </div>
+
+        <form class="form-envio" onsubmit="enviarMensagemManual(event)">
+          <input
+            id="mensagemInput"
+            type="text"
+            placeholder="Digite sua mensagem pastoral..."
+            required
+          />
+          <button type="submit">Enviar ✉️</button>
+        </form>
+      </div>
+    </main>
+
+    <footer>
+      <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.1</p>
+    </footer>
+
+    <script>
+      // ========= CARREGAR VISITANTES =========
+      async function carregarVisitantes() {
+        const area = document.getElementById("chatArea");
+        area.innerHTML =
+          '<p style="text-align:center; color:#888;">⏳ Carregando lista de visitantes...</p>';
+
+        const res = await fetch("/api/monitor/visitantes");
+        const data = await res.json();
+        const select = document.getElementById("visitanteSelect");
+        select.innerHTML = "";
+
+        if (data.status !== "success") {
+          select.innerHTML = "<option>Erro ao carregar visitantes</option>";
+          area.innerHTML =
+            "<p style='text-align:center; color:#c00;'>Erro ao carregar visitantes.</p>";
+          return;
+        }
+
+        data.visitantes.forEach((v) => {
+          const opt = document.createElement("option");
+          opt.value = v.id;
+          opt.textContent = `${v.nome} (${v.telefone})`;
+          select.appendChild(opt);
         });
-        area.scrollTop = area.scrollHeight;
-      } else {
-        area.innerHTML = '<p style="text-align:center; color:#888;">Nenhuma conversa encontrada para este visitante.</p>';
+
+        // Se veio da rota /app/monitor?visitante=123
+        const urlParams = new URLSearchParams(window.location.search);
+        const visitanteId = urlParams.get("visitante");
+        if (visitanteId) {
+          select.value = visitanteId;
+          carregarConversas();
+        } else {
+          area.innerHTML =
+            '<p style="text-align:center; color:#888;">Selecione um visitante para visualizar as mensagens.</p>';
+        }
       }
-    }
 
-    // ========= ENVIAR MENSAGEM =========
-    async function enviarMensagemManual(e) {
-      e.preventDefault();
-      const visitanteSelect = document.getElementById('visitanteSelect');
-      const numero = visitanteSelect.options[visitanteSelect.selectedIndex].text.match(/\((.*?)\)/)[1];
-      const mensagem = document.getElementById('mensagemInput').value.trim();
+      // ========= CARREGAR CONVERSAS =========
+      async function carregarConversas() {
+        const visitanteSelect = document.getElementById("visitanteSelect");
+        const visitanteId = visitanteSelect.value;
+        const visitanteNome =
+          visitanteSelect.options[visitanteSelect.selectedIndex]?.text || "";
+        const area = document.getElementById("chatArea");
+        const title = document.getElementById("chatTitle");
 
-      if (!mensagem) return alert('Digite uma mensagem antes de enviar.');
+        if (!visitanteId) {
+          title.textContent = "Monitor de Conversas do Integra+";
+          area.innerHTML =
+            '<p style="text-align:center; color:#888;">Selecione um visitante para visualizar as mensagens.</p>';
+          return;
+        }
 
-      const res = await fetch('/api/send-message-manual', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ numero, mensagem })
+        // Atualiza título dinâmico
+        title.textContent = `💬 Conversas com ${visitanteNome
+          .split("(")[0]
+          .trim()}`;
+
+        area.innerHTML =
+          '<p style="text-align:center; color:#888;">⏳ Carregando conversas...</p>';
+
+        const res = await fetch(`/api/monitor/conversas/${visitanteId}`);
+        const data = await res.json();
+        area.innerHTML = "";
+
+        if (data.status === "success" && data.conversas?.length > 0) {
+          data.conversas.forEach((c) => {
+            const msg = document.createElement("div");
+            msg.classList.add("msg", c.tipo === "enviada" ? "bot" : "user");
+            msg.innerHTML = `
+              <p>${c.mensagem}</p>
+              <small>${c.autor} • ${new Date(
+              c.data_hora
+            ).toLocaleString("pt-BR")}</small>
+            `;
+            area.appendChild(msg);
+          });
+          area.scrollTop = area.scrollHeight;
+        } else if (data.status === "error") {
+          area.innerHTML = `<p style="text-align:center; color:#c00;">Erro: ${data.message}</p>`;
+        } else {
+          area.innerHTML =
+            '<p style="text-align:center; color:#888;">Nenhuma conversa encontrada para este visitante.</p>';
+        }
+      }
+
+      // ========= ENVIAR MENSAGEM =========
+      async function enviarMensagemManual(e) {
+        e.preventDefault();
+        const visitanteSelect = document.getElementById("visitanteSelect");
+        const numero = visitanteSelect.options[
+          visitanteSelect.selectedIndex
+        ].text.match(/\((.*?)\)/)[1];
+        const mensagem = document
+          .getElementById("mensagemInput")
+          .value.trim();
+
+        if (!mensagem) return alert("Digite uma mensagem antes de enviar.");
+
+        const res = await fetch("/api/send-message-manual", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ numero, mensagem }),
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          document.getElementById("mensagemInput").value = "";
+          carregarConversas();
+        } else {
+          alert("Erro ao enviar: " + data.error);
+        }
+      }
+
+      // ========= INICIALIZAÇÃO =========
+      document.addEventListener("DOMContentLoaded", () => {
+        carregarVisitantes();
+        document
+          .getElementById("btnReload")
+          .addEventListener("click", carregarConversas);
       });
-      const data = await res.json();
-
-      if (data.success) {
-        document.getElementById('mensagemInput').value = '';
-        carregarConversas();
-      } else {
-        alert('Erro ao enviar: ' + data.error);
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      carregarVisitantes();
-      document.getElementById('btnReload').addEventListener('click', carregarConversas);
-    });
-  </script>
-</body>
+    </script>
+  </body>
 </html>
