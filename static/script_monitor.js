@@ -16,18 +16,21 @@ async function carregarVisitantes() {
     const res = await fetch("/api/monitor/visitantes");
     const data = await res.json();
 
-    if (data.status !== "success") {
+    if (data.status !== "success" || !Array.isArray(data.visitantes)) {
       select.innerHTML = "<option>Erro ao carregar visitantes</option>";
       area.innerHTML =
         "<p style='text-align:center; color:#c00;'>Erro ao carregar visitantes.</p>";
       return;
     }
 
-    // ✅ Popula o select com nome + telefone
+    // ✅ Popula o select com nome + telefone, independentemente dos nomes das chaves
     data.visitantes.forEach((v) => {
+      const nome = v.nome || v.name || "Sem nome";
+      const telefone = v.telefone || v.phone || v.celular || "Sem telefone";
+
       const opt = document.createElement("option");
-      opt.value = String(v.id); // força valor como string
-      opt.textContent = `${v.nome} (${v.telefone})`;
+      opt.value = String(v.id);
+      opt.textContent = `${nome} (${telefone})`;
       select.appendChild(opt);
     });
 
@@ -43,9 +46,8 @@ async function carregarVisitantes() {
         </p>
       `;
 
-      // tenta definir o visitante inicial
       const exists = Array.from(select.options).some(
-        (opt) => opt.value == visitanteId // comparação flexível (string/number)
+        (opt) => opt.value == visitanteId // compara como string/número
       );
 
       if (exists) {
