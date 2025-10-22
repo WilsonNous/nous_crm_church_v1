@@ -14,9 +14,13 @@ def register(app):
     def monitor_visitantes():
         try:
             conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor()
             cursor.execute("SELECT id, nome, telefone FROM visitantes ORDER BY nome ASC")
-            visitantes = cursor.fetchall()
+
+            # Mapeia colunas manualmente
+            columns = [col[0] for col in cursor.description]
+            visitantes = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
             cursor.close(); conn.close()
             return jsonify({"status": "success", "visitantes": visitantes}), 200
         except Exception as e:
@@ -28,7 +32,7 @@ def register(app):
     def monitor_conversas_visitante(visitante_id):
         try:
             conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor()
             cursor.execute("""
                 SELECT 
                     c.id, c.mensagem, c.tipo, c.data_hora,
@@ -43,7 +47,10 @@ def register(app):
                 WHERE v.id = %s
                 ORDER BY c.data_hora ASC
             """, (visitante_id,))
-            conversas = cursor.fetchall()
+
+            columns = [col[0] for col in cursor.description]
+            conversas = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
             cursor.close(); conn.close()
             return jsonify({"status": "success", "conversas": conversas}), 200
         except Exception as e:
