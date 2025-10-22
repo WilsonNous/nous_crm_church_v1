@@ -26,22 +26,30 @@ async function carregarVisitantes() {
     // ✅ Popula o select com nome + telefone
     data.visitantes.forEach((v) => {
       const opt = document.createElement("option");
-      opt.value = v.id;
+      opt.value = String(v.id); // força valor como string
       opt.textContent = `${v.nome} (${v.telefone})`;
       select.appendChild(opt);
     });
 
-    // ✅ Se veio com query param (ex: /app/monitor?visitante=123)
+    // ✅ Verifica se há visitante na URL (/app/monitor?visitante=123)
     const urlParams = new URLSearchParams(window.location.search);
     const visitanteId = urlParams.get("visitante");
 
     if (visitanteId && select.options.length > 0) {
+      // mostra mensagem temporária enquanto carrega a conversa
+      area.innerHTML = `
+        <p style="text-align:center; color:#1E4D8F;">
+          🔍 Carregando conversa do visitante #${visitanteId}...
+        </p>
+      `;
+
       // tenta definir o visitante inicial
       const exists = Array.from(select.options).some(
-        (opt) => opt.value === visitanteId
+        (opt) => opt.value == visitanteId // comparação flexível (string/number)
       );
+
       if (exists) {
-        select.value = visitanteId;
+        select.value = String(visitanteId);
         await carregarConversas();
       } else {
         area.innerHTML =
@@ -74,10 +82,13 @@ async function carregarConversas() {
     return;
   }
 
-  // Atualiza título
+  // Atualiza título e exibe mensagem de carregamento
   title.textContent = `💬 Conversas com ${visitanteNome.split("(")[0].trim()}`;
-  area.innerHTML =
-    '<p style="text-align:center; color:#888;">⏳ Carregando conversas...</p>';
+  area.innerHTML = `
+    <p style="text-align:center; color:#1E4D8F;">
+      ⏳ Buscando mensagens de ${visitanteNome.split("(")[0].trim()}...
+    </p>
+  `;
 
   try {
     const res = await fetch(`/api/monitor/conversas/${visitanteId}`);
@@ -97,13 +108,16 @@ async function carregarConversas() {
         area.appendChild(msg);
       });
 
-      // rola para o final suavemente
+      // rola suavemente até o final
       area.scrollTo({ top: area.scrollHeight, behavior: "smooth" });
     } else if (data.status === "error") {
       area.innerHTML = `<p style="text-align:center; color:#c00;">Erro: ${data.message}</p>`;
     } else {
-      area.innerHTML =
-        '<p style="text-align:center; color:#888;">Nenhuma conversa encontrada para este visitante.</p>';
+      area.innerHTML = `
+        <p style="text-align:center; color:#888;">
+          Nenhuma conversa encontrada para este visitante.
+        </p>
+      `;
     }
   } catch (err) {
     console.error("Erro ao carregar conversas:", err);
