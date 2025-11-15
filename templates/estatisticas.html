@@ -3,9 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="CRM para a gestão de visitantes e membros da Igreja Mais de Cristo Canasvieiras">
-  <meta name="keywords" content="igreja, CRM, visitantes, membros, cadastro, WhatsApp, estatísticas">
-  <meta name="author" content="Igreja Mais de Cristo">
   <title>📊 Estatísticas - CRM Church</title>
 
   <link rel="stylesheet" href="/static/estatisticas.css">
@@ -15,12 +12,25 @@
 
 <body>
   <header>
-    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1>📈 Estatísticas do Ministério de Integração</h1>
+    <img src="/static/logo_maisdecristo_b2.png" id="logo" />
+    <h1>📊 Estatísticas do Ministério de Integração</h1>
   </header>
 
-  <main id="mainContent">
-    <section id="statisticsContainer">
+  <main>
+
+    <!-- 🔵 MENU DE ABAS -->
+    <div id="tabs">
+      <button class="tab-button active" data-tab="tab-geral">Geral</button>
+      <button class="tab-button" data-tab="tab-kids">Kids</button>
+      <button class="tab-button" data-tab="tab-familias">Famílias</button>
+      <button class="tab-button" data-tab="tab-alertas">Alertas</button>
+    </div>
+
+    <!-- ========================== -->
+    <!-- 🔵 ABA 1 — GERAL -->
+    <!-- ========================== -->
+    <section id="tab-geral" class="tab-content active">
+
       <div id="filtroPeriodo">
         <label for="periodoSelect">📅 Filtrar por período:</label>
         <select id="periodoSelect">
@@ -31,92 +41,121 @@
         </select>
       </div>
 
-      <!-- 🔹 Gráficos Principais -->
       <h2>📈 Indicadores Gerais</h2>
       <div class="grid-2">
         <div class="info-card">
-          <h3>Evolução Mensal dos Cadastros</h3>
+          <h3>Evolução Mensal</h3>
           <canvas id="graficoMensal"></canvas>
         </div>
         <div class="info-card">
-          <h3>Origem dos Cadastros</h3>
+          <h3>Origem dos Visitantes</h3>
           <canvas id="graficoOrigem"></canvas>
         </div>
       </div>
 
       <div class="grid-1">
         <div class="info-card">
-          <h3>Distribuição por Fase / Status</h3>
+          <h3>Distribuição por Fase</h3>
           <canvas id="graficoFases"></canvas>
         </div>
       </div>
 
-      <!-- 🔹 Perfil Demográfico -->
       <h2>👥 Perfil Demográfico</h2>
       <div class="grid-3">
         <div class="info-card" id="idadeMedia">
-          <h3>Idade Média e Faixas Etárias</h3>
+          <h3>Idade Média</h3>
           <p>Carregando...</p>
         </div>
         <div class="info-card">
-          <h3>Distribuição por Estado Civil</h3>
+          <h3>Estado Civil</h3>
           <canvas id="graficoEstadoCivil"></canvas>
         </div>
         <div class="info-card">
-          <h3>Principais Cidades</h3>
+          <h3>Cidades</h3>
           <canvas id="graficoCidades"></canvas>
         </div>
       </div>
 
-      <!-- 🔹 Totais -->
-      <h2>📊 Resumo Numérico</h2>
+      <h2>📊 Totais</h2>
       <div class="grid-3">
-        <div class="info-card" id="totalVisitantesInicio">
-          <h3>Visitantes na Fase INÍCIO</h3>
-          <p>Carregando...</p>
-        </div>
-        <div class="info-card" id="discipuladosAtivos">
-          <h3>Em Discipulado</h3>
-          <p>Carregando...</p>
-        </div>
-        <div class="info-card" id="totalPedidosOracao">
-          <h3>Pedidos de Oração</h3>
-          <p>Carregando...</p>
-        </div>
+        <div class="info-card" id="totalVisitantesInicio"><h3>Início</h3><p>...</p></div>
+        <div class="info-card" id="discipuladosAtivos"><h3>Discipulado</h3><p>...</p></div>
+        <div class="info-card" id="totalPedidosOracao"><h3>Pedidos Oração</h3><p>...</p></div>
       </div>
 
       <div class="grid-3">
-        <div class="info-card" id="totalHomens">
-          <h3>Homens</h3>
-          <p>Carregando...</p>
-        </div>
-        <div class="info-card" id="totalMulheres">
-          <h3>Mulheres</h3>
-          <p>Carregando...</p>
-        </div>
-        <div class="info-card" id="conversasEnviadasRecebidas">
-          <h3>Conversas</h3>
-          <p>Carregando...</p>
+        <div class="info-card" id="totalHomens"><h3>Homens</h3><p>...</p></div>
+        <div class="info-card" id="totalMulheres"><h3>Mulheres</h3><p>...</p></div>
+        <div class="info-card" id="conversasEnviadasRecebidas"><h3>Conversas</h3><p>...</p></div>
+      </div>
+    </section>
+
+
+    <!-- ========================== -->
+    <!-- 🟣 ABA 2 — KIDS -->
+    <!-- ========================== -->
+    <section id="tab-kids" class="tab-content">
+
+      <h2>🧒 Kids - Performance</h2>
+
+      <div class="grid-3">
+        <div class="info-card" id="kidsTotal"><h3>Total de Check-ins</h3><p>...</p></div>
+        <div class="info-card" id="kidsAlertas"><h3>Alertas Enviados</h3><p>...</p></div>
+        <div class="info-card" id="kidsPaiVeio"><h3>Pai Veio</h3><p>...</p></div>
+      </div>
+
+      <h2>📊 Turmas</h2>
+      <div class="grid-1">
+        <div class="info-card">
+          <h3>Check-ins por Turma</h3>
+          <canvas id="graficoKidsTurma"></canvas>
         </div>
       </div>
     </section>
 
-    <!-- MENU -->
-    <section id="menuLinks">
-      <h3>Acessar Outros Módulos</h3>
-      <div class="menu-buttons">
-        <button onclick="window.location.href='/app/visitantes'" class="btn-primary">👤 Visitantes</button>
-        <button onclick="window.location.href='/app/membros'" class="btn-tertiary">👥 Membros</button>
-        <button onclick="window.location.href='/app/acolhidos'" class="btn-quaternary">💬 Acolhidos</button>
-        <button onclick="window.location.href='/app/ia'" class="btn-tertiary">🧠 Treinar IA</button>
-        <button onclick="window.location.href='/app/campanhas'" class="btn-warning">📣 Campanhas</button>
-        <button onclick="window.location.href='/app/menu'" class="btn-secondary">⬅ Voltar ao Menu</button>
+
+    <!-- ========================== -->
+    <!-- 🟢 ABA 3 — FAMÍLIAS -->
+    <!-- ========================== -->
+    <section id="tab-familias" class="tab-content">
+
+      <h2>🏠 Famílias Vulneráveis</h2>
+
+      <div class="grid-3">
+        <div class="info-card" id="familiasAtivas"><h3>Famílias Ativas</h3><p>...</p></div>
+        <div class="info-card" id="cestasEntregues"><h3>Cestas Entregues</h3><p>...</p></div>
+        <div class="info-card" id="necessidadesEspecificas"><h3>Necessidades</h3><p>...</p></div>
       </div>
+
+      <h2>Últimas Visitas Kids</h2>
+      <div class="grid-1">
+        <div class="info-card">
+          <h3>Check-ins Kids (Famílias)</h3>
+          <canvas id="graficoKidsFamilias"></canvas>
+        </div>
+      </div>
+
     </section>
+
+
+    <!-- ========================== -->
+    <!-- 🔴 ABA 4 — ALERTAS -->
+    <!-- ========================== -->
+    <section id="tab-alertas" class="tab-content">
+
+      <h2>⚠️ Alertas Pastorais</h2>
+
+      <div id="alertasContainer" class="grid-1">
+        <!-- cards dos alertas serão inseridos pelo JS -->
+      </div>
+
+    </section>
+
   </main>
 
   <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.5</p>
+    <p>© 2025 Nous Tecnologia - CRM Church</p>
   </footer>
+
 </body>
 </html>
