@@ -133,3 +133,125 @@ def register(app):
         except Exception as e:
             logging.error(f"Erro em estatísticas gerais: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
+
+# ============================================================
+# ROTAS ADICIONAIS - KIDS / FAMÍLIAS / ALERTAS
+# ============================================================
+
+def register(app):
+
+    # ----------------------------------------------------------
+    # 1) KIDS — Performance por turma e totais gerais
+    # ----------------------------------------------------------
+    @app.route('/api/estatisticas/kids', methods=['GET'])
+    def estatisticas_kids():
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+
+            # ▶ TOTAIS
+            cursor.execute("""
+                SELECT 
+                    SUM(total_checkins) AS total_checkins,
+                    SUM(alertas_enviados) AS alertas_enviados,
+                    SUM(pai_veio) AS pai_veio
+                FROM vw_performance_kids;
+            """)
+            totais = cursor.fetchone()
+
+            # ▶ POR TURMA
+            cursor.execute("""
+                SELECT 
+                    turma,
+                    SUM(total_checkins) AS total_checkins,
+                    SUM(alertas_enviados) AS alertas_enviados,
+                    SUM(pai_veio) AS pai_veio
+                FROM vw_performance_kids
+                GROUP BY turma
+                ORDER BY turma;
+            """)
+            turmas = cursor.fetchall()
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                "totais": totais,
+                "turmas": turmas
+            }), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+
+    # ----------------------------------------------------------
+    # 2) FAMÍLIAS Vulneráveis
+    # ----------------------------------------------------------
+    @app.route('/api/estatisticas/familias', methods=['GET'])
+    def estatisticas_familias():
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+
+            # ▶ TOTAIS
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) AS familias_ativas,
+                    SUM(cestas_recebidas) AS total_cestas,
+                    SUM(CASE WHEN necessidades_especificas IS NOT NULL AND necessidades_especificas != '' THEN 1 ELSE 0 END) AS necessidades
+                FROM vw_familias_vulneraveis;
+            """)
+            totais = cursor.fetchone()
+
+            # ▶ ÚLTIMO CHECK-IN (crianças da família)
+            cursor.execute("""
+                SELECT 
+                    DATE(ultima_visita_kids) AS data,
+                    COUNT(*) AS total
+                FROM vw_familias_vulneraveis
+                WHERE ultima_visita_kids IS NOT NULL
+                GROUP BY DATE(ultima_visita_kids)
+                ORDER BY data DESC
+                LIMIT 15;
+            """)
+            visitas = cursor.fetchall()
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                "totais": totais,
+                "visitas": visitas
+            }), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+
+    # ----------------------------------------------------------
+    # 3) ALERTAS Pastorais
+    # ----------------------------------------------------------
+    @app.route('/api/estatisticas/alertas', methods=['GET'])
+    def estatisticas_alertas():
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+
+            cursor.execute("""
+                SELECT 
+                    tipo,
+                    mensagem,
+                    valor,
+                    cor
+                FROM vw_alertas_pastorais;
+            """)
+
+            alertas = cursor.fetchall()
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({"alertas": alertas}), 200
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
