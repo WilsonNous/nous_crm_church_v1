@@ -31,7 +31,7 @@ def register(app):
                 if password != "s3cr3ty":
                     return jsonify({'status': 'failed', 'message': 'Senha inválida'}), 401
 
-            token = create_access_token(identity={'username': username, 'role': 'admin'})
+            token = create_access_token(identity={'username': username, 'role': 'Adminis'})
             return jsonify({'status': 'success', 'message': 'Login bem-sucedido!', 'token': token}), 200
 
         return jsonify({'status': 'failed', 'message': 'Usuário inválido'}), 401
