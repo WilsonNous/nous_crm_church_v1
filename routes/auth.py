@@ -7,7 +7,7 @@ try:
 except Exception:
     def create_access_token(identity): return f"MOCK_TOKEN_FOR_{identity}"
 
-ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_USER = os.getenv("ADMIN_USER", "Adminis")
 ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", None)
 
 def register(app):
