@@ -3,6 +3,18 @@
 // Monitor de Conversas (Integra+)
 // ===============================
 
+// Helper para normalizar ID vindo da URL ou do select
+function normalizarVisitanteId(value) {
+  if (!value) return "";
+  const s = String(value).trim();
+  // Corrige formatos tipo "id:1"
+  if (s.toLowerCase().startsWith("id:")) {
+    const partes = s.split(":");
+    return partes[1] ? partes[1].trim() : "";
+  }
+  return s;
+}
+
 // ========= CARREGAR VISITANTES =========
 async function carregarVisitantes() {
   const area = document.getElementById("chatArea");
@@ -23,7 +35,7 @@ async function carregarVisitantes() {
       return;
     }
 
-    // Preenche select (somente nome, telefone armazenado)
+    // Preenche select (nome visível, telefone no dataset)
     data.visitantes.forEach((v) => {
       const opt = document.createElement("option");
       opt.value = String(v.id);
@@ -32,13 +44,28 @@ async function carregarVisitantes() {
       select.appendChild(opt);
     });
 
-    // Se tiver visitante na URL ?visitante=ID
+    // Verifica se há ?visitante= na URL (ex: /app/monitor?visitante=id:1 ou ?visitante=1)
     const urlParams = new URLSearchParams(window.location.search);
-    const visitanteId = urlParams.get("visitante");
+    const visitanteBruto = urlParams.get("visitante");
+    const visitanteId = normalizarVisitanteId(visitanteBruto);
 
-    if (visitanteId && select.querySelector(`option[value="${visitanteId}"]`)) {
-      select.value = String(visitanteId);
-      await carregarConversas();
+    if (visitanteId && select.options.length > 0) {
+      const exists = Array.from(select.options).some(
+        (opt) => opt.value === visitanteId
+      );
+
+      if (exists) {
+        select.value = visitanteId;
+        area.innerHTML = `
+          <p style="text-align:center; color:#000;">
+            🔍 Carregando conversa do visitante #${visitanteId}...
+          </p>
+        `;
+        await carregarConversas();
+      } else {
+        area.innerHTML =
+          "<p style='text-align:center; color:#888;'>Visitante não encontrado na lista atual.</p>";
+      }
     } else {
       area.innerHTML =
         '<p style="text-align:center; color:#888;">Selecione um visitante para visualizar as mensagens.</p>';
@@ -53,9 +80,12 @@ async function carregarVisitantes() {
 // ========= CARREGAR CONVERSAS =========
 async function carregarConversas() {
   const visitanteSelect = document.getElementById("visitanteSelect");
-  const visitanteId = visitanteSelect.value;
+  const visitanteIdRaw = visitanteSelect.value;
+  const visitanteId = normalizarVisitanteId(visitanteIdRaw);
+
   const visitanteNome =
-    visitanteSelect.options[visitanteSelect.selectedIndex]?.text || "Visitante";
+    visitanteSelect.options[visitanteSelect.selectedIndex]?.text ||
+    "Visitante";
 
   const area = document.getElementById("chatArea");
   const title = document.getElementById("chatTitle");
@@ -76,8 +106,20 @@ async function carregarConversas() {
 
   try {
     const res = await fetch(`/api/monitor/conversas/${visitanteId}`);
-    const data = await res.json();
 
+    if (!res.ok) {
+      console.error(
+        `Erro HTTP ao buscar conversas: ${res.status} ${res.statusText}`
+      );
+      area.innerHTML = `
+        <p style="text-align:center; color:#c00;">
+          Erro ao buscar conversas (HTTP ${res.status}).
+        </p>
+      `;
+      return;
+    }
+
+    const data = await res.json();
     area.innerHTML = "";
 
     if (data.status === "success" && data.conversas?.length > 0) {
@@ -113,8 +155,8 @@ async function enviarMensagemManual(e) {
   e.preventDefault();
 
   const visitanteSelect = document.getElementById("visitanteSelect");
-  const numero = visitanteSelect.options[visitanteSelect.selectedIndex]?.dataset
-    .telefone;
+  const optionSel = visitanteSelect.options[visitanteSelect.selectedIndex];
+  const numero = optionSel?.dataset.telefone;
 
   const mensagem = document.getElementById("mensagemInput").value.trim();
 
@@ -127,7 +169,6 @@ async function enviarMensagemManual(e) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ numero, mensagem }),
     });
-
     const data = await res.json();
 
     if (data.success) {
@@ -137,7 +178,7 @@ async function enviarMensagemManual(e) {
       alert("Erro ao enviar: " + data.error);
     }
   } catch (err) {
-    alert("Erro de comunicação com o servidor.");
+    alert("Falha na comunicação com o servidor.");
     console.error(err);
   }
 }
