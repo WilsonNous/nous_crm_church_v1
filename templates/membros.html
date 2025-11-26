@@ -11,80 +11,205 @@
 </head>
 
 <body>
-  <header>
-    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1>Cadastro de Membros</h1>
-  </header>
+<header>
+  <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+  <h1>Cadastro de Membros</h1>
+</header>
 
-  <main>
-    <section>
-      <form id="memberForm" onsubmit="saveMember(event)">
-        <div class="form-group">
-          <label for="memberName">Nome Completo:</label>
-          <input type="text" id="memberName" name="nome" required>
-        </div>
+<main>
 
-        <div class="form-group">
-          <label for="memberPhone">Telefone:</label>
-          <input type="tel" id="memberPhone" name="telefone" required pattern="[0-9]{11}" placeholder="DDD + Número">
-        </div>
+<form id="memberForm" onsubmit="saveMember(event)">
 
-        <div class="form-group">
-          <label for="memberEmail">E-mail:</label>
-          <input type="email" id="memberEmail" name="email" required>
-        </div>
+  <!-- ================== DADOS PESSOAIS ================== -->
+  <section class="form-section">
+    <h2>Dados Pessoais</h2>
 
-        <div class="form-group">
-          <label for="memberBirthday">Data de Nascimento:</label>
-          <input type="date" id="memberBirthday" name="data_nascimento" required>
-        </div>
+    <div class="form-group">
+      <label for="nome">Nome Completo:</label>
+      <input type="text" id="nome" name="nome" required>
+    </div>
 
-        <div class="form-group">
-          <label for="cep">CEP:</label>
-          <input type="text" id="cep" name="cep" maxlength="9" placeholder="00000-000" required>
-        </div>
+    <div class="form-group">
+      <label for="telefone">Telefone (DDD + Número):</label>
+      <input type="tel" id="telefone" name="telefone" required placeholder="48999999999">
+    </div>
 
-        <div class="form-group">
-          <label for="memberNeighborhood">Bairro:</label>
-          <input type="text" id="memberNeighborhood" name="bairro" required>
-        </div>
+    <div class="form-group">
+      <label for="email">E-mail:</label>
+      <input type="email" id="email" name="email" required>
+    </div>
 
-        <div class="form-group">
-          <label for="memberCity">Cidade:</label>
-          <input type="text" id="memberCity" name="cidade" required>
-        </div>
+    <div class="form-group">
+      <label for="data_nascimento">Data de Nascimento:</label>
+      <input type="date" id="data_nascimento" name="data_nascimento" required>
+    </div>
 
-        <div class="form-group">
-          <label for="memberState">Estado:</label>
-          <input type="text" id="memberState" name="estado" maxlength="2" placeholder="UF" required>
-        </div>
+    <div class="form-group">
+      <label for="cep">CEP:</label>
+      <input type="text" id="cep" name="cep" maxlength="9" placeholder="00000-000" required>
+    </div>
 
-        <div class="form-group">
-          <label for="memberStatus">Status do Membro:</label>
-          <select id="memberStatus" name="status_membro" required>
-            <option value="">Selecione</option>
-            <option value="ativo">Ativo</option>
-            <option value="inativo">Inativo</option>
-          </select>
-        </div>
+    <div class="form-group">
+      <label for="bairro">Bairro:</label>
+      <input type="text" id="bairro" name="bairro" required>
+    </div>
 
-        <button type="submit" class="btn-primary">Cadastrar Membro</button>
-        <button type="button" class="btn-secondary" onclick="window.location.href='/app/menu'">
-          ← Voltar ao Menu Principal
-        </button>
-      </form>
-    </section>
-  </main>
+    <div class="form-group">
+      <label for="cidade">Cidade:</label>
+      <input type="text" id="cidade" name="cidade" required>
+    </div>
 
-  <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
-  </footer>
+    <div class="form-group">
+      <label for="estado">Estado (UF):</label>
+      <input type="text" id="estado" name="estado" maxlength="2" required>
+    </div>
 
-  <script>
-    // bloqueio simples se não estiver logado
-    document.addEventListener('DOMContentLoaded', () => {
-      if (!localStorage.getItem('jwt_token')) window.location.href = '/app/login';
-    });
-  </script>
+    <div class="form-group">
+      <label for="estado_civil">Estado Civil:</label>
+      <select id="estado_civil" name="estado_civil" required>
+        <option value="">Selecione</option>
+        <option value="Solteiro(a)">Solteiro(a)</option>
+        <option value="Noivo(a)">Noivo(a)</option>
+        <option value="Casado(a)">Casado(a)</option>
+        <option value="União Estável">União Estável</option>
+        <option value="Divorciado(a)">Divorciado(a)</option>
+        <option value="Viúvo(a)">Viúvo(a)</option>
+      </select>
+    </div>
+  </section>
+
+  <!-- ================== CÔNJUGE ================== -->
+  <section class="form-section">
+    <h2>Informações do Cônjuge</h2>
+
+    <div class="form-group">
+      <label for="conjuge_nome">Nome do Cônjuge:</label>
+      <input type="text" id="conjuge_nome" name="conjuge_nome">
+    </div>
+  </section>
+
+  <!-- ================== FILHOS ================== -->
+  <section class="form-section">
+    <h2>Filhos</h2>
+
+    <div class="form-group">
+      <label for="possui_filhos">Possui filhos?</label>
+      <select id="possui_filhos" name="possui_filhos" required>
+        <option value="">Selecione</option>
+        <option value="Sim">Sim</option>
+        <option value="Não">Não</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="filhos_info">Nome completo e idade dos filhos:</label>
+      <textarea id="filhos_info" name="filhos_info"></textarea>
+    </div>
+  </section>
+
+  <!-- ================== CAMINHADA DA FÉ ================== -->
+  <section class="form-section">
+    <h2>Caminhada da Fé</h2>
+
+    <div class="form-group">
+      <label for="novo_comeco">Já fez o Novo Começo?</label>
+      <select id="novo_comeco" name="novo_comeco" required>
+        <option value="">Selecione</option>
+        <option value="Sim">Sim</option>
+        <option value="Não">Não</option>
+        <option value="Em andamento">Em andamento</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="novo_comeco_quando">Quando?</label>
+      <input type="text" id="novo_comeco_quando" name="novo_comeco_quando">
+    </div>
+
+    <div class="form-group">
+      <label for="classe_membros">Já fez a classe de Novos Membros?</label>
+      <select id="classe_membros" name="classe_membros" required>
+        <option value="">Selecione</option>
+        <option value="Sim">Sim</option>
+        <option value="Não">Não</option>
+        <option value="Em andamento">Em andamento</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="apresentacao_data">Quando foi apresentado?</label>
+      <input type="text" id="apresentacao_data" name="apresentacao_data">
+    </div>
+  </section>
+
+  <!-- ================== DISCIPULADOS ================== -->
+  <section class="form-section">
+    <h2>Discipulados</h2>
+
+    <div class="form-group">
+      <label>Quais discipulados participou?</label>
+
+      <label><input type="checkbox" name="discipulados" value="Homens Corajosos"> Homens Corajosos</label>
+      <label><input type="checkbox" name="discipulados" value="Mulheres Transformadas"> Mulheres Transformadas</label>
+      <label><input type="checkbox" name="discipulados" value="Aliançados com Cristo"> Aliançados com Cristo</label>
+      <label><input type="checkbox" name="discipulados" value="Curso de Teologia - Básico"> Curso de Teologia - Básico</label>
+      <label><input type="checkbox" name="discipulados" value="Curso de Teologia - FMC"> Curso de Teologia - FMC</label>
+      <label><input type="checkbox" name="discipulados" value="Não participei"> Não participei</label>
+    </div>
+  </section>
+
+  <!-- ================== MINISTÉRIOS ================== -->
+  <section class="form-section">
+    <h2>Serviço na Igreja</h2>
+
+    <div class="form-group">
+      <label>Serve em algum ministério?</label>
+
+      <label><input type="checkbox" name="ministerios" value="Integração"> Integração</label>
+      <label><input type="checkbox" name="ministerios" value="Kids"> Kids</label>
+      <label><input type="checkbox" name="ministerios" value="Louvor"> Louvor</label>
+      <label><input type="checkbox" name="ministerios" value="Mídia"> Mídia</label>
+      <label><input type="checkbox" name="ministerios" value="Intercessão"> Intercessão</label>
+      <label><input type="checkbox" name="ministerios" value="Homens"> Homens</label>
+      <label><input type="checkbox" name="ministerios" value="Mulheres"> Mulheres</label>
+      <label><input type="checkbox" name="ministerios" value="Alive"> Alive</label>
+      <label><input type="checkbox" name="ministerios" value="Diaconia"> Diaconia</label>
+
+      <label>Outros:
+        <input type="text" name="ministerios_outros">
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label for="consagracao">É consagrado?</label>
+      <select id="consagracao" name="consagracao" required>
+        <option value="Não">Não</option>
+        <option value="Pastor">Pastor</option>
+        <option value="Evangelista">Evangelista</option>
+        <option value="Presbítero">Presbítero</option>
+        <option value="Diácono">Diácono</option>
+      </select>
+    </div>
+  </section>
+
+  <button type="submit" class="btn-primary">Cadastrar Membro</button>
+  <button type="button" class="btn-secondary" onclick="window.location.href='/app/menu'">
+    ← Voltar ao Menu
+  </button>
+
+</form>
+
+</main>
+
+<footer>
+  <p>© 2025 Nous Tecnologia – versão 3.1</p>
+</footer>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!localStorage.getItem('jwt_token')) window.location.href = '/app/login';
+  });
+</script>
+
 </body>
 </html>
