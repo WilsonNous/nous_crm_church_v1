@@ -23,40 +23,22 @@ async function carregarVisitantes() {
       return;
     }
 
-    // ✅ Popula o select com nome + telefone, independentemente dos nomes das chaves
+    // Preenche select (somente nome, telefone armazenado)
     data.visitantes.forEach((v) => {
-      const nome = v.nome || v.name || "Sem nome";
-      const telefone = v.telefone || v.phone || v.celular || "Sem telefone";
-
       const opt = document.createElement("option");
       opt.value = String(v.id);
-      opt.textContent = `${nome} (${telefone})`;
+      opt.textContent = v.nome || "Sem nome";
+      opt.dataset.telefone = v.telefone || "Sem telefone";
       select.appendChild(opt);
     });
 
-    // ✅ Verifica se há visitante na URL (/app/monitor?visitante=123)
+    // Se tiver visitante na URL ?visitante=ID
     const urlParams = new URLSearchParams(window.location.search);
     const visitanteId = urlParams.get("visitante");
 
-    if (visitanteId && select.options.length > 0) {
-      // mostra mensagem temporária enquanto carrega a conversa
-      area.innerHTML = `
-        <p style="text-align:center; color:#1E4D8F;">
-          🔍 Carregando conversa do visitante #${visitanteId}...
-        </p>
-      `;
-
-      const exists = Array.from(select.options).some(
-        (opt) => opt.value == visitanteId // compara como string/número
-      );
-
-      if (exists) {
-        select.value = String(visitanteId);
-        await carregarConversas();
-      } else {
-        area.innerHTML =
-          "<p style='text-align:center; color:#888;'>Visitante não encontrado na lista atual.</p>";
-      }
+    if (visitanteId && select.querySelector(`option[value="${visitanteId}"]`)) {
+      select.value = String(visitanteId);
+      await carregarConversas();
     } else {
       area.innerHTML =
         '<p style="text-align:center; color:#888;">Selecione um visitante para visualizar as mensagens.</p>';
@@ -73,7 +55,8 @@ async function carregarConversas() {
   const visitanteSelect = document.getElementById("visitanteSelect");
   const visitanteId = visitanteSelect.value;
   const visitanteNome =
-    visitanteSelect.options[visitanteSelect.selectedIndex]?.text || "";
+    visitanteSelect.options[visitanteSelect.selectedIndex]?.text || "Visitante";
+
   const area = document.getElementById("chatArea");
   const title = document.getElementById("chatTitle");
 
@@ -84,17 +67,17 @@ async function carregarConversas() {
     return;
   }
 
-  // Atualiza título e exibe mensagem de carregamento
-  title.textContent = `💬 Conversas com ${visitanteNome.split("(")[0].trim()}`;
+  title.textContent = `💬 Conversas com ${visitanteNome}`;
   area.innerHTML = `
-    <p style="text-align:center; color:#1E4D8F;">
-      ⏳ Buscando mensagens de ${visitanteNome.split("(")[0].trim()}...
+    <p style="text-align:center; color:#000;">
+      ⏳ Buscando mensagens de ${visitanteNome}...
     </p>
   `;
 
   try {
     const res = await fetch(`/api/monitor/conversas/${visitanteId}`);
     const data = await res.json();
+
     area.innerHTML = "";
 
     if (data.status === "success" && data.conversas?.length > 0) {
@@ -110,10 +93,7 @@ async function carregarConversas() {
         area.appendChild(msg);
       });
 
-      // rola suavemente até o final
       area.scrollTo({ top: area.scrollHeight, behavior: "smooth" });
-    } else if (data.status === "error") {
-      area.innerHTML = `<p style="text-align:center; color:#c00;">Erro: ${data.message}</p>`;
     } else {
       area.innerHTML = `
         <p style="text-align:center; color:#888;">
@@ -133,14 +113,13 @@ async function enviarMensagemManual(e) {
   e.preventDefault();
 
   const visitanteSelect = document.getElementById("visitanteSelect");
-  const numeroMatch = visitanteSelect.options[
-    visitanteSelect.selectedIndex
-  ].text.match(/\((.*?)\)/);
-  const numero = numeroMatch ? numeroMatch[1] : null;
+  const numero = visitanteSelect.options[visitanteSelect.selectedIndex]?.dataset
+    .telefone;
 
   const mensagem = document.getElementById("mensagemInput").value.trim();
+
   if (!mensagem) return alert("Digite uma mensagem antes de enviar.");
-  if (!numero) return alert("Telefone do visitante não encontrado.");
+  if (!numero) return alert("Número do visitante não encontrado.");
 
   try {
     const res = await fetch("/api/send-message-manual", {
@@ -148,6 +127,7 @@ async function enviarMensagemManual(e) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ numero, mensagem }),
     });
+
     const data = await res.json();
 
     if (data.success) {
@@ -157,7 +137,7 @@ async function enviarMensagemManual(e) {
       alert("Erro ao enviar: " + data.error);
     }
   } catch (err) {
-    alert("Falha na comunicação com o servidor.");
+    alert("Erro de comunicação com o servidor.");
     console.error(err);
   }
 }
