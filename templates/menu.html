@@ -3,93 +3,184 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Menu Principal - CRM Church">
   <title>Menu Principal | CRM Church</title>
 
-  <link rel="stylesheet" href="/static/main.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: "Inter", Arial, sans-serif;
+      background: #000; /* fundo preto */
+      color: #fff;
+    }
+
+    header {
+      text-align: center;
+      padding: 25px 10px;
+      background: #000;
+      border-bottom: 1px solid #222;
+    }
+
+    header img {
+      height: 60px;
+      display: block;
+      margin: 0 auto 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    main {
+      width: 95%;
+      max-width: 1050px;
+      margin: 40px auto;
+      padding: 35px;
+      background: #fff;
+      color: #333;
+      border-radius: 15px;
+      box-shadow: 0 4px 14px rgba(255,255,255,0.08);
+    }
+
+    h2 {
+      font-size: 22px;
+      margin-top: 0;
+      padding-left: 12px;
+      border-left: 4px solid #000;
+    }
+
+    #buttonContainer {
+      margin-top: 25px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 18px;
+    }
+
+    /* BOTÕES */
+    button {
+      padding: 18px;
+      font-size: 16px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all .2s ease-in-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button:hover {
+      transform: scale(1.03);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+    }
+
+    .btn-primary     { background: #000; color: #fff; }
+    .btn-secondary   { background: #333; color: #fff; }
+    .btn-info        { background: #4466ff; color: #fff; }
+    .btn-success     { background: #00b36b; color: #fff; }
+    .btn-tertiary    { background: #222; color: #fff; }
+    .btn-warning     { background: #d9534f; color: #fff; }
+
+    .btn-primary:hover   { background: #222; }
+    .btn-secondary:hover { background: #444; }
+    .btn-tertiary:hover  { background: #333; }
+    .btn-info:hover      { background: #3355dd; }
+    .btn-success:hover   { background: #00995d; }
+    .btn-warning:hover   { background: #c64541; }
+
+    footer {
+      margin-top: 50px;
+      text-align: center;
+      padding: 15px;
+      color: #aaa;
+    }
+
+    @media (max-width: 560px) {
+      h1 { font-size: 20px; }
+      main { padding: 22px; }
+      button { padding: 15px; }
+    }
+  </style>
+
   <script src="/static/script.js" defer></script>
 </head>
 
 <body>
-  <header>
-    <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1>Secretaria Mais de Cristo Canasvieiras</h1>
-  </header>
+<header>
+  <img src="/static/logo_maisdecristo_b2.png" alt="Logo">
+  <h1>Secretaria Mais de Cristo Canasvieiras</h1>
+</header>
 
-  <main>
-    <section aria-label="Menu Principal">
-      <h2>Menu Principal</h2>
-      <p>Escolha uma das opções abaixo para continuar:</p>
+<main>
+  <h2>Menu Principal</h2>
+  <p>Escolha uma das opções abaixo para continuar:</p>
 
-      <div id="buttonContainer">
-        <button type="button" class="btn-primary" onclick="goTo('visitantes')">
-          📝 Cadastro de Visitantes
-        </button>
-      
-        <!-- 🔹 Mantém o monitor de status -->
-        <button type="button" class="btn-secondary" onclick="goTo('monitor-status')">
-          📋 Monitor de Status Pastoral
-        </button>
-      
-        <!-- 🔹 Novo: monitor de conversas -->
-        <button type="button" class="btn-info" onclick="goTo('monitor')">
-          💬 Conversas do Integra+
-        </button>
-      
-        <button type="button" class="btn-success" onclick="goTo('whatsapp')">
-          💌 Enviar WhatsApp
-        </button>
-      
-        <button type="button" class="btn-tertiary" onclick="goTo('membros')">
-          🙋‍♂️ Cadastro de Membros
-        </button>
-      
-        <button type="button" class="btn-quaternary" onclick="goTo('acolhidos')">
-          🤝 Cadastro de Acolhidos
-        </button>
-      
-        <button type="button" class="btn-success" onclick="goTo('campanhas')">
-          📢 Campanhas de Eventos
-        </button>
-      
-        <button type="button" class="btn-tertiary" onclick="goTo('ia')">
-          🧠 Treinar IA
-        </button>
-      
-        <button type="button" class="btn-info" onclick="goTo('estatisticas')">
-          📊 Estatísticas Gerais
-        </button>
-      
-        <button type="button" class="btn-warning" onclick="logoutUser()">
-          🚪 Sair
-        </button>
-      </div>
-    </section>
-  </main>
+  <div id="buttonContainer">
+    <button class="btn-primary" onclick="goTo('visitantes')">
+      📝 Cadastro de Visitantes
+    </button>
 
-  <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
-  </footer>
+    <button class="btn-secondary" onclick="goTo('monitor-status')">
+      📋 Monitor de Status Pastoral
+    </button>
 
-  <script>
-    // Função de navegação (abre as rotas do Blueprint /app)
-    function goTo(page) {
-      window.location.href = `/app/${page}`;
-    }
+    <button class="btn-info" onclick="goTo('monitor')">
+      💬 Conversas do Integra+
+    </button>
 
-    // Função de logout
-    function logoutUser() {
-      localStorage.removeItem('jwt_token');
+    <button class="btn-success" onclick="goTo('whatsapp')">
+      💌 Enviar WhatsApp
+    </button>
+
+    <button class="btn-tertiary" onclick="goTo('membros')">
+      🙋‍♂️ Cadastro de Membros
+    </button>
+
+    <button class="btn-tertiary" onclick="goTo('acolhidos')">
+      🤝 Cadastro de Acolhidos
+    </button>
+
+    <button class="btn-success" onclick="goTo('campanhas')">
+      📢 Campanhas de Eventos
+    </button>
+
+    <button class="btn-info" onclick="goTo('ia')">
+      🧠 Treinar IA
+    </button>
+
+    <button class="btn-info" onclick="goTo('estatisticas')">
+      📊 Estatísticas Gerais
+    </button>
+
+    <button class="btn-warning" onclick="logoutUser()">
+      🚪 Sair
+    </button>
+  </div>
+</main>
+
+<footer>
+  © 2025 Nous Tecnologia – versão 3.0
+</footer>
+
+<script>
+  function goTo(page) {
+    window.location.href = `/app/${page}`;
+  }
+
+  function logoutUser() {
+    localStorage.removeItem('jwt_token');
+    window.location.href = '/app/login';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!localStorage.getItem('jwt_token')) {
       window.location.href = '/app/login';
     }
+  });
+</script>
 
-    // Verificação automática de login
-    document.addEventListener('DOMContentLoaded', () => {
-      const token = localStorage.getItem('jwt_token');
-      if (!token) {
-        window.location.href = '/app/login';
-      }
-    });
-  </script>
 </body>
 </html>
