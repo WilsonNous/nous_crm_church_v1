@@ -3,16 +3,111 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Cadastro de Membros - Ministério de Integração">
   <title>Cadastro de Membros | CRM Church</title>
 
-  <link rel="stylesheet" href="/static/main.css">
-  <script src="/static/script.js" defer></script>
-</head>
+  <!-- ======= ESTILO EMBUTIDO ======= -->
+  <style>
+    body {
+      margin: 0;
+      font-family: "Inter", Arial, sans-serif;
+      background: #f4f4f7;
+      color: #333;
+    }
 
+    header {
+      background: #6a38c2;
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+
+    header img {
+      height: 60px;
+      margin-bottom: 10px;
+    }
+
+    main {
+      max-width: 900px;
+      margin: 30px auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+      margin-top: 40px;
+      margin-bottom: 15px;
+      color: #6a38c2;
+      border-left: 4px solid #6a38c2;
+      padding-left: 10px;
+      font-size: 20px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 18px;
+    }
+
+    label {
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+
+    input, select, textarea {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    select[multiple] {
+      height: 140px;
+    }
+
+    .btn-primary {
+      background: #6a38c2;
+      color: white;
+      padding: 12px 18px;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    .btn-primary:hover {
+      background: #5c2fb1;
+    }
+
+    .btn-secondary {
+      background: #ddd;
+      padding: 12px 18px;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      border-radius: 8px;
+      margin-left: 10px;
+    }
+
+    footer {
+      margin-top: 40px;
+      text-align: center;
+      padding: 20px;
+      font-size: 14px;
+      color: #777;
+    }
+  </style>
+</head>
 <body>
+
 <header>
-  <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
+  <img src="/static/logo_maisdecristo_b2.png">
   <h1>Cadastro de Membros</h1>
 </header>
 
@@ -20,180 +115,171 @@
 
 <form id="memberForm" onsubmit="saveMember(event)">
 
-  <!-- ================== DADOS PESSOAIS ================== -->
-  <section class="form-section">
-    <h2>Dados Pessoais</h2>
+  <!-- ========================================= -->
+  <h2>Dados Pessoais</h2>
 
-    <div class="form-group">
-      <label for="nome">Nome Completo:</label>
-      <input type="text" id="nome" name="nome" required>
-    </div>
+  <div class="form-group">
+    <label>Nome Completo</label>
+    <input type="text" id="nome" name="nome" required>
+  </div>
 
-    <div class="form-group">
-      <label for="telefone">Telefone (DDD + Número):</label>
-      <input type="tel" id="telefone" name="telefone" required placeholder="48999999999">
-    </div>
+  <div class="form-group">
+    <label>Telefone (DDD + Número)</label>
+    <input type="tel" id="telefone" name="telefone" required placeholder="48999999999">
+  </div>
 
-    <div class="form-group">
-      <label for="email">E-mail:</label>
-      <input type="email" id="email" name="email" required>
-    </div>
+  <div class="form-group">
+    <label>E-mail</label>
+    <input type="email" id="email" name="email" required>
+  </div>
 
-    <div class="form-group">
-      <label for="data_nascimento">Data de Nascimento:</label>
-      <input type="date" id="data_nascimento" name="data_nascimento" required>
-    </div>
+  <div class="form-group">
+    <label>Data de Nascimento</label>
+    <input type="date" id="data_nascimento" name="data_nascimento" required>
+  </div>
 
-    <div class="form-group">
-      <label for="cep">CEP:</label>
-      <input type="text" id="cep" name="cep" maxlength="9" placeholder="00000-000" required>
-    </div>
+  <div class="form-group">
+    <label>CEP</label>
+    <input type="text" id="cep" name="cep" maxlength="9" placeholder="00000-000" required>
+  </div>
 
-    <div class="form-group">
-      <label for="bairro">Bairro:</label>
-      <input type="text" id="bairro" name="bairro" required>
-    </div>
+  <div class="form-group">
+    <label>Bairro</label>
+    <input type="text" id="bairro" name="bairro" required>
+  </div>
 
-    <div class="form-group">
-      <label for="cidade">Cidade:</label>
-      <input type="text" id="cidade" name="cidade" required>
-    </div>
+  <div class="form-group">
+    <label>Cidade</label>
+    <input type="text" id="cidade" name="cidade" required>
+  </div>
 
-    <div class="form-group">
-      <label for="estado">Estado (UF):</label>
-      <input type="text" id="estado" name="estado" maxlength="2" required>
-    </div>
+  <div class="form-group">
+    <label>Estado (UF)</label>
+    <input type="text" id="estado" name="estado" maxlength="2" required>
+  </div>
 
-    <div class="form-group">
-      <label for="estado_civil">Estado Civil:</label>
-      <select id="estado_civil" name="estado_civil" required>
-        <option value="">Selecione</option>
-        <option value="Solteiro(a)">Solteiro(a)</option>
-        <option value="Noivo(a)">Noivo(a)</option>
-        <option value="Casado(a)">Casado(a)</option>
-        <option value="União Estável">União Estável</option>
-        <option value="Divorciado(a)">Divorciado(a)</option>
-        <option value="Viúvo(a)">Viúvo(a)</option>
-      </select>
-    </div>
-  </section>
+  <div class="form-group">
+    <label>Estado Civil</label>
+    <select id="estado_civil" name="estado_civil" required>
+      <option value="">Selecione</option>
+      <option>Solteiro(a)</option>
+      <option>Noivo(a)</option>
+      <option>Casado(a)</option>
+      <option>União Estável</option>
+      <option>Divorciado(a)</option>
+      <option>Viúvo(a)</option>
+    </select>
+  </div>
 
-  <!-- ================== CÔNJUGE ================== -->
-  <section class="form-section">
-    <h2>Informações do Cônjuge</h2>
+  <!-- ========================================= -->
+  <h2>Informações do Cônjuge</h2>
 
-    <div class="form-group">
-      <label for="conjuge_nome">Nome do Cônjuge:</label>
-      <input type="text" id="conjuge_nome" name="conjuge_nome">
-    </div>
-  </section>
+  <div class="form-group">
+    <label>Nome do Cônjuge</label>
+    <input type="text" id="conjuge_nome" name="conjuge_nome">
+  </div>
 
-  <!-- ================== FILHOS ================== -->
-  <section class="form-section">
-    <h2>Filhos</h2>
+  <!-- ========================================= -->
+  <h2>Filhos</h2>
 
-    <div class="form-group">
-      <label for="possui_filhos">Possui filhos?</label>
-      <select id="possui_filhos" name="possui_filhos" required>
-        <option value="">Selecione</option>
-        <option value="Sim">Sim</option>
-        <option value="Não">Não</option>
-      </select>
-    </div>
+  <div class="form-group">
+    <label>Possui filhos?</label>
+    <select id="possui_filhos" name="possui_filhos">
+      <option value="">Selecione</option>
+      <option>Sim</option>
+      <option>Não</option>
+    </select>
+  </div>
 
-    <div class="form-group">
-      <label for="filhos_info">Nome completo e idade dos filhos:</label>
-      <textarea id="filhos_info" name="filhos_info"></textarea>
-    </div>
-  </section>
+  <div class="form-group">
+    <label>Nome completo e idade dos filhos</label>
+    <textarea id="filhos_info" name="filhos_info"></textarea>
+  </div>
 
-  <!-- ================== CAMINHADA DA FÉ ================== -->
-  <section class="form-section">
-    <h2>Caminhada da Fé</h2>
+  <!-- ========================================= -->
+  <h2>Caminhada da Fé</h2>
 
-    <div class="form-group">
-      <label for="novo_comeco">Já fez o Novo Começo?</label>
-      <select id="novo_comeco" name="novo_comeco" required>
-        <option value="">Selecione</option>
-        <option value="Sim">Sim</option>
-        <option value="Não">Não</option>
-        <option value="Em andamento">Em andamento</option>
-      </select>
-    </div>
+  <div class="form-group">
+    <label>Já fez o Novo Começo?</label>
+    <select id="novo_comeco" name="novo_comeco">
+      <option value="">Selecione</option>
+      <option>Sim</option>
+      <option>Não</option>
+      <option>Em andamento</option>
+    </select>
+  </div>
 
-    <div class="form-group">
-      <label for="novo_comeco_quando">Quando?</label>
-      <input type="text" id="novo_comeco_quando" name="novo_comeco_quando">
-    </div>
+  <div class="form-group">
+    <label>Quando?</label>
+    <input type="text" id="novo_comeco_quando" name="novo_comeco_quando">
+  </div>
 
-    <div class="form-group">
-      <label for="classe_membros">Já fez a classe de Novos Membros?</label>
-      <select id="classe_membros" name="classe_membros" required>
-        <option value="">Selecione</option>
-        <option value="Sim">Sim</option>
-        <option value="Não">Não</option>
-        <option value="Em andamento">Em andamento</option>
-      </select>
-    </div>
+  <div class="form-group">
+    <label>Já fez a classe de Novos Membros?</label>
+    <select id="classe_membros" name="classe_membros">
+      <option value="">Selecione</option>
+      <option>Sim</option>
+      <option>Não</option>
+      <option>Em andamento</option>
+    </select>
+  </div>
 
-    <div class="form-group">
-      <label for="apresentacao_data">Quando foi apresentado?</label>
-      <input type="text" id="apresentacao_data" name="apresentacao_data">
-    </div>
-  </section>
+  <div class="form-group">
+    <label>Quando foi apresentado?</label>
+    <input type="text" id="apresentacao_data" name="apresentacao_data">
+  </div>
 
-  <!-- ================== DISCIPULADOS ================== -->
-  <section class="form-section">
-    <h2>Discipulados</h2>
+  <!-- ========================================= -->
+  <h2>Discipulados</h2>
 
-    <div class="form-group">
-      <label>Quais discipulados participou?</label>
+  <div class="form-group">
+    <label>Quais discipulados participou?</label>
+    <select id="discipulados" name="discipulados" multiple>
+      <option>Homens Corajosos</option>
+      <option>Mulheres Transformadas</option>
+      <option>Aliançados com Cristo</option>
+      <option>Curso de Teologia - Básico</option>
+      <option>Curso de Teologia - FMC</option>
+      <option>Não participei</option>
+    </select>
+  </div>
 
-      <label><input type="checkbox" name="discipulados" value="Homens Corajosos"> Homens Corajosos</label>
-      <label><input type="checkbox" name="discipulados" value="Mulheres Transformadas"> Mulheres Transformadas</label>
-      <label><input type="checkbox" name="discipulados" value="Aliançados com Cristo"> Aliançados com Cristo</label>
-      <label><input type="checkbox" name="discipulados" value="Curso de Teologia - Básico"> Curso de Teologia - Básico</label>
-      <label><input type="checkbox" name="discipulados" value="Curso de Teologia - FMC"> Curso de Teologia - FMC</label>
-      <label><input type="checkbox" name="discipulados" value="Não participei"> Não participei</label>
-    </div>
-  </section>
+  <!-- ========================================= -->
+  <h2>Serviço na Igreja</h2>
 
-  <!-- ================== MINISTÉRIOS ================== -->
-  <section class="form-section">
-    <h2>Serviço na Igreja</h2>
+  <div class="form-group">
+    <label>Serve em algum ministério?</label>
+    <select id="ministerios" name="ministerios" multiple>
+      <option>Integração</option>
+      <option>Kids</option>
+      <option>Louvor</option>
+      <option>Mídia</option>
+      <option>Intercessão</option>
+      <option>Homens</option>
+      <option>Mulheres</option>
+      <option>Alive</option>
+      <option>Diaconia</option>
+    </select>
+  </div>
 
-    <div class="form-group">
-      <label>Serve em algum ministério?</label>
+  <div class="form-group">
+    <label>Outros Ministérios</label>
+    <input type="text" id="ministerios_outros" name="ministerios_outros">
+  </div>
 
-      <label><input type="checkbox" name="ministerios" value="Integração"> Integração</label>
-      <label><input type="checkbox" name="ministerios" value="Kids"> Kids</label>
-      <label><input type="checkbox" name="ministerios" value="Louvor"> Louvor</label>
-      <label><input type="checkbox" name="ministerios" value="Mídia"> Mídia</label>
-      <label><input type="checkbox" name="ministerios" value="Intercessão"> Intercessão</label>
-      <label><input type="checkbox" name="ministerios" value="Homens"> Homens</label>
-      <label><input type="checkbox" name="ministerios" value="Mulheres"> Mulheres</label>
-      <label><input type="checkbox" name="ministerios" value="Alive"> Alive</label>
-      <label><input type="checkbox" name="ministerios" value="Diaconia"> Diaconia</label>
+  <div class="form-group">
+    <label>É consagrado?</label>
+    <select id="consagracao" name="consagracao">
+      <option>Não</option>
+      <option>Pastor</option>
+      <option>Evangelista</option>
+      <option>Presbítero</option>
+      <option>Diácono</option>
+    </select>
+  </div>
 
-      <label>Outros:
-        <input type="text" name="ministerios_outros">
-      </label>
-    </div>
-
-    <div class="form-group">
-      <label for="consagracao">É consagrado?</label>
-      <select id="consagracao" name="consagracao" required>
-        <option value="Não">Não</option>
-        <option value="Pastor">Pastor</option>
-        <option value="Evangelista">Evangelista</option>
-        <option value="Presbítero">Presbítero</option>
-        <option value="Diácono">Diácono</option>
-      </select>
-    </div>
-  </section>
-
-  <button type="submit" class="btn-primary">Cadastrar Membro</button>
-  <button type="button" class="btn-secondary" onclick="window.location.href='/app/menu'">
+  <button class="btn-primary" type="submit">Cadastrar Membro</button>
+  <button class="btn-secondary" type="button" onclick="window.location.href='/app/menu'">
     ← Voltar ao Menu
   </button>
 
@@ -202,14 +288,8 @@
 </main>
 
 <footer>
-  <p>© 2025 Nous Tecnologia – versão 3.1</p>
+  © 2025 Nous Tecnologia – versão 3.1
 </footer>
-
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    if (!localStorage.getItem('jwt_token')) window.location.href = '/app/login';
-  });
-</script>
 
 </body>
 </html>
