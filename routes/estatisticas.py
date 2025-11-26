@@ -29,71 +29,87 @@ def register(app):
             meses = int(request.args.get("meses", 6))
             conn = get_db_connection()
             cursor = conn.cursor()
-
-            filtro_data = ""
+    
+            # --------------------------------------------
+            # Filtros dinâmicos seguros
+            # --------------------------------------------
+            filtros_base = []
             if meses > 0:
-                filtro_data = f"WHERE v.data_cadastro >= DATE_SUB(CURDATE(), INTERVAL {meses} MONTH)"
-
+                filtros_base.append(
+                    f"v.data_cadastro >= DATE_SUB(CURDATE(), INTERVAL {meses} MONTH)"
+                )
+    
+            def montar_where(filtros_extra=None):
+                filtros = list(filtros_base)
+                if filtros_extra:
+                    filtros.extend(filtros_extra)
+                return "WHERE " + " AND ".join(filtros) if filtros else ""
+    
             # ----------------------- INÍCIO -----------------------
+            where_inicio = montar_where(["f.descricao = 'INICIO'"])
             cursor.execute(f"""
                 SELECT COUNT(DISTINCT v.id) AS total
                 FROM visitantes v
                 JOIN status s ON v.id = s.visitante_id
                 JOIN fases f ON s.fase_id = f.id
-                {filtro_data} AND f.descricao = 'INICIO';
+                {where_inicio};
             """)
             inicio = fetch_one_dict(cursor)
-
+    
             # ----------------------- GÊNERO -----------------------
+            where_genero = montar_where()
             cursor.execute(f"""
                 SELECT 
                     SUM(v.genero='masculino') AS homens,
                     SUM(v.genero='feminino') AS mulheres,
                     COUNT(*) AS total
                 FROM visitantes v
-                {filtro_data};
+                {where_genero};
             """)
             genero = fetch_one_dict(cursor)
-
+    
             # ----------------------- DISCIPULADO -----------------------
+            where_discipulado = montar_where(["f.descricao LIKE '%DISCIPULADO%'"])
             cursor.execute(f"""
                 SELECT COUNT(DISTINCT v.id) AS total_discipulado
                 FROM visitantes v
                 JOIN status s ON v.id = s.visitante_id
                 JOIN fases f ON s.fase_id = f.id
-                {filtro_data} AND f.descricao LIKE '%DISCIPULADO%';
+                {where_discipulado};
             """)
             discipulado = fetch_one_dict(cursor)
-
+    
             # ----------------------- ORAÇÃO -----------------------
+            where_oracao = montar_where(["v.pedido_oracao IS NOT NULL"])
             cursor.execute(f"""
                 SELECT COUNT(*) AS total_pedidos
                 FROM visitantes v
-                {filtro_data} AND v.pedido_oracao IS NOT NULL;
+                {where_oracao};
             """)
             oracao = fetch_one_dict(cursor)
-
+    
             # ----------------------- ORIGEM -----------------------
+            where_origem = montar_where()
             cursor.execute(f"""
                 SELECT COALESCE(v.indicacao, 'SEM INDICAÇÃO') AS origem,
                        COUNT(v.id) AS total
                 FROM visitantes v
-                {filtro_data}
+                {where_origem}
                 GROUP BY v.indicacao
                 ORDER BY total DESC;
             """)
             origem = fetch_all_dict(cursor)
-
+    
             # ----------------------- MENSAL -----------------------
             cursor.execute(f"""
                 SELECT DATE_FORMAT(v.data_cadastro, '%Y-%m') AS mes, COUNT(v.id) AS total
                 FROM visitantes v
-                {filtro_data}
+                {where_origem}
                 GROUP BY mes
                 ORDER BY mes DESC;
             """)
             mensal = fetch_all_dict(cursor)
-
+    
             # ----------------------- CONVERSAS -----------------------
             cursor.execute("""
                 SELECT 
@@ -102,7 +118,7 @@ def register(app):
                 FROM conversas;
             """)
             conversas = fetch_one_dict(cursor)
-
+    
             # ----------------------- FASES -----------------------
             cursor.execute("""
                 SELECT 
@@ -115,8 +131,9 @@ def register(app):
                 ORDER BY total DESC;
             """)
             fases = fetch_all_dict(cursor)
-
+    
             # ----------------------- DEMOGRAFIA -----------------------
+            where_idade = montar_where()
             cursor.execute(f"""
                 SELECT 
                     ROUND(AVG(TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE())), 1) AS idade_media,
@@ -125,39 +142,39 @@ def register(app):
                     SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) BETWEEN 30 AND 59 THEN 1 ELSE 0 END) AS adultos,
                     SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) >= 60 THEN 1 ELSE 0 END) AS idosos
                 FROM visitantes v
-                {filtro_data};
+                {where_idade};
             """)
             idade = fetch_one_dict(cursor)
-
+    
             # ----------------------- ESTADO CIVIL -----------------------
             cursor.execute(f"""
                 SELECT 
                     COALESCE(v.estado_civil, 'Não Informado') AS estado_civil,
                     COUNT(*) AS total
                 FROM visitantes v
-                {filtro_data}
+                {where_idade}
                 GROUP BY v.estado_civil
                 ORDER BY total DESC
                 LIMIT 10;
             """)
             estado_civil = fetch_all_dict(cursor)
-
+    
             # ----------------------- CIDADES -----------------------
             cursor.execute(f"""
                 SELECT 
                     COALESCE(v.cidade, 'Não Informada') AS cidade,
                     COUNT(*) AS total
                 FROM visitantes v
-                {filtro_data}
+                {where_idade}
                 GROUP BY v.cidade
                 ORDER BY total DESC
                 LIMIT 10;
             """)
             cidades = fetch_all_dict(cursor)
-
+    
             cursor.close()
             conn.close()
-
+    
             return jsonify({
                 "inicio": inicio,
                 "genero": genero,
@@ -173,10 +190,11 @@ def register(app):
                     "cidades": cidades
                 }
             }), 200
-
+    
         except Exception as e:
             logging.exception(e)
             return jsonify({"error": str(e)}), 500
+
 
     # ============================================================
     # 2) KIDS
