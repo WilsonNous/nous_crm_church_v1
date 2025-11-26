@@ -404,6 +404,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('visitorForm')?.addEventListener('submit', handleFormSubmission);
   $('acolhidoForm')?.addEventListener('submit', handleAcolhidoFormSubmission);
   $('teachForm')?.addEventListener('submit', handleTeachSubmit);
+  $('memberForm')?.addEventListener('submit', handleMemberFormSubmission);
 
   // 4) Paginação também nas páginas dedicadas de monitor, se existir
   if ($('nextPageButton') || $('prevPageButton')) bindPagination();
@@ -411,5 +412,105 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // IMPORTANTE: Nada de loadDashboardData() automático aqui!
 });
 
+
+// ===============================
+// MEMBROS - Cadastro Completo
+// ===============================
+
+function handleMemberFormSubmission(e) {
+  e.preventDefault();
+
+  // Dados básicos
+  const data = {
+    nome: $('nome')?.value || $('memberName')?.value || '',
+    telefone: $('telefone')?.value || $('memberPhone')?.value || '',
+    email: $('email')?.value || $('memberEmail')?.value || '',
+    data_nascimento: $('data_nascimento')?.value || $('memberBirthday')?.value || '',
+
+    cep: $('cep')?.value || '',
+    bairro: $('bairro')?.value || $('memberNeighborhood')?.value || '',
+    cidade: $('cidade')?.value || $('memberCity')?.value || '',
+    estado: $('estado')?.value || $('memberState')?.value || '',
+
+    estado_civil: $('estado_civil')?.value || '',
+    conjuge_nome: $('conjuge_nome')?.value || '',
+
+    possui_filhos: $('possui_filhos')?.value || '',
+    filhos_info: $('filhos_info')?.value || '',
+
+    novo_comeco: $('novo_comeco')?.value || '',
+    novo_comeco_quando: $('novo_comeco_quando')?.value || '',
+
+    classe_membros: $('classe_membros')?.value || '',
+    apresentacao_data: $('apresentacao_data')?.value || '',
+
+    consagracao: $('consagracao')?.value || '',
+    status_membro: $('status_membro')?.value || 'ativo',
+  };
+
+  // -------------------------
+  // Captura checkboxes: Discipulados
+  // -------------------------
+  const discipuladosSelecionados = [
+    ...document.querySelectorAll("input[name='discipulados']:checked")
+  ].map(el => el.value);
+
+  data["discipulados"] = discipuladosSelecionados;
+
+  // -------------------------
+  // Captura checkboxes: Ministérios
+  // -------------------------
+  const ministeriosSelecionados = [
+    ...document.querySelectorAll("input[name='ministerios']:checked")
+  ].map(el => el.value);
+
+  data["ministerios"] = ministeriosSelecionados;
+
+  // Campo "outros ministérios"
+  const outros = $('ministerios_outros')?.value;
+  if (outros && outros.trim() !== "") {
+    data["ministerios_outros"] = outros.trim();
+  }
+
+  // -------------------------
+  // Validação mínima
+  // -------------------------
+  if (!data.nome || !data.telefone) {
+    alert("Preencha nome e telefone.");
+    return;
+  }
+
+  // Normalizar telefone (somente números)
+  data.telefone = data.telefone.replace(/\D/g, '');
+
+  if (data.telefone.length !== 11) {
+    alert("Telefone inválido. Use DDD + número.");
+    return;
+  }
+
+  // -------------------------
+  // Envio para API
+  // -------------------------
+  fetch(`${baseUrl}/api/membros`, {
+    method: "POST",
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(data)
+  })
+  .then(r => r.json())
+  .then(resp => {
+    if (resp.error) {
+      alert("Erro ao cadastrar: " + resp.error);
+      return;
+    }
+
+    alert("Membro cadastrado com sucesso!");
+    $('memberForm')?.reset();
+    window.location.href = "/app/menu";
+  })
+  .catch(err => {
+    console.error("Erro:", err);
+    alert("Erro ao enviar dados. Tente novamente.");
+  });
+}
 
 
