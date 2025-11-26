@@ -71,43 +71,122 @@ def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
         logging.error(f"Erro ao salvar visitante: {e}")
         return False
 
-def salvar_membro(nome, telefone, email, data_nascimento, cep, bairro, cidade, estado, status_membro='ativo'):
-    """Salva um membro no banco de dados."""
+def salvar_membro(dados: dict):
+    """
+    Salva um membro com TODOS os dados coletados no formulário completo.
+    'dados' deve vir como JSON enviado pelo front-end.
+    """
+
     try:
-        # Verifica se o membro já existe antes de tentar salvar
+        telefone = dados.get("telefone")
+
+        # Verificar duplicidade
         if membro_existe(telefone):
-            logging.error(f"Erro: O telefone {telefone} já está cadastrado.")
+            logging.error(f"❌ O telefone {telefone} já está cadastrado.")
             return False
 
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Tenta inserir o membro
-            cursor.execute(''' 
-                INSERT INTO membros (nome, telefone, email, data_nascimento, cep, bairro, cidade, estado, status_membro)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''', (nome, telefone, email, data_nascimento, cep, bairro, cidade, estado, status_membro))
+            # ======================
+            # SALVAR NA TABELA PRINCIPAL
+            # ======================
+            sql_membro = """
+                INSERT INTO membros 
+                (nome, telefone, email, data_nascimento, 
+                cep, bairro, cidade, estado,
+                estado_civil, conjuge_nome,
+                possui_filhos, filhos_info,
+                novo_comeco, novo_comeco_quando,
+                classe_membros, apresentacao_data,
+                consagracao, status_membro)
+                VALUES (%s, %s, %s, %s, 
+                        %s, %s, %s, %s,
+                        %s, %s,
+                        %s, %s,
+                        %s, %s,
+                        %s, %s,
+                        %s, %s);
+            """
+
+            cursor.execute(sql_membro, (
+                dados.get("nome"),
+                telefone,
+                dados.get("email"),
+                dados.get("data_nascimento"),
+
+                dados.get("cep"),
+                dados.get("bairro"),
+                dados.get("cidade"),
+                dados.get("estado"),
+
+                dados.get("estado_civil"),
+                dados.get("conjuge_nome"),
+
+                dados.get("possui_filhos"),
+                dados.get("filhos_info"),
+
+                dados.get("novo_comeco"),
+                dados.get("novo_comeco_quando"),
+
+                dados.get("classe_membros"),
+                dados.get("apresentacao_data"),
+
+                dados.get("consagracao"),
+                dados.get("status_membro", "ativo")
+            ))
+
+            id_membro = cursor.lastrowid
+
+            # ======================
+            # SALVAR DISCIPULADOS
+            # ======================
+            discipulados = dados.get("discipulados", [])
+            if discipulados:
+                for item in discipulados:
+                    cursor.execute("""
+                        INSERT INTO membros_discipulados (id_membro, discipulado)
+                        VALUES (%s, %s)
+                    """, (id_membro, item))
+
+            # ======================
+            # SALVAR MINISTÉRIOS
+            # ======================
+            ministerios = dados.get("ministerios", [])
+            if ministerios:
+                for item in ministerios:
+                    cursor.execute("""
+                        INSERT INTO membros_ministerios (id_membro, ministerio)
+                        VALUES (%s, %s)
+                    """, (id_membro, item))
+
+            # Campo "outros"
+            if dados.get("ministerios_outros"):
+                cursor.execute("""
+                    INSERT INTO membros_ministerios (id_membro, ministerio)
+                    VALUES (%s, %s)
+                """, (id_membro, dados.get("ministerios_outros")))
 
             conn.commit()
-            logging.info(f"Membro {nome} cadastrado com sucesso com o telefone {telefone}!")
-        return True
+
+            logging.info(f"🟢 Membro '{dados.get('nome')}' (#ID {id_membro}) cadastrado com sucesso!")
+            return True
 
     except Exception as e:
-        logging.error(f"Erro ao salvar membro: {e}")
+        logging.error(f"❌ Erro ao salvar membro completo: {e}")
         return False
 
+
 def membro_existe(telefone):
-    """Verifica se um membro com o telefone fornecido já existe no banco de dados."""
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id_membro FROM membros WHERE telefone = %s", (telefone,))
-            membro = cursor.fetchone()
-            return membro is not None
-
+            return cursor.fetchone() is not None
     except Exception as e:
         logging.error(f"Erro ao verificar existência do membro: {e}")
         return False
+
 
 def salvar_novo_visitante(telefone, nome, origem="integra+"):
     """Salva um novo visitante no banco de dados com origem."""
