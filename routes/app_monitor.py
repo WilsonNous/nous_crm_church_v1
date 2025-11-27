@@ -2,7 +2,7 @@ import logging
 from flask import Blueprint, render_template, jsonify, request
 from database import get_db_connection
 
-monitor_bp = Blueprint("monitor_bp", __name__)
+monitor_bp = Blueprint("app_monitor_bp", __name__)
 
 def register(app):
     app.register_blueprint(monitor_bp)
