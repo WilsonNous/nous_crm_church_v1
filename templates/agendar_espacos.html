@@ -2,83 +2,136 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agendamento de Espaços • Integra+</title>
 
 <style>
     body {
         margin: 0;
         font-family: "Inter", sans-serif;
-        background: #f4f4f4;
+        background: #f7f7f7;
         color: #333;
     }
 
-    /* Cabeçalho Preto Minimalista */
+    /* ================================================= */
+    /*   CABEÇALHO — VISUAL OFICIAL DO CRM CHURCH       */
+    /* ================================================= */
     header {
-        background: #000;
-        padding: 25px 10px;
         text-align: center;
+        padding: 25px 10px;
+        background: #000;
         border-bottom: 1px solid #222;
+    }
+
+    header img {
+        height: 60px;
+        display: block;
+        margin: 0 auto 10px;
     }
 
     header h1 {
         margin: 0;
-        font-size: 24px;
         color: #fff;
+        font-size: 22px;
         font-weight: 600;
     }
 
-    /* Conteúdo Branco Centralizado */
+    /* ================================================= */
+    /*   CONTAINER — MOBILE FIRST                        */
+    /* ================================================= */
     .container {
-        max-width: 950px;
-        margin: 40px auto;
+        max-width: 650px;
+        margin: 15px auto;
         background: #fff;
-        padding: 40px;
-        border-radius: 15px;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+        padding: 20px 18px;
+        border-radius: 12px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.05);
     }
 
     h3 {
-        margin-top: 35px;
-        padding-left: 12px;
-        border-left: 4px solid #000;
+        margin-top: 28px;
+        padding-left: 10px;
+        border-left: 3px solid #000;
+        font-size: 18px;
         font-weight: 600;
     }
 
     label {
         font-size: 15px;
-        margin-top: 20px;
+        margin-top: 16px;
         display: block;
         font-weight: 500;
     }
 
-    select, input, textarea {
+    select, input {
         width: 100%;
         padding: 14px;
-        margin-top: 8px;
+        margin-top: 5px;
         border: 1px solid #ccc;
         background: #fafafa;
         color: #333;
-        border-radius: 8px;
+        border-radius: 10px;
         font-size: 15px;
     }
 
     select:focus, input:focus {
         outline: none;
-        border-color: #888;
+        border-color: #777;
         background: #fff;
     }
 
+    /* ================================================= */
+    /*   LISTA DE HORÁRIOS                               */
+    /* ================================================= */
+    .lista-horarios {
+        margin-top: 18px;
+        padding: 15px;
+        background: #fafafa;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+    }
+
+    .ocupado {
+        background: #ffe8e8;
+        padding: 14px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #ffb5b5;
+    }
+
+    .ocupado strong {
+        color: #900;
+        font-size: 14px;
+    }
+
+    .livre {
+        background: #e6f3ff;
+        padding: 14px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #a6d6ff;
+        cursor: pointer;
+    }
+
+    .livre:hover {
+        background: #d3eaff;
+    }
+
+    /* ================================================= */
+    /*   BOTÃO                                           */
+    /* ================================================= */
     button {
-        margin-top: 30px;
+        margin-top: 25px;
         padding: 16px;
         width: 100%;
         background: #000;
         color: #fff;
         border: none;
-        border-radius: 10px;
+        border-radius: 12px;
         font-weight: 600;
+        font-size: 17px;
         cursor: pointer;
-        font-size: 16px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.12);
         transition: 0.2s;
     }
 
@@ -86,48 +139,22 @@
         background: #333;
     }
 
-    /* Lista de Horários */
-    .lista-horarios {
-        margin-top: 25px;
-        padding: 20px;
-        background: #fafafa;
-        border-radius: 10px;
-        border: 1px solid #ddd;
-    }
-
-    .ocupado {
-        background: #ffe5e5;
-        padding: 12px;
-        border-radius: 6px;
-        margin-bottom: 10px;
-        border: 1px solid #ffb3b3;
-        color: #a33;
-    }
-
-    .ocupado strong {
-        color: #900;
-    }
-
-    .livre {
-        background: #e6f5ff;
-        padding: 12px;
-        border-radius: 6px;
-        margin-bottom: 10px;
-        border: 1px solid #99dbff;
-        color: #055;
-        cursor: pointer;
-    }
-
-    .livre:hover {
-        background: #d9efff;
+    /* Desktop melhora layout */
+    @media (min-width: 750px) {
+        header h1 { font-size: 26px; }
+        .container { padding: 35px; }
     }
 </style>
 
 </head>
 <body>
 
+<!-- ================================================= -->
+<!--                    CABEÇALHO                      -->
+<!-- ================================================= -->
 <header>
-    <h1>📅 Agendamento de Espaços • Integra+</h1>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo da Igreja">
+    <h1>Agendamento de Espaços</h1>
 </header>
 
 <div class="container">
@@ -139,19 +166,19 @@
     <input type="date" id="dataInput" onchange="carregarAgenda()">
 
     <div id="horariosArea" class="lista-horarios">
-        <p style="color:#666;">Selecione um espaço e uma data.</p>
+        <p style="color:#777; font-size:14px;">Selecione um espaço e uma data.</p>
     </div>
 
-    <h3>📌 Fazer Reserva</h3>
+    <h3>Informações da Reserva</h3>
 
     <label>Seu Nome</label>
-    <input type="text" id="nome">
+    <input type="text" id="nome" placeholder="Digite seu nome">
 
     <label>Telefone</label>
-    <input type="text" id="telefone">
+    <input type="text" id="telefone" placeholder="(DDD) 99999-9999">
 
     <label>Finalidade</label>
-    <input type="text" id="finalidade">
+    <input type="text" id="finalidade" placeholder="Ex.: ensaio, reunião, ministração">
 
     <label>Hora Início</label>
     <input type="time" id="horaInicio">
@@ -189,7 +216,7 @@ async function carregarAgenda() {
     area.innerHTML = "";
 
     if (dados.reservas.length === 0) {
-        area.innerHTML = "<p style='color:#666;'>Nenhuma reserva para esta data.</p>";
+        area.innerHTML = "<p style='color:#777;'>Nenhuma reserva para esta data.</p>";
         return;
     }
 
