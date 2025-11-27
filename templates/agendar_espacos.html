@@ -8,79 +8,118 @@
     body {
         margin: 0;
         font-family: "Inter", sans-serif;
-        background: #111;
-        color: #fff;
+        background: #f4f4f4;
+        color: #333;
     }
+
+    /* Cabeçalho Preto Minimalista */
     header {
         background: #000;
-        padding: 20px;
+        padding: 25px 10px;
         text-align: center;
-        border-bottom: 2px solid #333;
+        border-bottom: 1px solid #222;
     }
+
     header h1 {
         margin: 0;
-        font-size: 26px;
+        font-size: 24px;
+        color: #fff;
         font-weight: 600;
-        letter-spacing: .5px;
     }
+
+    /* Conteúdo Branco Centralizado */
     .container {
-        max-width: 900px;
+        max-width: 950px;
         margin: 40px auto;
-        background: #1a1a1a;
-        padding: 25px;
-        border-radius: 10px;
-        box-shadow: 0 0 20px rgba(255,255,255,.05);
+        background: #fff;
+        padding: 40px;
+        border-radius: 15px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
     }
+
+    h3 {
+        margin-top: 35px;
+        padding-left: 12px;
+        border-left: 4px solid #000;
+        font-weight: 600;
+    }
+
     label {
         font-size: 15px;
-        margin-top: 15px;
+        margin-top: 20px;
         display: block;
+        font-weight: 500;
     }
+
     select, input, textarea {
         width: 100%;
-        padding: 12px;
+        padding: 14px;
         margin-top: 8px;
-        border: 1px solid #444;
+        border: 1px solid #ccc;
+        background: #fafafa;
+        color: #333;
+        border-radius: 8px;
+        font-size: 15px;
+    }
+
+    select:focus, input:focus {
+        outline: none;
+        border-color: #888;
+        background: #fff;
+    }
+
+    button {
+        margin-top: 30px;
+        padding: 16px;
+        width: 100%;
         background: #000;
         color: #fff;
-        border-radius: 6px;
-        font-size: 15px;
-    }
-    button {
-        margin-top: 25px;
-        padding: 14px;
-        background: #fff;
-        color: #000;
         border: none;
-        border-radius: 6px;
-        font-weight: bold;
+        border-radius: 10px;
+        font-weight: 600;
         cursor: pointer;
-        font-size: 15px;
+        font-size: 16px;
+        transition: 0.2s;
     }
+
     button:hover {
-        background: #ddd;
+        background: #333;
     }
+
+    /* Lista de Horários */
     .lista-horarios {
-        margin-top: 20px;
-        padding: 15px;
-        background: #000;
-        border-radius: 8px;
-        border: 1px solid #333;
+        margin-top: 25px;
+        padding: 20px;
+        background: #fafafa;
+        border-radius: 10px;
+        border: 1px solid #ddd;
     }
+
     .ocupado {
-        background: #300;
-        padding: 8px;
-        border-radius: 4px;
-        margin-bottom: 8px;
-        border: 1px solid #600;
+        background: #ffe5e5;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        border: 1px solid #ffb3b3;
+        color: #a33;
     }
+
+    .ocupado strong {
+        color: #900;
+    }
+
     .livre {
-        background: #033;
-        padding: 8px;
-        border-radius: 4px;
-        margin-bottom: 8px;
-        border: 1px solid #066;
+        background: #e6f5ff;
+        padding: 12px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        border: 1px solid #99dbff;
+        color: #055;
         cursor: pointer;
+    }
+
+    .livre:hover {
+        background: #d9efff;
     }
 </style>
 
@@ -100,10 +139,8 @@
     <input type="date" id="dataInput" onchange="carregarAgenda()">
 
     <div id="horariosArea" class="lista-horarios">
-        <p>Selecione um espaço e uma data.</p>
+        <p style="color:#666;">Selecione um espaço e uma data.</p>
     </div>
-
-    <hr style="margin: 30px 0; border-color:#333;">
 
     <h3>📌 Fazer Reserva</h3>
 
@@ -152,7 +189,7 @@ async function carregarAgenda() {
     area.innerHTML = "";
 
     if (dados.reservas.length === 0) {
-        area.innerHTML = "<p style='color:#ccc;'>Nenhuma reserva para esta data.</p>";
+        area.innerHTML = "<p style='color:#666;'>Nenhuma reserva para esta data.</p>";
         return;
     }
 
