@@ -2,64 +2,177 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Admin ▸ Reservas</title>
+<title>Administração de Reservas • Integra+</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
-    body { font-family: Inter, sans-serif; background:#111; color:white; }
-    h1 { text-align:center; padding:20px 0; }
-    table { width:100%; border-collapse: collapse; margin-top:20px; }
-    th, td {
-        padding: 12px;
-        border-bottom:1px solid #333;
-        text-align:left;
+    body {
+        margin: 0;
+        background: #f4f4f4;
+        font-family: "Inter", sans-serif;
+        color: #333;
     }
-    th { background:#000; }
-    button {
-        background:#ff4444;
-        color:white;
-        padding:8px 12px;
-        border:none;
-        border-radius:5px;
-        cursor:pointer;
+
+    /* ================================================= */
+    /*  CABEÇALHO — PADRÃO CRM CHURCH                    */
+    /* ================================================= */
+    header {
+        background: #000;
+        padding: 25px 10px;
+        text-align: center;
+        border-bottom: 1px solid #222;
+    }
+
+    header img {
+        height: 60px;
+        display: block;
+        margin: 0 auto 10px;
+    }
+
+    header h1 {
+        color: #fff;
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+    }
+
+    /* ================================================= */
+    /*  CONTAINER CENTRAL                                */
+    /* ================================================= */
+    .container {
+        width: 95%;
+        max-width: 1100px;
+        margin: 35px auto;
+        padding: 30px;
+        background: #fff;
+        border-radius: 15px;
+        box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+        font-size: 22px;
+        margin: 0 0 25px 0;
+        padding-left: 12px;
+        border-left: 4px solid #000;
+        font-weight: 600;
+    }
+
+    /* ================================================= */
+    /*  TABELA                                           */
+    /* ================================================= */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 15px;
+    }
+
+    th {
+        background: #000;
+        color: #fff;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid #222;
+    }
+
+    td {
+        padding: 12px;
+        border-bottom: 1px solid #ddd;
+    }
+
+    tr:hover td {
+        background: #f7f7f7;
+    }
+
+    /* ================================================= */
+    /*  BOTÃO EXCLUIR                                    */
+    /* ================================================= */
+    .btn-delete {
+        background: #d9534f;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: #fff;
+        cursor: pointer;
+        font-weight: 600;
+        transition: 0.2s;
+    }
+
+    .btn-delete:hover {
+        background: #c64541;
+    }
+
+    /* RESPONSIVO */
+    @media (max-width: 768px) {
+        th, td {
+            font-size: 13px;
+            padding: 10px;
+        }
+
+        header h1 {
+            font-size: 20px;
+        }
+
+        header img {
+            height: 50px;
+        }
     }
 </style>
+
 </head>
 <body>
 
-<h1>📌 Administração de Reservas</h1>
+<!-- ================================================= -->
+<!--                   CABEÇALHO                       -->
+<!-- ================================================= -->
+<header>
+    <img src="/static/logo_maisdecristo_b2.png" alt="Logo">
+    <h1>Administração de Reservas</h1>
+</header>
 
-<table>
-    <tr>
-        <th>Data</th>
-        <th>Início</th>
-        <th>Fim</th>
-        <th>Espaço</th>
-        <th>Responsável</th>
-        <th>Finalidade</th>
-        <th>Ações</th>
-    </tr>
+<!-- ================================================= -->
+<!--                  CONTEÚDO PRINCIPAL               -->
+<!-- ================================================= -->
+<div class="container">
 
-    {% for r in reservas %}
-    <tr>
-        <td>{{ r.data }}</td>
-        <td>{{ r.hora_inicio }}</td>
-        <td>{{ r.hora_fim }}</td>
-        <td>{{ r.space.nome }}</td>
-        <td>{{ r.nome }}</td>
-        <td>{{ r.finalidade }}</td>
-        <td><button onclick="excluir({{ r.id }})">Excluir</button></td>
-    </tr>
-    {% endfor %}
-</table>
+    <h2>Reservas Realizadas</h2>
+
+    <table>
+        <tr>
+            <th>Data</th>
+            <th>Início</th>
+            <th>Fim</th>
+            <th>Espaço</th>
+            <th>Responsável</th>
+            <th>Finalidade</th>
+            <th>Ação</th>
+        </tr>
+
+        {% for r in reservas %}
+        <tr>
+            <td>{{ r.data }}</td>
+            <td>{{ r.hora_inicio }}</td>
+            <td>{{ r.hora_fim }}</td>
+            <td>{{ r.espaco }}</td>
+            <td>{{ r.nome }}</td>
+            <td>{{ r.finalidade }}</td>
+            <td>
+                <button class="btn-delete" onclick="excluir({{ r.id }})">Excluir</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
 
 <script>
 async function excluir(id) {
-    if (!confirm("Excluir esta reserva?")) return;
+    if (!confirm("Deseja realmente excluir esta reserva?")) return;
 
-    await fetch(`/admin/reservas/excluir/${id}`, {
-        method: "POST"
-    });
+    await fetch(`/admin/reservas/excluir/${id}`, { method: "POST" });
 
-    alert("Reserva excluída");
+    alert("Reserva excluída com sucesso!");
     location.reload();
 }
 </script>
