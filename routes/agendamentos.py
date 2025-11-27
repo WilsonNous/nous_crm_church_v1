@@ -146,21 +146,21 @@ def nova_reserva():
 @bp_agenda.route("/admin/reservas")
 def admin_reservas():
     try:
-        with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute("""
-                SELECT r.id, r.data,
-                       time_format(r.hora_inicio, '%%H:%%i') AS hora_inicio,
-                       time_format(r.hora_fim, '%%H:%%i') AS hora_fim,
-                       r.nome, r.finalidade, r.status,
-                       s.nome AS espaco
-                FROM reservas r
-                JOIN spaces s ON s.id = r.space_id
-                ORDER BY r.data DESC, r.hora_inicio
-            """)
-
-            reservas = cursor.fetchall()
+             with closing(get_db_connection()) as conn:
+                cursor = conn.cursor(dictionary=True)
+            
+                cursor.execute("""
+                    SELECT r.id, r.data,
+                           time_format(r.hora_inicio, '%%H:%%i') AS hora_inicio,
+                           time_format(r.hora_fim, '%%H:%%i') AS hora_fim,
+                           r.nome, r.finalidade, r.status,
+                           s.nome AS espaco
+                    FROM reservas r
+                    JOIN spaces s ON s.id = r.space_id
+                    ORDER BY r.data DESC, r.hora_inicio
+                """)
+            
+                reservas = cursor.fetchall()
 
         return render_template("admin_reservas.html", reservas=reservas)
 
