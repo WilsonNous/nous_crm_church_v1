@@ -232,7 +232,17 @@ async function enviarReserva() {
     const json = await res.json();
 
     if (json.status === "error") {
-        alert(json.message);
+        if (json.conflito) {
+            alert(
+                `${json.message}\n\n` +
+                `⛔ Horário já reservado:\n` +
+                `• ${json.conflito.inicio} → ${json.conflito.fim}\n` +
+                `• Responsável: ${json.conflito.responsavel}\n` +
+                `• Finalidade: ${json.conflito.finalidade}`
+            );
+        } else {
+            alert(json.message);
+        }
         return;
     }
 
