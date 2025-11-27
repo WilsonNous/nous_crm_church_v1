@@ -33,7 +33,7 @@ def listar_espacos():
 
 
 # ============================================
-# API — LISTAR RESERVAS DE UM ESPAÇO
+# API — LISTAR RESERVAS DE UM ESPAÇO E DIA
 # ============================================
 @bp_agenda.route("/api/reservas/listar/<int:space_id>/<data>")
 def listar_reservas(space_id, data):
@@ -43,10 +43,9 @@ def listar_reservas(space_id, data):
 
             cursor.execute("""
                 SELECT id,
-                       TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
-                       TIME_FORMAT(hora_fim, '%H:%i')    AS hora_fim,
-                       finalidade,
-                       nome
+                       time_format(hora_inicio, '%H:%i') AS hora_inicio,
+                       time_format(hora_fim, '%H:%i') AS hora_fim,
+                       finalidade, nome, status
                 FROM reservas
                 WHERE space_id = %s AND data = %s
                 ORDER BY hora_inicio
@@ -55,82 +54,73 @@ def listar_reservas(space_id, data):
             reservas = cursor.fetchall()
 
         return jsonify({"reservas": reservas})
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # ============================================
-# API — NOVA RESERVA (COM VALIDAÇÃO)
+# API — NOVA RESERVA (pendente e com bloqueio)
 # ============================================
 @bp_agenda.route("/api/reservas/nova", methods=["POST"])
 def nova_reserva():
-    data_json = request.json
+    dados = request.json
 
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # ===============================
-            # VERIFICAR CONFLITO DE HORÁRIO
-            # ===============================
+            # Verificar conflito de horários
             cursor.execute("""
-                SELECT id
+                SELECT COUNT(*) AS total
                 FROM reservas
                 WHERE space_id = %s
                   AND data = %s
-                  AND (%s < hora_fim AND %s > hora_inicio)
+                  AND status != 'negado'
+                  AND (
+                        (hora_inicio <= %s AND hora_fim > %s) OR
+                        (hora_inicio < %s AND hora_fim >= %s) OR
+                        (%s <= hora_inicio AND %s > hora_inicio)
+                  )
             """, (
-                data_json["space_id"],
-                data_json["data"],
-                data_json["hora_inicio"],
-                data_json["hora_fim"]
+                dados["space_id"],
+                dados["data"],
+                dados["hora_inicio"], dados["hora_inicio"],
+                dados["hora_fim"], dados["hora_fim"],
+                dados["hora_inicio"], dados["hora_fim"]
             ))
 
-            conflito = cursor.fetchone()
+            conflito = cursor.fetchone()["total"]
 
-            if conflito:
+            if conflito > 0:
                 return jsonify({
                     "status": "error",
-                    "message": "⚠ Este espaço já está reservado neste horário!"
+                    "message": "Já existe uma reserva neste horário. Aguarde aprovação ou escolha outro horário."
                 }), 409
 
-            # ===============================
-            # INSERIR RESERVA
-            # ===============================
+            # Inserir como PENDENTE
             sql = """
-                INSERT INTO reservas
-                    (space_id, nome, telefone, finalidade, data,
-                     hora_inicio, hora_fim, criado_em)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                INSERT INTO reservas (
+                    space_id, nome, telefone, finalidade,
+                    data, hora_inicio, hora_fim,
+                    status, criado_em
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,'pendente',NOW())
             """
 
             cursor.execute(sql, (
-                data_json["space_id"],
-                data_json["nome"],
-                data_json["telefone"],
-                data_json["finalidade"],
-                data_json["data"],
-                data_json["hora_inicio"],
-                data_json["hora_fim"]
+                dados["space_id"],
+                dados["nome"],
+                dados["telefone"],
+                dados["finalidade"],
+                dados["data"],
+                dados["hora_inicio"],
+                dados["hora_fim"]
             ))
 
             conn.commit()
 
-        # Resumo para exibir na tela:
-        resumo = {
-            "espaco_id": data_json["space_id"],
-            "nome": data_json["nome"],
-            "data": data_json["data"],
-            "hora_inicio": data_json["hora_inicio"],
-            "hora_fim": data_json["hora_fim"],
-            "finalidade": data_json["finalidade"]
-        }
-
         return jsonify({
             "status": "success",
-            "message": "Reserva registrada com sucesso!",
-            "resumo": resumo
+            "message": "Reserva registrada! Agora aguarde aprovação da Secretaria."
         })
 
     except Exception as e:
@@ -147,12 +137,10 @@ def admin_reservas():
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT r.id,
-                       r.data,
-                       TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
-                       TIME_FORMAT(r.hora_fim, '%H:%i')   AS hora_fim,
-                       r.nome,
-                       r.finalidade,
+                SELECT r.id, r.data,
+                       time_format(r.hora_inicio, '%H:%i') AS hora_inicio,
+                       time_format(r.hora_fim, '%H:%i') AS hora_fim,
+                       r.nome, r.finalidade, r.status,
                        s.nome AS espaco
                 FROM reservas r
                 JOIN spaces s ON s.id = r.space_id
@@ -168,17 +156,28 @@ def admin_reservas():
 
 
 # ============================================
-# ADMIN — EXCLUIR RESERVA
+# ADMIN — ALTERAR STATUS
 # ============================================
-@bp_agenda.route("/admin/reservas/excluir/<int:id>", methods=["POST"])
-def excluir_reserva(id):
+@bp_agenda.route("/admin/reservas/alterar/<int:id>/<acao>", methods=["POST"])
+def alterar_status(id, acao):
+    if acao not in ["aprovar", "negar"]:
+        return jsonify({"error": "Ação inválida"}), 400
+
+    novo_status = "aprovado" if acao == "aprovar" else "negado"
+
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            cursor.execute("DELETE FROM reservas WHERE id = %s", (id,))
+            cursor.execute("""
+                UPDATE reservas
+                SET status = %s
+                WHERE id = %s
+            """, (novo_status, id))
+
             conn.commit()
 
         return jsonify({"success": True})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
