@@ -13,9 +13,7 @@
         color: #333;
     }
 
-    /* ================================================= */
-    /*   CABEÇALHO — VISUAL OFICIAL DO CRM CHURCH       */
-    /* ================================================= */
+    /* CABEÇALHO */
     header {
         text-align: center;
         padding: 25px 10px;
@@ -36,9 +34,7 @@
         font-weight: 600;
     }
 
-    /* ================================================= */
-    /*   CONTAINER — MOBILE FIRST                        */
-    /* ================================================= */
+    /* CONTAINER */
     .container {
         max-width: 650px;
         margin: 15px auto;
@@ -80,9 +76,6 @@
         background: #fff;
     }
 
-    /* ================================================= */
-    /*   LISTA DE HORÁRIOS                               */
-    /* ================================================= */
     .lista-horarios {
         margin-top: 18px;
         padding: 15px;
@@ -104,22 +97,7 @@
         font-size: 14px;
     }
 
-    .livre {
-        background: #e6f3ff;
-        padding: 14px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-        border: 1px solid #a6d6ff;
-        cursor: pointer;
-    }
-
-    .livre:hover {
-        background: #d3eaff;
-    }
-
-    /* ================================================= */
-    /*   BOTÃO                                           */
-    /* ================================================= */
+    /* BOTÃO */
     button {
         margin-top: 25px;
         padding: 16px;
@@ -138,20 +116,11 @@
     button:hover {
         background: #333;
     }
-
-    /* Desktop melhora layout */
-    @media (min-width: 750px) {
-        header h1 { font-size: 26px; }
-        .container { padding: 35px; }
-    }
 </style>
 
 </head>
 <body>
 
-<!-- ================================================= -->
-<!--                    CABEÇALHO                      -->
-<!-- ================================================= -->
 <header>
     <img src="/static/logo_maisdecristo_b2.png" alt="Logo da Igreja">
     <h1>Agendamento de Espaços</h1>
@@ -192,9 +161,7 @@
 
 <script>
 
-// ===============================
-// CARREGAR ESPAÇOS
-// ===============================
+/* CARREGAR ESPAÇOS */
 async function carregarEspacos() {
     const res = await fetch("/api/espacos/listar");
     const data = await res.json();
@@ -207,13 +174,10 @@ async function carregarEspacos() {
     });
 }
 
-// ===============================
-// CARREGAR AGENDA DO ESPAÇO
-// ===============================
+/* CARREGAR AGENDA DO DIA */
 async function carregarAgenda() {
     const space_id = document.getElementById("espacoSelect").value;
     const data = document.getElementById("dataInput").value;
-
     const area = document.getElementById("horariosArea");
 
     if (!space_id || !data) {
@@ -241,13 +205,8 @@ async function carregarAgenda() {
     });
 }
 
-
-// ===============================
-// ENVIAR RESERVA
-// ===============================
+/* ENVIAR RESERVA */
 async function enviarReserva() {
-
-    // CAPTURA DOS CAMPOS
     const payload = {
         space_id: document.getElementById("espacoSelect").value,
         nome: document.getElementById("nome").value.trim(),
@@ -258,18 +217,12 @@ async function enviarReserva() {
         hora_fim: document.getElementById("horaFim").value
     };
 
-    // ===============================
-    // VALIDAÇÃO SIMPLES
-    // ===============================
     if (!payload.space_id || !payload.nome || !payload.telefone ||
         !payload.finalidade || !payload.data || !payload.hora_inicio || !payload.hora_fim) {
-        mostrarMensagem("⚠ Preencha todos os campos antes de salvar.", false);
+        alert("⚠ Preencha todos os campos!");
         return;
     }
 
-    // ===============================
-    // ENVIO DA RESERVA
-    // ===============================
     const res = await fetch("/api/reservas/nova", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -278,68 +231,23 @@ async function enviarReserva() {
 
     const json = await res.json();
 
-    // ERRO DE CONFLITO (409 do backend)
     if (json.status === "error") {
-        mostrarMensagem(json.message, false);
+        alert(json.message);
         return;
     }
 
-    // SUCESSO
-    mostrarMensagem(
-        `Reserva realizada com sucesso!<br>
-         <b>${payload.data}</b> — ${payload.hora_inicio} às ${payload.hora_fim}<br>
-         Espaço reservado para: <b>${payload.finalidade}</b>`,
-        true
-    );
+    alert(json.message);
 
-    // LIMPAR CAMPOS
+    /* LIMPAR CAMPOS */
     document.getElementById("nome").value = "";
     document.getElementById("telefone").value = "";
     document.getElementById("finalidade").value = "";
     document.getElementById("horaInicio").value = "";
     document.getElementById("horaFim").value = "";
 
-    // Recarrega agenda do dia após salvar
     carregarAgenda();
 }
 
-
-// ===============================
-// MENSAGEM DE FEEDBACK (CARD BONITO)
-// ===============================
-function mostrarMensagem(texto, sucesso = true) {
-    let box = document.getElementById("msgBox");
-    if (!box) {
-        box = document.createElement("div");
-        box.id = "msgBox";
-        document.body.appendChild(box);
-    }
-
-    box.style.position = "fixed";
-    box.style.bottom = "25px";
-    box.style.left = "50%";
-    box.style.transform = "translateX(-50%)";
-    box.style.padding = "18px 22px";
-    box.style.borderRadius = "10px";
-    box.style.fontSize = "15px";
-    box.style.fontWeight = "600";
-    box.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)";
-    box.style.zIndex = "9999";
-    box.style.background = sucesso ? "#0a0" : "#c00";
-    box.style.color = "#fff";
-    box.style.textAlign = "center";
-    box.innerHTML = texto;
-
-    box.style.opacity = "1";
-
-    setTimeout(() => {
-        box.style.transition = "opacity 0.6s";
-        box.style.opacity = "0";
-    }, 3200);
-}
-
-
-// Inicializa espaços ao carregar página
 carregarEspacos();
 </script>
 
