@@ -86,9 +86,29 @@
     }
 
     /* ================================================= */
-    /*  BOTÃO EXCLUIR                                    */
+    /*  BOTÕES DE AÇÃO                                   */
     /* ================================================= */
-    .btn-delete {
+
+    .btn-row {
+        display: flex;
+        gap: 5px;
+    }
+
+    .btn-approve {
+        background: #00b36b;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: #fff;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .btn-approve:hover {
+        background: #00995d;
+    }
+
+    .btn-deny {
         background: #d9534f;
         border: none;
         padding: 8px 12px;
@@ -96,14 +116,53 @@
         color: #fff;
         cursor: pointer;
         font-weight: 600;
-        transition: 0.2s;
     }
 
-    .btn-delete:hover {
+    .btn-deny:hover {
         background: #c64541;
     }
 
-    /* RESPONSIVO */
+    .btn-delete {
+        background: #444;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 8px;
+        color: #fff;
+        cursor: pointer;
+        font-weight: 600;
+    }
+
+    .btn-delete:hover {
+        background: #333;
+    }
+
+    .status-pendente {
+        background: #fffae6;
+        padding: 4px 8px;
+        border-radius: 5px;
+        color: #8a6d00;
+        font-weight: 600;
+        border: 1px solid #ffecb3;
+    }
+
+    .status-aprovado {
+        background: #e6fff1;
+        padding: 4px 8px;
+        border-radius: 5px;
+        color: #096b38;
+        font-weight: 600;
+        border: 1px solid #b2f5d8;
+    }
+
+    .status-negado {
+        background: #ffecec;
+        padding: 4px 8px;
+        border-radius: 5px;
+        color: #8a0000;
+        font-weight: 600;
+        border: 1px solid #ffb3b3;
+    }
+
     @media (max-width: 768px) {
         th, td {
             font-size: 13px;
@@ -117,23 +176,21 @@
         header img {
             height: 50px;
         }
+
+        .btn-row {
+            flex-wrap: wrap;
+        }
     }
 </style>
-
 </head>
+
 <body>
 
-<!-- ================================================= -->
-<!--                   CABEÇALHO                       -->
-<!-- ================================================= -->
 <header>
     <img src="/static/logo_maisdecristo_b2.png" alt="Logo">
     <h1>Administração de Reservas</h1>
 </header>
 
-<!-- ================================================= -->
-<!--                  CONTEÚDO PRINCIPAL               -->
-<!-- ================================================= -->
 <div class="container">
 
     <h2>Reservas Realizadas</h2>
@@ -146,7 +203,8 @@
             <th>Espaço</th>
             <th>Responsável</th>
             <th>Finalidade</th>
-            <th>Ação</th>
+            <th>Status</th>
+            <th>Ações</th>
         </tr>
 
         {% for r in reservas %}
@@ -157,20 +215,46 @@
             <td>{{ r.espaco }}</td>
             <td>{{ r.nome }}</td>
             <td>{{ r.finalidade }}</td>
+
             <td>
-                <button class="btn-delete" onclick="excluir({{ r.id }})">Excluir</button>
+                {% if r.status == 'pendente' %}
+                    <span class="status-pendente">Pendente</span>
+                {% elif r.status == 'aprovado' %}
+                    <span class="status-aprovado">Aprovado</span>
+                {% else %}
+                    <span class="status-negado">Negado</span>
+                {% endif %}
+            </td>
+
+            <td>
+                <div class="btn-row">
+                    <button class="btn-approve" onclick="alterar({{ r.id }}, 'aprovar')">Aprovar</button>
+                    <button class="btn-deny" onclick="alterar({{ r.id }}, 'negar')">Negar</button>
+                    <button class="btn-delete" onclick="excluir({{ r.id }})">Excluir</button>
+                </div>
             </td>
         </tr>
         {% endfor %}
     </table>
 </div>
 
-
 <script>
+async function alterar(id, acao) {
+    const res = await fetch(`/admin/reservas/alterar/${id}/${acao}`, {
+        method: "POST"
+    });
+
+    const json = await res.json();
+    alert("Status atualizado!");
+    location.reload();
+}
+
 async function excluir(id) {
     if (!confirm("Deseja realmente excluir esta reserva?")) return;
 
-    await fetch(`/admin/reservas/excluir/${id}`, { method: "POST" });
+    await fetch(`/admin/reservas/excluir/${id}`, {
+        method: "POST"
+    });
 
     alert("Reserva excluída com sucesso!");
     location.reload();
