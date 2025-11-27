@@ -9,7 +9,7 @@
     body {
       margin: 0;
       font-family: "Inter", Arial, sans-serif;
-      background: #000; /* fundo preto */
+      background: #000;
       color: #fff;
     }
 
@@ -57,7 +57,6 @@
       gap: 18px;
     }
 
-    /* BOTÕES */
     button {
       padding: 18px;
       font-size: 16px;
@@ -84,13 +83,6 @@
     .btn-tertiary    { background: #222; color: #fff; }
     .btn-warning     { background: #d9534f; color: #fff; }
 
-    .btn-primary:hover   { background: #222; }
-    .btn-secondary:hover { background: #444; }
-    .btn-tertiary:hover  { background: #333; }
-    .btn-info:hover      { background: #3355dd; }
-    .btn-success:hover   { background: #00995d; }
-    .btn-warning:hover   { background: #c64541; }
-
     footer {
       margin-top: 50px;
       text-align: center;
@@ -98,11 +90,6 @@
       color: #aaa;
     }
 
-    @media (max-width: 560px) {
-      h1 { font-size: 20px; }
-      main { padding: 22px; }
-      button { padding: 15px; }
-    }
   </style>
 
   <script src="/static/script.js" defer></script>
@@ -119,6 +106,7 @@
   <p>Escolha uma das opções abaixo para continuar:</p>
 
   <div id="buttonContainer">
+
     <button class="btn-primary" onclick="goTo('visitantes')">
       📝 Cadastro de Visitantes
     </button>
@@ -155,9 +143,23 @@
       📊 Estatísticas Gerais
     </button>
 
+    <!-- =============================== -->
+    <!-- NOVOS BOTÕES — AGENDAMENTO -->
+    <!-- =============================== -->
+
+    <button class="btn-primary" onclick="window.open('/agendar', '_blank')">
+      📅 Agendar Espaço (Público)
+    </button>
+
+    <button class="btn-secondary" onclick="goTo('reservas-admin')">
+      🗂️ Administração de Reservas
+    </button>
+
+    <!-- BOTÃO SAIR -->
     <button class="btn-warning" onclick="logoutUser()">
       🚪 Sair
     </button>
+
   </div>
 </main>
 
@@ -167,6 +169,11 @@
 
 <script>
   function goTo(page) {
+    // Ajuste para nova rota admin
+    if (page === 'reservas-admin') {
+      window.location.href = '/admin/reservas';
+      return;
+    }
     window.location.href = `/app/${page}`;
   }
 
