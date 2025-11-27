@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Agendamento de Espaços • Integra+</title>
+
+<style>
+    body {
+        margin: 0;
+        font-family: "Inter", sans-serif;
+        background: #111;
+        color: #fff;
+    }
+    header {
+        background: #000;
+        padding: 20px;
+        text-align: center;
+        border-bottom: 2px solid #333;
+    }
+    header h1 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: .5px;
+    }
+    .container {
+        max-width: 900px;
+        margin: 40px auto;
+        background: #1a1a1a;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(255,255,255,.05);
+    }
+    label {
+        font-size: 15px;
+        margin-top: 15px;
+        display: block;
+    }
+    select, input, textarea {
+        width: 100%;
+        padding: 12px;
+        margin-top: 8px;
+        border: 1px solid #444;
+        background: #000;
+        color: #fff;
+        border-radius: 6px;
+        font-size: 15px;
+    }
+    button {
+        margin-top: 25px;
+        padding: 14px;
+        background: #fff;
+        color: #000;
+        border: none;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+        font-size: 15px;
+    }
+    button:hover {
+        background: #ddd;
+    }
+    .lista-horarios {
+        margin-top: 20px;
+        padding: 15px;
+        background: #000;
+        border-radius: 8px;
+        border: 1px solid #333;
+    }
+    .ocupado {
+        background: #300;
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        border: 1px solid #600;
+    }
+    .livre {
+        background: #033;
+        padding: 8px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        border: 1px solid #066;
+        cursor: pointer;
+    }
+</style>
+
+</head>
+<body>
+
+<header>
+    <h1>📅 Agendamento de Espaços • Integra+</h1>
+</header>
+
+<div class="container">
+
+    <label>Selecione o Espaço</label>
+    <select id="espacoSelect" onchange="carregarAgenda()"></select>
+
+    <label>Data</label>
+    <input type="date" id="dataInput" onchange="carregarAgenda()">
+
+    <div id="horariosArea" class="lista-horarios">
+        <p>Selecione um espaço e uma data.</p>
+    </div>
+
+    <hr style="margin: 30px 0; border-color:#333;">
+
+    <h3>📌 Fazer Reserva</h3>
+
+    <label>Seu Nome</label>
+    <input type="text" id="nome">
+
+    <label>Telefone</label>
+    <input type="text" id="telefone">
+
+    <label>Finalidade</label>
+    <input type="text" id="finalidade">
+
+    <label>Hora Início</label>
+    <input type="time" id="horaInicio">
+
+    <label>Hora Fim</label>
+    <input type="time" id="horaFim">
+
+    <button onclick="enviarReserva()">Salvar Reserva</button>
+
+</div>
+
+<script>
+async function carregarEspacos() {
+    const res = await fetch("/api/espacos/listar");
+    const data = await res.json();
+
+    const sel = document.getElementById("espacoSelect");
+    sel.innerHTML = "";
+
+    data.espacos.forEach(e => {
+        sel.innerHTML += `<option value="${e.id}">${e.nome}</option>`;
+    });
+}
+
+async function carregarAgenda() {
+    const space_id = document.getElementById("espacoSelect").value;
+    const data = document.getElementById("dataInput").value;
+
+    if (!space_id || !data) return;
+
+    const res = await fetch(`/api/reservas/listar/${space_id}/${data}`);
+    const dados = await res.json();
+
+    const area = document.getElementById("horariosArea");
+    area.innerHTML = "";
+
+    if (dados.reservas.length === 0) {
+        area.innerHTML = "<p style='color:#ccc;'>Nenhuma reserva para esta data.</p>";
+        return;
+    }
+
+    dados.reservas.forEach(r => {
+        area.innerHTML += `
+            <div class="ocupado">
+                <strong>${r.hora_inicio} → ${r.hora_fim}</strong><br>
+                ${r.finalidade}
+            </div>
+        `;
+    });
+}
+
+async function enviarReserva() {
+    const payload = {
+        space_id: document.getElementById("espacoSelect").value,
+        nome: document.getElementById("nome").value,
+        telefone: document.getElementById("telefone").value,
+        finalidade: document.getElementById("finalidade").value,
+        data: document.getElementById("dataInput").value,
+        hora_inicio: document.getElementById("horaInicio").value,
+        hora_fim: document.getElementById("horaFim").value
+    };
+
+    const res = await fetch("/api/reservas/nova", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+    });
+
+    const json = await res.json();
+    alert(json.message);
+    carregarAgenda();
+}
+
+carregarEspacos();
+</script>
+
+</body>
+</html>
