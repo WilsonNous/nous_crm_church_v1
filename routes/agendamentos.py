@@ -6,6 +6,10 @@ bp_agenda = Blueprint("agendamentos", __name__)
 def register(app):
     app.register_blueprint(bp_agenda)
 
+@bp_agenda.route("/agendar")
+def pagina_agendar():
+    return render_template("agendar_espacos.html")
+
 @bp_agenda.route("/api/espacos/listar")
 def listar_espacos():
     espacos = Space.query.all()
