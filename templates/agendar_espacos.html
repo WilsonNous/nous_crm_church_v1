@@ -191,6 +191,10 @@
 </div>
 
 <script>
+
+// ===============================
+// CARREGAR ESPAÇOS
+// ===============================
 async function carregarEspacos() {
     const res = await fetch("/api/espacos/listar");
     const data = await res.json();
@@ -203,16 +207,23 @@ async function carregarEspacos() {
     });
 }
 
+// ===============================
+// CARREGAR AGENDA DO ESPAÇO
+// ===============================
 async function carregarAgenda() {
     const space_id = document.getElementById("espacoSelect").value;
     const data = document.getElementById("dataInput").value;
 
-    if (!space_id || !data) return;
+    const area = document.getElementById("horariosArea");
+
+    if (!space_id || !data) {
+        area.innerHTML = "<p style='color:#777;'>Selecione um espaço e uma data.</p>";
+        return;
+    }
 
     const res = await fetch(`/api/reservas/listar/${space_id}/${data}`);
     const dados = await res.json();
 
-    const area = document.getElementById("horariosArea");
     area.innerHTML = "";
 
     if (dados.reservas.length === 0) {
@@ -230,17 +241,35 @@ async function carregarAgenda() {
     });
 }
 
+
+// ===============================
+// ENVIAR RESERVA
+// ===============================
 async function enviarReserva() {
+
+    // CAPTURA DOS CAMPOS
     const payload = {
         space_id: document.getElementById("espacoSelect").value,
-        nome: document.getElementById("nome").value,
-        telefone: document.getElementById("telefone").value,
-        finalidade: document.getElementById("finalidade").value,
+        nome: document.getElementById("nome").value.trim(),
+        telefone: document.getElementById("telefone").value.trim(),
+        finalidade: document.getElementById("finalidade").value.trim(),
         data: document.getElementById("dataInput").value,
         hora_inicio: document.getElementById("horaInicio").value,
         hora_fim: document.getElementById("horaFim").value
     };
 
+    // ===============================
+    // VALIDAÇÃO SIMPLES
+    // ===============================
+    if (!payload.space_id || !payload.nome || !payload.telefone ||
+        !payload.finalidade || !payload.data || !payload.hora_inicio || !payload.hora_fim) {
+        mostrarMensagem("⚠ Preencha todos os campos antes de salvar.", false);
+        return;
+    }
+
+    // ===============================
+    // ENVIO DA RESERVA
+    // ===============================
     const res = await fetch("/api/reservas/nova", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -248,10 +277,69 @@ async function enviarReserva() {
     });
 
     const json = await res.json();
-    alert(json.message);
+
+    // ERRO DE CONFLITO (409 do backend)
+    if (json.status === "error") {
+        mostrarMensagem(json.message, false);
+        return;
+    }
+
+    // SUCESSO
+    mostrarMensagem(
+        `Reserva realizada com sucesso!<br>
+         <b>${payload.data}</b> — ${payload.hora_inicio} às ${payload.hora_fim}<br>
+         Espaço reservado para: <b>${payload.finalidade}</b>`,
+        true
+    );
+
+    // LIMPAR CAMPOS
+    document.getElementById("nome").value = "";
+    document.getElementById("telefone").value = "";
+    document.getElementById("finalidade").value = "";
+    document.getElementById("horaInicio").value = "";
+    document.getElementById("horaFim").value = "";
+
+    // Recarrega agenda do dia após salvar
     carregarAgenda();
 }
 
+
+// ===============================
+// MENSAGEM DE FEEDBACK (CARD BONITO)
+// ===============================
+function mostrarMensagem(texto, sucesso = true) {
+    let box = document.getElementById("msgBox");
+    if (!box) {
+        box = document.createElement("div");
+        box.id = "msgBox";
+        document.body.appendChild(box);
+    }
+
+    box.style.position = "fixed";
+    box.style.bottom = "25px";
+    box.style.left = "50%";
+    box.style.transform = "translateX(-50%)";
+    box.style.padding = "18px 22px";
+    box.style.borderRadius = "10px";
+    box.style.fontSize = "15px";
+    box.style.fontWeight = "600";
+    box.style.boxShadow = "0 4px 14px rgba(0,0,0,0.25)";
+    box.style.zIndex = "9999";
+    box.style.background = sucesso ? "#0a0" : "#c00";
+    box.style.color = "#fff";
+    box.style.textAlign = "center";
+    box.innerHTML = texto;
+
+    box.style.opacity = "1";
+
+    setTimeout(() => {
+        box.style.transition = "opacity 0.6s";
+        box.style.opacity = "0";
+    }, 3200);
+}
+
+
+// Inicializa espaços ao carregar página
 carregarEspacos();
 </script>
 
