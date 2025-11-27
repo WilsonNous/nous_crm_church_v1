@@ -33,7 +33,7 @@ def listar_espacos():
 
 
 # ============================================
-# API — LISTAR RESERVAS
+# API — LISTAR RESERVAS DE UM ESPAÇO
 # ============================================
 @bp_agenda.route("/api/reservas/listar/<int:space_id>/<data>")
 def listar_reservas(space_id, data):
@@ -42,9 +42,11 @@ def listar_reservas(space_id, data):
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT id, time_format(hora_inicio, '%H:%i') AS hora_inicio,
-                       time_format(hora_fim, '%H:%i') AS hora_fim,
-                       finalidade, nome
+                SELECT id,
+                       TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
+                       TIME_FORMAT(hora_fim, '%H:%i')    AS hora_fim,
+                       finalidade,
+                       nome
                 FROM reservas
                 WHERE space_id = %s AND data = %s
                 ORDER BY hora_inicio
@@ -53,12 +55,13 @@ def listar_reservas(space_id, data):
             reservas = cursor.fetchall()
 
         return jsonify({"reservas": reservas})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # ============================================
-# API — NOVA RESERVA
+# API — NOVA RESERVA (COM VALIDAÇÃO)
 # ============================================
 @bp_agenda.route("/api/reservas/nova", methods=["POST"])
 def nova_reserva():
@@ -68,9 +71,37 @@ def nova_reserva():
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
+            # ===============================
+            # VERIFICAR CONFLITO DE HORÁRIO
+            # ===============================
+            cursor.execute("""
+                SELECT id
+                FROM reservas
+                WHERE space_id = %s
+                  AND data = %s
+                  AND (%s < hora_fim AND %s > hora_inicio)
+            """, (
+                data_json["space_id"],
+                data_json["data"],
+                data_json["hora_inicio"],
+                data_json["hora_fim"]
+            ))
+
+            conflito = cursor.fetchone()
+
+            if conflito:
+                return jsonify({
+                    "status": "error",
+                    "message": "⚠ Este espaço já está reservado neste horário!"
+                }), 409
+
+            # ===============================
+            # INSERIR RESERVA
+            # ===============================
             sql = """
-                INSERT INTO reservas (space_id, nome, telefone, finalidade,
-                                      data, hora_inicio, hora_fim, criado_em)
+                INSERT INTO reservas
+                    (space_id, nome, telefone, finalidade, data,
+                     hora_inicio, hora_fim, criado_em)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
             """
 
@@ -86,7 +117,22 @@ def nova_reserva():
 
             conn.commit()
 
-        return jsonify({"status": "success", "message": "Reserva registrada com sucesso!"})
+        # Resumo para exibir na tela:
+        resumo = {
+            "espaco_id": data_json["space_id"],
+            "nome": data_json["nome"],
+            "data": data_json["data"],
+            "hora_inicio": data_json["hora_inicio"],
+            "hora_fim": data_json["hora_fim"],
+            "finalidade": data_json["finalidade"]
+        }
+
+        return jsonify({
+            "status": "success",
+            "message": "Reserva registrada com sucesso!",
+            "resumo": resumo
+        })
+
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -101,10 +147,12 @@ def admin_reservas():
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT r.id, r.data,
-                       time_format(r.hora_inicio, '%H:%i') AS hora_inicio,
-                       time_format(r.hora_fim, '%H:%i') AS hora_fim,
-                       r.nome, r.finalidade,
+                SELECT r.id,
+                       r.data,
+                       TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
+                       TIME_FORMAT(r.hora_fim, '%H:%i')   AS hora_fim,
+                       r.nome,
+                       r.finalidade,
                        s.nome AS espaco
                 FROM reservas r
                 JOIN spaces s ON s.id = r.space_id
