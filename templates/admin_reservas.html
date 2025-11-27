@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Admin ▸ Reservas</title>
+<style>
+    body { font-family: Inter, sans-serif; background:#111; color:white; }
+    h1 { text-align:center; padding:20px 0; }
+    table { width:100%; border-collapse: collapse; margin-top:20px; }
+    th, td {
+        padding: 12px;
+        border-bottom:1px solid #333;
+        text-align:left;
+    }
+    th { background:#000; }
+    button {
+        background:#ff4444;
+        color:white;
+        padding:8px 12px;
+        border:none;
+        border-radius:5px;
+        cursor:pointer;
+    }
+</style>
+</head>
+<body>
+
+<h1>📌 Administração de Reservas</h1>
+
+<table>
+    <tr>
+        <th>Data</th>
+        <th>Início</th>
+        <th>Fim</th>
+        <th>Espaço</th>
+        <th>Responsável</th>
+        <th>Finalidade</th>
+        <th>Ações</th>
+    </tr>
+
+    {% for r in reservas %}
+    <tr>
+        <td>{{ r.data }}</td>
+        <td>{{ r.hora_inicio }}</td>
+        <td>{{ r.hora_fim }}</td>
+        <td>{{ r.space.nome }}</td>
+        <td>{{ r.nome }}</td>
+        <td>{{ r.finalidade }}</td>
+        <td><button onclick="excluir({{ r.id }})">Excluir</button></td>
+    </tr>
+    {% endfor %}
+</table>
+
+<script>
+async function excluir(id) {
+    if (!confirm("Excluir esta reserva?")) return;
+
+    await fetch(`/admin/reservas/excluir/${id}`, {
+        method: "POST"
+    });
+
+    alert("Reserva excluída");
+    location.reload();
+}
+</script>
+
+</body>
+</html>
