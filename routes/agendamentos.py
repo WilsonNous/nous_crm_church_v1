@@ -43,8 +43,8 @@ def listar_reservas(space_id, data):
 
             cursor.execute("""
                 SELECT id,
-                       time_format(hora_inicio, '%H:%i') AS hora_inicio,
-                       time_format(hora_fim, '%H:%i') AS hora_fim,
+                       time_format(hora_inicio, '%%H:%%i') AS hora_inicio,
+                       time_format(hora_fim, '%%H:%%i') AS hora_fim,
                        finalidade, nome, status
                 FROM reservas
                 WHERE space_id = %s AND data = %s
@@ -59,7 +59,7 @@ def listar_reservas(space_id, data):
 
 
 # ============================================
-# API — NOVA RESERVA (com bloqueio + retorno da reserva conflitante)
+# API — NOVA RESERVA (com bloqueio + mostrar conflito)
 # ============================================
 @bp_agenda.route("/api/reservas/nova", methods=["POST"])
 def nova_reserva():
@@ -69,12 +69,12 @@ def nova_reserva():
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Buscar a reserva conflitante
+            # Procurar conflito
             cursor.execute("""
                 SELECT 
                     id,
-                    time_format(hora_inicio, '%H:%i') AS hora_inicio,
-                    time_format(hora_fim, '%H:%i') AS hora_fim,
+                    time_format(hora_inicio, '%%H:%%i') AS hora_inicio,
+                    time_format(hora_fim, '%%H:%%i') AS hora_fim,
                     nome,
                     finalidade,
                     status
@@ -98,7 +98,6 @@ def nova_reserva():
 
             conflito = cursor.fetchone()
 
-            # Se existe conflito → retornar detalhes
             if conflito:
                 return jsonify({
                     "status": "error",
@@ -112,7 +111,7 @@ def nova_reserva():
                     }
                 }), 409
 
-            # GRAVAR RESERVA COMO PENDENTE
+            # Inserir reserva pendente
             cursor.execute("""
                 INSERT INTO reservas (
                     space_id, nome, telefone, finalidade,
@@ -142,7 +141,7 @@ def nova_reserva():
 
 
 # ============================================
-# ADMIN — LISTAR RESERVAS
+# ADMIN — LISTAR TODAS AS RESERVAS
 # ============================================
 @bp_agenda.route("/admin/reservas")
 def admin_reservas():
@@ -152,8 +151,8 @@ def admin_reservas():
 
             cursor.execute("""
                 SELECT r.id, r.data,
-                       time_format(r.hora_inicio, '%H:%i') AS hora_inicio,
-                       time_format(r.hora_fim, '%H:%i') AS hora_fim,
+                       time_format(r.hora_inicio, '%%H:%%i') AS hora_inicio,
+                       time_format(r.hora_fim, '%%H:%%i') AS hora_fim,
                        r.nome, r.finalidade, r.status,
                        s.nome AS espaco
                 FROM reservas r
