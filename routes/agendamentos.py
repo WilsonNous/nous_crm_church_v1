@@ -33,7 +33,7 @@ def listar_espacos():
 
 
 # ============================================
-# API — LISTAR RESERVAS DE UM ESPAÇO E DIA
+# API — LISTAR RESERVAS POR ESPAÇO + DIA
 # ============================================
 @bp_agenda.route("/api/reservas/listar/<int:space_id>/<data>")
 def listar_reservas(space_id, data):
@@ -59,7 +59,7 @@ def listar_reservas(space_id, data):
 
 
 # ============================================
-# API — NOVA RESERVA (pendente e com bloqueio)
+# API — NOVA RESERVA (com bloqueio e status pendente)
 # ============================================
 @bp_agenda.route("/api/reservas/nova", methods=["POST"])
 def nova_reserva():
@@ -69,7 +69,7 @@ def nova_reserva():
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Verificar conflito de horários
+            # Verificar conflito de horário
             cursor.execute("""
                 SELECT COUNT(*) AS total
                 FROM reservas
@@ -97,7 +97,7 @@ def nova_reserva():
                     "message": "Já existe uma reserva neste horário. Aguarde aprovação ou escolha outro horário."
                 }), 409
 
-            # Inserir como PENDENTE
+            # Inserir como pendente
             sql = """
                 INSERT INTO reservas (
                     space_id, nome, telefone, finalidade,
@@ -120,7 +120,7 @@ def nova_reserva():
 
         return jsonify({
             "status": "success",
-            "message": "Reserva registrada! Agora aguarde aprovação da Secretaria."
+            "message": "Reserva registrada! Ela ficará PENDENTE até aprovação da Secretaria."
         })
 
     except Exception as e:
@@ -156,7 +156,7 @@ def admin_reservas():
 
 
 # ============================================
-# ADMIN — ALTERAR STATUS
+# ADMIN — ALTERAR STATUS (aprovar/negar)
 # ============================================
 @bp_agenda.route("/admin/reservas/alterar/<int:id>/<acao>", methods=["POST"])
 def alterar_status(id, acao):
