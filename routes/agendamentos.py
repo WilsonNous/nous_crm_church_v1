@@ -147,26 +147,31 @@ def nova_reserva():
 def admin_reservas():
     try:
         with closing(get_db_connection()) as conn:
-            cursor = conn.cursor(dictionary=True)
+            cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT r.id, r.data,
-                       TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
-                       TIME_FORMAT(r.hora_fim, '%%H:%%i') AS hora_fim,
-                       r.nome, r.finalidade, r.status,
-                       s.nome AS espaco
+                SELECT 
+                    r.id,
+                    r.data,
+                    TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
+                    TIME_FORMAT(r.hora_fim, '%%H:%%i') AS hora_fim,
+                    r.nome,
+                    r.finalidade,
+                    r.status,
+                    s.nome AS espaco
                 FROM reservas r
                 JOIN spaces s ON s.id = r.space_id
                 ORDER BY r.data DESC, r.hora_inicio
             """)
 
-            reservas = cursor.fetchall()
+            # transformar em dicionário (universal)
+            columns = [col[0] for col in cursor.description]
+            reservas = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
         return render_template("admin_reservas.html", reservas=reservas)
 
     except Exception as e:
         return f"Erro: {e}", 500
-
 
 
 # ============================================
