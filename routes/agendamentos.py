@@ -59,7 +59,7 @@ def listar_reservas(space_id, data):
 
 
 # ============================================
-# API — NOVA RESERVA (com bloqueio e status pendente)
+# API — NOVA RESERVA (com bloqueio + retorno da reserva conflitante)
 # ============================================
 @bp_agenda.route("/api/reservas/nova", methods=["POST"])
 def nova_reserva():
@@ -69,9 +69,15 @@ def nova_reserva():
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Verificar conflito de horário
+            # Buscar a reserva conflitante
             cursor.execute("""
-                SELECT COUNT(*) AS total
+                SELECT 
+                    id,
+                    time_format(hora_inicio, '%H:%i') AS hora_inicio,
+                    time_format(hora_fim, '%H:%i') AS hora_fim,
+                    nome,
+                    finalidade,
+                    status
                 FROM reservas
                 WHERE space_id = %s
                   AND data = %s
@@ -81,6 +87,7 @@ def nova_reserva():
                         (hora_inicio < %s AND hora_fim >= %s) OR
                         (%s <= hora_inicio AND %s > hora_inicio)
                   )
+                LIMIT 1
             """, (
                 dados["space_id"],
                 dados["data"],
@@ -89,24 +96,31 @@ def nova_reserva():
                 dados["hora_inicio"], dados["hora_fim"]
             ))
 
-            conflito = cursor.fetchone()["total"]
+            conflito = cursor.fetchone()
 
-            if conflito > 0:
+            # Se existe conflito → retornar detalhes
+            if conflito:
                 return jsonify({
                     "status": "error",
-                    "message": "Já existe uma reserva neste horário. Aguarde aprovação ou escolha outro horário."
+                    "message": "Já existe uma reserva neste horário.",
+                    "conflito": {
+                        "inicio": conflito["hora_inicio"],
+                        "fim": conflito["hora_fim"],
+                        "responsavel": conflito["nome"],
+                        "finalidade": conflito["finalidade"],
+                        "status": conflito["status"]
+                    }
                 }), 409
 
-            # Inserir como pendente
-            sql = """
+            # GRAVAR RESERVA COMO PENDENTE
+            cursor.execute("""
                 INSERT INTO reservas (
                     space_id, nome, telefone, finalidade,
                     data, hora_inicio, hora_fim,
                     status, criado_em
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s,'pendente',NOW())
-            """
-
-            cursor.execute(sql, (
+                )
+                VALUES (%s,%s,%s,%s,%s,%s,%s,'pendente',NOW())
+            """, (
                 dados["space_id"],
                 dados["nome"],
                 dados["telefone"],
@@ -128,7 +142,7 @@ def nova_reserva():
 
 
 # ============================================
-# ADMIN — LISTAR TODAS AS RESERVAS
+# ADMIN — LISTAR RESERVAS
 # ============================================
 @bp_agenda.route("/admin/reservas")
 def admin_reservas():
@@ -156,7 +170,7 @@ def admin_reservas():
 
 
 # ============================================
-# ADMIN — ALTERAR STATUS (aprovar/negar)
+# ADMIN — ALTERAR STATUS
 # ============================================
 @bp_agenda.route("/admin/reservas/alterar/<int:id>/<acao>", methods=["POST"])
 def alterar_status(id, acao):
