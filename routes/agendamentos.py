@@ -147,14 +147,14 @@ def nova_reserva():
 def admin_reservas():
     try:
         with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor()   # ← DictCursor já está ativo no get_db_connection()
 
             cursor.execute("""
                 SELECT 
                     r.id,
                     r.data,
-                    TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
-                    TIME_FORMAT(r.hora_fim, '%%H:%%i') AS hora_fim,
+                    r.hora_inicio,
+                    r.hora_fim,
                     r.nome,
                     r.finalidade,
                     r.status,
@@ -164,9 +164,16 @@ def admin_reservas():
                 ORDER BY r.data DESC, r.hora_inicio
             """)
 
-            # transformar em dicionário (universal)
-            columns = [col[0] for col in cursor.description]
-            reservas = [dict(zip(columns, row)) for row in cursor.fetchall()]
+            reservas = cursor.fetchall()
+
+            # formatação de horas
+            for r in reservas:
+                if isinstance(r["hora_inicio"], (tuple, str)):
+                    # caso raro de MySQL retornar errado
+                    continue
+
+                r["hora_inicio"] = r["hora_inicio"].strftime("%H:%M")
+                r["hora_fim"] = r["hora_fim"].strftime("%H:%M")
 
         return render_template("admin_reservas.html", reservas=reservas)
 
