@@ -23,14 +23,20 @@ def monitor_page():
 def monitor_visitantes():
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, nome, telefone FROM visitantes ORDER BY nome ASC")
+        cursor = conn.cursor()   # DictCursor já é aplicado automaticamente
 
-        columns = [col[0] for col in cursor.description]
-        visitantes = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        cursor.execute("""
+            SELECT id, nome, telefone
+            FROM visitantes
+            ORDER BY nome ASC
+        """)
 
-        cursor.close(); conn.close()
+        visitantes = cursor.fetchall()  # já devolve dicionários ❤️
+
+        cursor.close()
+        conn.close()
         return jsonify({"status": "success", "visitantes": visitantes})
+
     except Exception as e:
         logging.error(f"Erro em /api/monitor/visitantes: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -43,7 +49,8 @@ def monitor_visitantes():
 def monitor_conversas_visitante(visitante_id):
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor()  # DictCursor
+
         cursor.execute("""
             SELECT 
                 c.id,
@@ -62,10 +69,10 @@ def monitor_conversas_visitante(visitante_id):
             ORDER BY c.data_hora ASC
         """, (visitante_id,))
 
-        columns = [col[0] for col in cursor.description]
-        conversas = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        conversas = cursor.fetchall()  # já vem como dict ❤️
 
-        cursor.close(); conn.close()
+        cursor.close()
+        conn.close()
 
         return jsonify({"status": "success", "conversas": conversas}), 200
 
