@@ -23,9 +23,9 @@ def pagina_agendar():
 def listar_espacos():
     try:
         with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()  # DictCursor já vem do get_db_connection
+            cursor = conn.cursor()
             cursor.execute("SELECT id, nome FROM spaces ORDER BY nome")
-            espacos = cursor.fetchall()  # list[dict]
+            espacos = cursor.fetchall()
 
         return jsonify({"espacos": espacos})
     except Exception as e:
@@ -34,7 +34,6 @@ def listar_espacos():
 
 # ============================================
 # API — LISTAR RESERVAS POR ESPAÇO + DIA
-# (para o formulário público de agendamento)
 # ============================================
 @bp_agenda.route("/api/reservas/listar/<int:space_id>/<data>")
 def listar_reservas(space_id, data):
@@ -45,8 +44,8 @@ def listar_reservas(space_id, data):
             cursor.execute("""
                 SELECT 
                     id,
-                    TIME_FORMAT(hora_inicio, '%%H:%%i') AS hora_inicio,
-                    TIME_FORMAT(hora_fim,   '%%H:%%i') AS hora_fim,
+                    TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
+                    TIME_FORMAT(hora_fim,   '%H:%i') AS hora_fim,
                     finalidade,
                     nome,
                     status
@@ -56,7 +55,7 @@ def listar_reservas(space_id, data):
                 ORDER BY hora_inicio
             """, (space_id, data))
 
-            reservas = cursor.fetchall()  # list[dict]
+            reservas = cursor.fetchall()
 
         return jsonify({"reservas": reservas})
     except Exception as e:
@@ -64,7 +63,7 @@ def listar_reservas(space_id, data):
 
 
 # ============================================
-# API — NOVA RESERVA (com bloqueio + mostrar conflito)
+# API — NOVA RESERVA (com bloqueio)
 # ============================================
 @bp_agenda.route("/api/reservas/nova", methods=["POST"])
 def nova_reserva():
@@ -74,12 +73,12 @@ def nova_reserva():
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Procurar conflito de horário
+            # Verifica conflito
             cursor.execute("""
                 SELECT 
                     id,
-                    TIME_FORMAT(hora_inicio, '%%H:%%i') AS hora_inicio,
-                    TIME_FORMAT(hora_fim,   '%%H:%%i') AS hora_fim,
+                    TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
+                    TIME_FORMAT(hora_fim,   '%H:%i') AS hora_fim,
                     nome,
                     finalidade,
                     status
@@ -117,7 +116,7 @@ def nova_reserva():
                     },
                 }), 409
 
-            # Inserir reserva pendente
+            # Grava reserva como pendente
             cursor.execute("""
                 INSERT INTO reservas (
                     space_id, nome, telefone, finalidade,
@@ -153,14 +152,14 @@ def nova_reserva():
 def admin_reservas():
     try:
         with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()  # DictCursor
+            cursor = conn.cursor()
 
             cursor.execute("""
                 SELECT 
                     r.id,
                     r.data,
-                    TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
-                    TIME_FORMAT(r.hora_fim,   '%%H:%%i') AS hora_fim,
+                    TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
+                    TIME_FORMAT(r.hora_fim,   '%H:%i') AS hora_fim,
                     r.nome,
                     r.finalidade,
                     r.status,
@@ -170,19 +169,18 @@ def admin_reservas():
                 ORDER BY r.data DESC, r.hora_inicio
             """)
 
-            reservas = cursor.fetchall()  # list[dict], já com hora em string
+            reservas = cursor.fetchall()
 
         return render_template("admin_reservas.html", reservas=reservas)
 
     except Exception as e:
-        # se quiser ver no log do Render:
         import traceback
         traceback.print_exc()
         return f"Erro no admin_reservas: {e}", 500
 
 
 # ============================================
-# ADMIN — ALTERAR STATUS (aprovar / negar)
+# ADMIN — ALTERAR STATUS
 # ============================================
 @bp_agenda.route("/admin/reservas/alterar/<int:id>/<acao>", methods=["POST"])
 def alterar_status(id, acao):
@@ -210,8 +208,7 @@ def alterar_status(id, acao):
 
 
 # ============================================
-# ADMIN — EXCLUIR RESERVA
-# (usado pelo botão "Excluir" no admin_reservas.html)
+# ADMIN — EXCLUIR
 # ============================================
 @bp_agenda.route("/admin/reservas/excluir/<int:id>", methods=["POST"])
 def excluir_reserva(id):
@@ -222,5 +219,6 @@ def excluir_reserva(id):
             conn.commit()
 
         return jsonify({"success": True})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
