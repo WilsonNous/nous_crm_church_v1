@@ -23,9 +23,9 @@ def pagina_agendar():
 def listar_espacos():
     try:
         with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor()  # DictCursor já vem do get_db_connection
             cursor.execute("SELECT id, nome FROM spaces ORDER BY nome")
-            espacos = cursor.fetchall()
+            espacos = cursor.fetchall()  # list[dict]
 
         return jsonify({"espacos": espacos})
     except Exception as e:
@@ -34,6 +34,7 @@ def listar_espacos():
 
 # ============================================
 # API — LISTAR RESERVAS POR ESPAÇO + DIA
+# (para o formulário público de agendamento)
 # ============================================
 @bp_agenda.route("/api/reservas/listar/<int:space_id>/<data>")
 def listar_reservas(space_id, data):
@@ -42,16 +43,20 @@ def listar_reservas(space_id, data):
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT id,
-                       time_format(hora_inicio, '%%H:%%i') AS hora_inicio,
-                       time_format(hora_fim, '%%H:%%i') AS hora_fim,
-                       finalidade, nome, status
+                SELECT 
+                    id,
+                    TIME_FORMAT(hora_inicio, '%%H:%%i') AS hora_inicio,
+                    TIME_FORMAT(hora_fim,   '%%H:%%i') AS hora_fim,
+                    finalidade,
+                    nome,
+                    status
                 FROM reservas
-                WHERE space_id = %s AND data = %s
+                WHERE space_id = %s
+                  AND data = %s
                 ORDER BY hora_inicio
             """, (space_id, data))
 
-            reservas = cursor.fetchall()
+            reservas = cursor.fetchall()  # list[dict]
 
         return jsonify({"reservas": reservas})
     except Exception as e:
@@ -69,12 +74,12 @@ def nova_reserva():
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Procurar conflito
+            # Procurar conflito de horário
             cursor.execute("""
                 SELECT 
                     id,
-                    time_format(hora_inicio, '%%H:%%i') AS hora_inicio,
-                    time_format(hora_fim, '%%H:%%i') AS hora_fim,
+                    TIME_FORMAT(hora_inicio, '%%H:%%i') AS hora_inicio,
+                    TIME_FORMAT(hora_fim,   '%%H:%%i') AS hora_fim,
                     nome,
                     finalidade,
                     status
@@ -92,23 +97,24 @@ def nova_reserva():
                 dados["space_id"],
                 dados["data"],
                 dados["hora_inicio"], dados["hora_inicio"],
-                dados["hora_fim"], dados["hora_fim"],
-                dados["hora_inicio"], dados["hora_fim"]
+                dados["hora_fim"],   dados["hora_fim"],
+                dados["hora_inicio"], dados["hora_fim"],
             ))
 
-            conflito = cursor.fetchone()
+            conflito = cursor.fetchall()
 
             if conflito:
+                c = conflito[0]
                 return jsonify({
                     "status": "error",
                     "message": "Já existe uma reserva neste horário.",
                     "conflito": {
-                        "inicio": conflito["hora_inicio"],
-                        "fim": conflito["hora_fim"],
-                        "responsavel": conflito["nome"],
-                        "finalidade": conflito["finalidade"],
-                        "status": conflito["status"]
-                    }
+                        "inicio": c["hora_inicio"],
+                        "fim": c["hora_fim"],
+                        "responsavel": c["nome"],
+                        "finalidade": c["finalidade"],
+                        "status": c["status"],
+                    },
                 }), 409
 
             # Inserir reserva pendente
@@ -126,14 +132,14 @@ def nova_reserva():
                 dados["finalidade"],
                 dados["data"],
                 dados["hora_inicio"],
-                dados["hora_fim"]
+                dados["hora_fim"],
             ))
 
             conn.commit()
 
         return jsonify({
             "status": "success",
-            "message": "Reserva registrada! Ela ficará PENDENTE até aprovação da Secretaria."
+            "message": "Reserva registrada! Ela ficará PENDENTE até aprovação da Secretaria.",
         })
 
     except Exception as e:
@@ -147,14 +153,14 @@ def nova_reserva():
 def admin_reservas():
     try:
         with closing(get_db_connection()) as conn:
-            cursor = conn.cursor()   # ← DictCursor já está ativo no get_db_connection()
+            cursor = conn.cursor()  # DictCursor
 
             cursor.execute("""
                 SELECT 
                     r.id,
                     r.data,
-                    r.hora_inicio,
-                    r.hora_fim,
+                    TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
+                    TIME_FORMAT(r.hora_fim,   '%%H:%%i') AS hora_fim,
                     r.nome,
                     r.finalidade,
                     r.status,
@@ -164,25 +170,19 @@ def admin_reservas():
                 ORDER BY r.data DESC, r.hora_inicio
             """)
 
-            reservas = cursor.fetchall()
-
-            # formatação de horas
-            for r in reservas:
-                if isinstance(r["hora_inicio"], (tuple, str)):
-                    # caso raro de MySQL retornar errado
-                    continue
-
-                r["hora_inicio"] = r["hora_inicio"].strftime("%H:%M")
-                r["hora_fim"] = r["hora_fim"].strftime("%H:%M")
+            reservas = cursor.fetchall()  # list[dict], já com hora em string
 
         return render_template("admin_reservas.html", reservas=reservas)
 
     except Exception as e:
-        return f"Erro: {e}", 500
+        # se quiser ver no log do Render:
+        import traceback
+        traceback.print_exc()
+        return f"Erro no admin_reservas: {e}", 500
 
 
 # ============================================
-# ADMIN — ALTERAR STATUS
+# ADMIN — ALTERAR STATUS (aprovar / negar)
 # ============================================
 @bp_agenda.route("/admin/reservas/alterar/<int:id>/<acao>", methods=["POST"])
 def alterar_status(id, acao):
@@ -205,5 +205,22 @@ def alterar_status(id, acao):
 
         return jsonify({"success": True})
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================
+# ADMIN — EXCLUIR RESERVA
+# (usado pelo botão "Excluir" no admin_reservas.html)
+# ============================================
+@bp_agenda.route("/admin/reservas/excluir/<int:id>", methods=["POST"])
+def excluir_reserva(id):
+    try:
+        with closing(get_db_connection()) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM reservas WHERE id = %s", (id,))
+            conn.commit()
+
+        return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
