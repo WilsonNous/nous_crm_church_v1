@@ -40,33 +40,36 @@
        NAV (BOTÕES)
     ============================ */
     .nav-bar {
-        text-align: center;
-        margin-top: 15px;
+        width: 95%;
+        max-width: 1100px;
+        margin: 20px auto;
+        display: flex;
+        gap: 10px;
+        justify-content: flex-start;
     }
 
     .btn-nav {
-        background: #000;
+        background: #e5e5e5;
         border: none;
         padding: 10px 18px;
-        margin: 5px;
-        border-radius: 10px;
-        color: #fff;
+        border-radius: 8px;
+        color: #000;
         cursor: pointer;
         font-weight: 600;
-        font-size: 15px;
+        transition: 0.2s;
     }
 
     .btn-nav:hover {
-        background: #222;
+        background: #ccc;
     }
 
     /* ============================
-       CONTAINER CENTRAL
+       CONTAINER
     ============================ */
     .container {
         width: 95%;
         max-width: 1100px;
-        margin: 35px auto;
+        margin: 25px auto 40px auto;
         padding: 30px;
         background: #fff;
         border-radius: 15px;
@@ -82,18 +85,18 @@
     }
 
     /* ============================
-       AGRUPAMENTO POR DATA
+       BLOCOS POR DATA
     ============================ */
     .day-block {
-        margin-bottom: 35px;
-        border-left: 5px solid #000;
+        margin-bottom: 40px;
         padding-left: 12px;
+        border-left: 5px solid #000;
     }
 
     .day-title {
         font-size: 20px;
         font-weight: 700;
-        margin-bottom: 12px;
+        margin-bottom: 16px;
         color: #000;
     }
 
@@ -101,12 +104,13 @@
        ITEM DA AGENDA
     ============================ */
     .event {
-        padding: 12px 15px;
-        border-radius: 10px;
+        padding: 15px 18px;
+        border-radius: 12px;
         margin-bottom: 12px;
         background: #fafafa;
         box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         border: 1px solid #eee;
+        line-height: 1.45;
     }
 
     .event strong {
@@ -114,12 +118,12 @@
     }
 
     .status {
-        padding: 4px 8px;
-        border-radius: 5px;
+        padding: 5px 10px;
+        border-radius: 6px;
         font-weight: 600;
         font-size: 13px;
         display: inline-block;
-        margin-top: 4px;
+        margin-top: 6px;
     }
 
     .status-pendente {
@@ -140,13 +144,13 @@
         border: 1px solid #ffb3b3;
     }
 
+    /* RESPONSIVO */
     @media (max-width: 768px) {
-        header h1 {
-            font-size: 20px;
-        }
-        header img {
-            height: 50px;
-        }
+        header img { height: 50px; }
+        header h1 { font-size: 20px; }
+        .btn-nav { padding: 8px 14px; font-size: 14px; }
+        .day-title { font-size: 18px; }
+        .event { font-size: 14px; }
     }
 </style>
 </head>
@@ -158,8 +162,9 @@
     <h1>Agenda Geral dos Espaços</h1>
 </header>
 
+<!-- BOTÕES DE NAVEGAÇÃO -->
 <div class="nav-bar">
-    <button class="btn-nav" onclick="window.location.href='/admin/reservas'">⬅ Voltar à Administração</button>
+    <button class="btn-nav" onclick="window.location.href='/admin/reservas'">⬅ Administração de Reservas</button>
     <button class="btn-nav" onclick="window.location.href='/app/menu'">🏠 Menu Principal</button>
 </div>
 
@@ -168,21 +173,24 @@
     <h2>📅 Visão Geral de Agendamentos</h2>
 
     {% set current_date = None %}
-    
+
     {% for r in reservas %}
+
         {% if current_date != r.data %}
             {% if current_date != None %}
                 </div>
             {% endif %}
+
             <div class="day-block">
                 <div class="day-title">{{ r.data }}</div>
             {% set current_date = r.data %}
         {% endif %}
 
         <div class="event">
-            <strong>{{ r.espaco }}</strong> — {{ r.hora_inicio }} às {{ r.hora_fim }}<br>
-            <strong>Responsável:</strong> {{ r.nome }} <br>
-            <strong>Finalidade:</strong> {{ r.finalidade }} <br>
+            <strong>{{ r.espaco }}</strong><br>
+            {{ r.hora_inicio }} às {{ r.hora_fim }}<br>
+            <strong>Responsável:</strong> {{ r.nome }}<br>
+            <strong>Finalidade:</strong> {{ r.finalidade }}<br>
 
             {% if r.status == 'pendente' %}
                 <span class="status status-pendente">Pendente</span>
