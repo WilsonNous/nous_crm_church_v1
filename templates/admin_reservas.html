@@ -13,9 +13,6 @@
         color: #333;
     }
 
-    /* ================================================= */
-    /*  CABEÇALHO                                        */
-    /* ================================================= */
     header {
         background: #000;
         padding: 25px 10px;
@@ -36,9 +33,7 @@
         font-weight: 600;
     }
 
-    /* ================================================= */
-    /*  BOTÕES SUPERIORES                                 */
-    /* ================================================= */
+    /* ===== BOTÕES SUPERIORES ===== */
     .top-buttons {
         width: 95%;
         max-width: 1100px;
@@ -63,9 +58,7 @@
         background: #ccc;
     }
 
-    /* ================================================= */
-    /*  CONTAINER CENTRAL                                */
-    /* ================================================= */
+    /* ===== CONTAINER ===== */
     .container {
         width: 95%;
         max-width: 1100px;
@@ -84,9 +77,7 @@
         font-weight: 600;
     }
 
-    /* ================================================= */
-    /*  TABELA                                           */
-    /* ================================================= */
+    /* ===== TABELA ===== */
     table {
         width: 100%;
         border-collapse: collapse;
@@ -112,9 +103,7 @@
         background: #f7f7f7;
     }
 
-    /* ================================================= */
-    /*  BOTÕES DE AÇÃO                                   */
-    /* ================================================= */
+    /* ===== BOTÕES AÇÕES ===== */
     .btn-row {
         display: flex;
         gap: 5px;
@@ -130,9 +119,7 @@
         font-weight: 600;
     }
 
-    .btn-approve:hover {
-        background: #00995d;
-    }
+    .btn-approve:hover { background: #00995d; }
 
     .btn-deny {
         background: #d9534f;
@@ -144,9 +131,7 @@
         font-weight: 600;
     }
 
-    .btn-deny:hover {
-        background: #c64541;
-    }
+    .btn-deny:hover { background: #c64541; }
 
     .btn-delete {
         background: #444;
@@ -158,9 +143,7 @@
         font-weight: 600;
     }
 
-    .btn-delete:hover {
-        background: #333;
-    }
+    .btn-delete:hover { background: #333; }
 
     .status-pendente {
         background: #fffae6;
@@ -195,17 +178,10 @@
             padding: 10px;
         }
 
-        header h1 {
-            font-size: 20px;
-        }
+        header h1 { font-size: 20px; }
+        header img { height: 50px; }
 
-        header img {
-            height: 50px;
-        }
-
-        .btn-row {
-            flex-wrap: wrap;
-        }
+        .btn-row { flex-wrap: wrap; }
     }
 </style>
 </head>
@@ -220,6 +196,7 @@
 <!-- BOTÕES DE NAVEGAÇÃO -->
 <div class="top-buttons">
     <button class="btn-nav" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
+    <button class="btn-nav" onclick="window.location.href='/admin/agenda-geral'">📅 Ver Agenda Geral</button>
 </div>
 
 <div class="container">
@@ -275,7 +252,6 @@ async function alterar(id, acao) {
         method: "POST"
     });
 
-    const json = await res.json();
     alert("Status atualizado!");
     location.reload();
 }
@@ -283,10 +259,7 @@ async function alterar(id, acao) {
 async function excluir(id) {
     if (!confirm("Deseja realmente excluir esta reserva?")) return;
 
-    await fetch(`/admin/reservas/excluir/${id}`, {
-        method: "POST"
-    });
-
+    await fetch(`/admin/reservas/excluir/${id}`, { method: "POST" });
     alert("Reserva excluída com sucesso!");
     location.reload();
 }
