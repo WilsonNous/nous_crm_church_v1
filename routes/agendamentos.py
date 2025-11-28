@@ -1,44 +1,18 @@
 from flask import Blueprint, request, jsonify, render_template
 from database import get_db_connection
 from contextlib import closing
-import requests
-import os
+
+# 🔗 Integração oficial Z-API
+from servicos.zapi_cliente import enviar_mensagem
 
 bp_agenda = Blueprint("agendamentos", __name__)
 
 def register(app):
     app.register_blueprint(bp_agenda)
 
-# ============================================================
-# Função auxiliar — enviar WhatsApp via Z-API
-# ============================================================
-def enviar_whatsapp(numero, mensagem):
-    try:
-        url = os.getenv("ZAPI_URL")
-        token = os.getenv("ZAPI_TOKEN")
-
-        if not url or not token:
-            return False
-
-        payload = {
-            "phone": numero,
-            "message": mensagem
-        }
-
-        r = requests.post(
-            f"{url}/send-message",
-            json=payload,
-            headers={"Authorization": token},
-            timeout=10
-        )
-        return r.status_code == 200
-
-    except Exception:
-        return False
-
 
 # ============================================================
-# Página pública — formulário de agendamento
+# Página Pública
 # ============================================================
 @bp_agenda.route("/agendar")
 def pagina_agendar():
@@ -46,7 +20,7 @@ def pagina_agendar():
 
 
 # ============================================================
-# API — listar espaços
+# API — Listar espaços
 # ============================================================
 @bp_agenda.route("/api/espacos/listar")
 def listar_espacos():
@@ -61,7 +35,7 @@ def listar_espacos():
 
 
 # ============================================================
-# API — listar reservas por dia/espaço
+# API — listar reservas por espaço e dia
 # ============================================================
 @bp_agenda.route("/api/reservas/listar/<int:space_id>/<data>")
 def listar_reservas(space_id, data):
@@ -78,8 +52,7 @@ def listar_reservas(space_id, data):
                     nome,
                     status
                 FROM reservas
-                WHERE space_id = %s
-                  AND data = %s
+                WHERE space_id = %s AND data = %s
                 ORDER BY hora_inicio
             """, (space_id, data))
 
@@ -91,7 +64,7 @@ def listar_reservas(space_id, data):
 
 
 # ============================================================
-# API — inserir nova reserva com bloqueio
+# API — Nova reserva com bloqueio de horário
 # ============================================================
 @bp_agenda.route("/api/reservas/nova", methods=["POST"])
 def nova_reserva():
@@ -101,7 +74,7 @@ def nova_reserva():
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # Verifica conflito
+            # Verificar conflito
             cursor.execute("""
                 SELECT 
                     id,
@@ -124,14 +97,14 @@ def nova_reserva():
                 dados["space_id"],
                 dados["data"],
                 dados["hora_inicio"], dados["hora_inicio"],
-                dados["hora_fim"],   dados["hora_fim"],
+                dados["hora_fim"], dados["hora_fim"],
                 dados["hora_inicio"], dados["hora_fim"],
             ))
 
-            conflito = cursor.fetchall()
+            confl = cursor.fetchall()
 
-            if conflito:
-                c = conflito[0]
+            if confl:
+                c = confl[0]
                 return jsonify({
                     "status": "error",
                     "message": "Já existe uma reserva neste horário.",
@@ -140,11 +113,11 @@ def nova_reserva():
                         "fim": c["hora_fim"],
                         "responsavel": c["nome"],
                         "finalidade": c["finalidade"],
-                        "status": c["status"]
-                    }
+                        "status": c["status"],
+                    },
                 }), 409
 
-            # Insere reserva
+            # Inserir reserva
             cursor.execute("""
                 INSERT INTO reservas (
                     space_id, nome, telefone, finalidade,
@@ -174,7 +147,7 @@ def nova_reserva():
 
 
 # ============================================================
-# ADMIN — listar reservas
+# ADMIN — Listar Reservas
 # ============================================================
 @bp_agenda.route("/admin/reservas")
 def admin_reservas():
@@ -189,8 +162,8 @@ def admin_reservas():
                     TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
                     TIME_FORMAT(r.hora_fim,   '%H:%i') AS hora_fim,
                     r.nome,
-                    r.finalidade,
                     r.telefone,
+                    r.finalidade,
                     r.status,
                     s.nome AS espaco
                 FROM reservas r
@@ -207,7 +180,7 @@ def admin_reservas():
 
 
 # ============================================================
-# ADMIN — agenda geral
+# ADMIN — Agenda Geral
 # ============================================================
 @bp_agenda.route("/admin/agenda-geral")
 def agenda_geral():
@@ -222,8 +195,8 @@ def agenda_geral():
                     TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
                     TIME_FORMAT(r.hora_fim,   '%H:%i') AS hora_fim,
                     r.nome,
-                    r.finalidade,
                     r.telefone,
+                    r.finalidade,
                     r.status,
                     s.nome AS espaco
                 FROM reservas r
@@ -241,7 +214,7 @@ def agenda_geral():
 
 
 # ============================================================
-# ADMIN — aprovar / negar
+# ADMIN — Aprovar / Negar (com WhatsApp)
 # ============================================================
 @bp_agenda.route("/admin/reservas/alterar/<int:id>/<acao>", methods=["POST"])
 def alterar_status(id, acao):
@@ -255,10 +228,16 @@ def alterar_status(id, acao):
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            # pega info da reserva
-            cursor.execute("SELECT nome, telefone, data, hora_inicio, hora_fim FROM reservas WHERE id = %s", (id,))
+            # Buscar dados para enviar WhatsApp
+            cursor.execute("""
+                SELECT nome, telefone, data,
+                       TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
+                       TIME_FORMAT(hora_fim, '%H:%i') AS hora_fim
+                FROM reservas WHERE id = %s
+            """, (id,))
             r = cursor.fetchone()
 
+            # Atualizar status
             cursor.execute("""
                 UPDATE reservas
                 SET status = %s
@@ -267,13 +246,13 @@ def alterar_status(id, acao):
 
             conn.commit()
 
-        # MENSAGEM WHATSAPP
-        msg = (
-            f"Olá {r['nome']}, sua solicitação de uso de espaço no dia {r['data']} "
+        # WhatsApp - mensagem automática
+        mensagem = (
+            f"Olá {r['nome']}! Sua solicitação de uso do espaço em {r['data']} "
             f"das {r['hora_inicio']} às {r['hora_fim']} foi *{novo_status.upper()}*."
         )
 
-        enviar_whatsapp(r["telefone"], msg)
+        enviar_mensagem(r["telefone"], mensagem)
 
         return jsonify({"success": True})
 
@@ -281,26 +260,35 @@ def alterar_status(id, acao):
         return jsonify({"error": str(e)}), 500
 
 
+
 # ============================================================
-# ADMIN — excluir
+# ADMIN — Excluir (com WhatsApp)
 # ============================================================
 @bp_agenda.route("/admin/reservas/excluir/<int:id>", methods=["POST"])
 def excluir_reserva(id):
+
     try:
         with closing(get_db_connection()) as conn:
             cursor = conn.cursor()
 
-            cursor.execute("SELECT nome, telefone, data, hora_inicio, hora_fim FROM reservas WHERE id = %s", (id,))
+            cursor.execute("""
+                SELECT nome, telefone, data,
+                       TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
+                       TIME_FORMAT(hora_fim, '%H:%i') AS hora_fim
+                FROM reservas WHERE id = %s
+            """, (id,))
             r = cursor.fetchone()
 
             cursor.execute("DELETE FROM reservas WHERE id = %s", (id,))
             conn.commit()
 
-        enviar_whatsapp(
-            r["telefone"],
-            f"Olá {r['nome']}, sua solicitação para {r['data']} "
+        # WhatsApp
+        mensagem = (
+            f"Olá {r['nome']}! Sua solicitação de uso do espaço no dia {r['data']} "
             f"das {r['hora_inicio']} às {r['hora_fim']} foi *EXCLUÍDA* pela Secretaria."
         )
+
+        enviar_mensagem(r["telefone"], mensagem)
 
         return jsonify({"success": True})
 
