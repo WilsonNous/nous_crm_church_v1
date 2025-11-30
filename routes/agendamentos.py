@@ -41,7 +41,7 @@ def listar_espacos():
 @bp_agenda.route("/api/reservas/listar/<int:space_id>/<data>")
 def listar_reservas(space_id, data):
     try:
-        # valida a data para evitar 500
+        # valida data
         try:
             datetime.strptime(data, "%Y-%m-%d")
         except:
@@ -53,8 +53,8 @@ def listar_reservas(space_id, data):
             cursor.execute("""
                 SELECT 
                     id,
-                    TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
-                    TIME_FORMAT(hora_fim,   '%H:%i') AS hora_fim,
+                    TIME_FORMAT(hora_inicio, '%%H:%%i') AS hora_inicio,
+                    TIME_FORMAT(hora_fim,   '%%H:%%i') AS hora_fim,
                     finalidade,
                     nome,
                     status
@@ -64,6 +64,7 @@ def listar_reservas(space_id, data):
             """, (space_id, data))
 
             reservas = cursor.fetchall()
+
         return jsonify({"reservas": reservas})
 
     except Exception as e:
