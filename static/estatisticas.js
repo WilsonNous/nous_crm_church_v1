@@ -1,15 +1,19 @@
 (function () {
   const token = localStorage.getItem("jwt_token");
 
-  // 🔧 PREFIXO CORRETO PARA RENDER / FLASK
+  // 🔧 API BASE (Render / Flask)
   const API_BASE = "/api";
   const API = `${API_BASE}/estatisticas`;
 
   let charts = {};
 
   // ================================
-  // GENÉRICOS
+  // UTILITÁRIOS
   // ================================
+  function safeArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
   async function fetchJSON(url) {
     const res = await fetch(url, {
       headers: {
@@ -68,6 +72,8 @@
     const periodo = document.getElementById("periodoSelect").value;
     const geral = await fetchJSON(`${API}/geral?meses=${periodo}`);
 
+    console.log("📊 Estatísticas Geral:", geral);
+
     // KPIs
     setText("totalVisitantesInicio", geral.inicio?.total);
     setText("discipuladosAtivos", geral.discipulado?.total_discipulado);
@@ -85,22 +91,22 @@
     renderChart(
       "graficoMensal",
       "line",
-      geral.mensal.map(x => x.mes),
-      geral.mensal.map(x => x.total)
+      safeArray(geral.mensal).map(x => x.mes),
+      safeArray(geral.mensal).map(x => x.total)
     );
 
     renderChart(
       "graficoOrigem",
       "pie",
-      geral.origem.map(o => o.origem),
-      geral.origem.map(o => o.total)
+      safeArray(geral.origem).map(o => o.origem),
+      safeArray(geral.origem).map(o => o.total)
     );
 
     renderChart(
       "graficoFases",
       "bar",
-      geral.fases.map(f => f.fase),
-      geral.fases.map(f => f.total)
+      safeArray(geral.fases).map(f => f.fase),
+      safeArray(geral.fases).map(f => f.total)
     );
 
     // Demografia
@@ -113,15 +119,15 @@
     renderChart(
       "graficoEstadoCivil",
       "pie",
-      geral.demografia.estado_civil.map(x => x.estado_civil),
-      geral.demografia.estado_civil.map(x => x.total)
+      safeArray(geral.demografia?.estado_civil).map(x => x.estado_civil),
+      safeArray(geral.demografia?.estado_civil).map(x => x.total)
     );
 
     renderChart(
       "graficoCidades",
       "bar",
-      geral.demografia.cidades.map(x => x.cidade),
-      geral.demografia.cidades.map(x => x.total)
+      safeArray(geral.demografia?.cidades).map(x => x.cidade),
+      safeArray(geral.demografia?.cidades).map(x => x.total)
     );
   }
 
@@ -131,6 +137,8 @@
   async function carregarKids() {
     const kids = await fetchJSON(`${API}/kids`);
 
+    console.log("🧒 Estatísticas Kids:", kids);
+
     setText("kidsTotal", kids.totais?.total_checkins ?? 0);
     setText("kidsAlertas", kids.totais?.alertas_enviados ?? 0);
     setText("kidsPaiVeio", kids.totais?.pai_veio ?? 0);
@@ -138,8 +146,8 @@
     renderChart(
       "graficoKidsTurma",
       "bar",
-      kids.turmas.map(t => t.turma),
-      kids.turmas.map(t => t.total_checkins)
+      safeArray(kids.turmas).map(t => t.turma),
+      safeArray(kids.turmas).map(t => t.total_checkins)
     );
   }
 
@@ -149,6 +157,8 @@
   async function carregarFamilias() {
     const familias = await fetchJSON(`${API}/familias`);
 
+    console.log("🏠 Estatísticas Famílias:", familias);
+
     setText("familiasAtivas", familias.totais?.familias_ativas ?? 0);
     setText("cestasEntregues", familias.totais?.total_cestas ?? 0);
     setText("necessidadesEspecificas", familias.totais?.necessidades ?? 0);
@@ -156,8 +166,8 @@
     renderChart(
       "graficoKidsFamilias",
       "line",
-      familias.visitas.map(v => v.data),
-      familias.visitas.map(v => v.total)
+      safeArray(familias.visitas).map(v => v.data),
+      safeArray(familias.visitas).map(v => v.total)
     );
   }
 
@@ -168,9 +178,11 @@
     const data = await fetchJSON(`${API}/alertas`);
     const container = document.getElementById("alertasContainer");
 
+    console.log("⚠️ Alertas Pastorais:", data);
+
     container.innerHTML = "";
 
-    data.alertas.forEach(a => {
+    safeArray(data.alertas).forEach(a => {
       const card = document.createElement("div");
       card.className = "info-card";
       card.style.borderLeft = `6px solid ${cor(a.cor)}`;
@@ -204,8 +216,7 @@
         sections.forEach(sec => sec.classList.remove("active"));
 
         btn.classList.add("active");
-        const tab = document.getElementById(btn.dataset.tab);
-        tab.classList.add("active");
+        document.getElementById(btn.dataset.tab).classList.add("active");
 
         if (btn.dataset.tab === "tab-geral") carregarGeral();
         if (btn.dataset.tab === "tab-kids") carregarKids();
