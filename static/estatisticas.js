@@ -61,37 +61,47 @@
   // ================================
   async function carregarGeral() {
     const meses = document.getElementById("periodoSelect").value;
-    const geral = await fetchJSON(`${API}/geral?meses=${meses}`);
+    const response = await fetchJSON(`${API}/geral?meses=${meses}`);
 
-    console.log("📊 Estatísticas Geral:", geral);
+    console.log("📊 Estatísticas Geral (RAW):", response);
 
-    // KPIs
-    setText("totalVisitantesInicio", geral.total?.total);
-    setText("totalHomens", geral.genero?.homens);
-    setText("totalMulheres", geral.genero?.mulheres);
+    const visitantes = response.visitantes || {};
 
-    // Evolução mensal
+    // =========================
+    // KPIs – VISITANTES
+    // =========================
+    setText("totalVisitantesInicio", visitantes.inicio?.total);
+    setText("totalHomens", visitantes.genero?.homens);
+    setText("totalMulheres", visitantes.genero?.mulheres);
+
+    // =========================
+    // EVOLUÇÃO MENSAL
+    // =========================
     renderChart(
       "graficoMensal",
       "line",
-      safeArray(geral.mensal).map(x => x.mes),
-      safeArray(geral.mensal).map(x => Number(x.total))
+      safeArray(visitantes.mensal).map(x => x.mes),
+      safeArray(visitantes.mensal).map(x => Number(x.total))
     );
 
-    // Estado civil
+    // =========================
+    // ESTADO CIVIL
+    // =========================
     renderChart(
       "graficoEstadoCivil",
       "pie",
-      safeArray(geral.estado_civil).map(x => x.estado_civil),
-      safeArray(geral.estado_civil).map(x => Number(x.total))
+      safeArray(visitantes.demografia?.estado_civil).map(x => x.estado_civil),
+      safeArray(visitantes.demografia?.estado_civil).map(x => Number(x.total))
     );
 
-    // Cidades
+    // =========================
+    // CIDADES
+    // =========================
     renderChart(
       "graficoCidades",
       "bar",
-      safeArray(geral.cidades).map(x => x.cidade),
-      safeArray(geral.cidades).map(x => Number(x.total))
+      safeArray(visitantes.demografia?.cidades).map(x => x.cidade),
+      safeArray(visitantes.demografia?.cidades).map(x => Number(x.total))
     );
   }
 
@@ -116,7 +126,10 @@
   // INIT
   // ================================
   document.addEventListener("DOMContentLoaded", () => {
-    if (!token) return window.location = "/app/login";
+    if (!token) {
+      window.location = "/app/login";
+      return;
+    }
 
     setupTabs();
     carregarGeral();
