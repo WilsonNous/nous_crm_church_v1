@@ -63,17 +63,11 @@
     const meses = document.getElementById("periodoSelect").value;
     const response = await fetchJSON(`${API}/geral?meses=${meses}`);
 
-    console.log("📊 Estatísticas Geral (RAW):", response);
-
     const v = response.visitantes || {};
 
-    // -------------------------
-    // KPIs
-    // -------------------------
     setText("totalVisitantesInicio", v.inicio?.total);
     setText("discipuladosAtivos", v.discipulado?.total_discipulado);
     setText("totalPedidosOracao", v.oracao?.total_pedidos);
-
     setText("totalHomens", v.genero?.homens);
     setText("totalMulheres", v.genero?.mulheres);
 
@@ -82,9 +76,6 @@
       `Enviadas: ${v.conversas?.enviadas ?? 0} | Recebidas: ${v.conversas?.recebidas ?? 0}`
     );
 
-    // -------------------------
-    // GRÁFICOS
-    // -------------------------
     renderChart(
       "graficoMensal",
       "line",
@@ -106,9 +97,6 @@
       safeArray(v.fases).map(x => Number(x.total))
     );
 
-    // -------------------------
-    // DEMOGRAFIA
-    // -------------------------
     const idade = v.demografia?.idade || {};
     setText(
       "idadeMedia",
@@ -131,6 +119,60 @@
   }
 
   // ================================
+  // ABA: MEMBROS
+  // ================================
+  async function carregarMembros() {
+    const response = await fetchJSON(`${API}/geral`);
+    const m = response.membros || {};
+
+    setText("membrosTotal", m.total?.total);
+    setText("membrosHomens", m.genero?.homens);
+    setText("membrosMulheres", m.genero?.mulheres);
+
+    renderChart(
+      "graficoMembrosNovoComeco",
+      "pie",
+      ["Fizeram", "Não fizeram"],
+      [Number(m.novo_comeco?.fizeram), Number(m.novo_comeco?.nao_fizeram)]
+    );
+
+    renderChart(
+      "graficoMembrosClasse",
+      "pie",
+      ["Fizeram", "Não fizeram"],
+      [Number(m.classe?.fizeram), Number(m.classe?.nao_fizeram)]
+    );
+
+    renderChart(
+      "graficoMembrosConsagracao",
+      "pie",
+      ["Consagrados", "Não consagrados"],
+      [Number(m.consagracao?.consagrados), Number(m.consagracao?.nao_consagrados)]
+    );
+
+    renderChart(
+      "graficoMembrosEstadoCivil",
+      "bar",
+      safeArray(m.estado_civil).map(x => x.estado_civil),
+      safeArray(m.estado_civil).map(x => Number(x.total))
+    );
+
+    renderChart(
+      "graficoMembrosCidades",
+      "bar",
+      safeArray(m.cidades).map(x => x.cidade),
+      safeArray(m.cidades).map(x => Number(x.total))
+    );
+
+    renderChart(
+      "graficoMembrosMensal",
+      "line",
+      safeArray(m.mensal).map(x => x.mes),
+      safeArray(m.mensal).map(x => Number(x.total))
+    );
+  }
+
+  // ================================
   // TROCA DE ABAS
   // ================================
   function setupTabs() {
@@ -143,6 +185,7 @@
         document.getElementById(btn.dataset.tab).classList.add("active");
 
         if (btn.dataset.tab === "tab-geral") carregarGeral();
+        if (btn.dataset.tab === "tab-membros") carregarMembros();
       });
     });
   }
@@ -161,6 +204,6 @@
 
     document
       .getElementById("periodoSelect")
-      .addEventListener("change", carregarGeral);
+      ?.addEventListener("change", carregarGeral);
   });
 })();
