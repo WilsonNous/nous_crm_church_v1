@@ -21,13 +21,14 @@
     <!-- 🔵 MENU DE ABAS -->
     <div id="tabs">
       <button class="tab-button active" data-tab="tab-geral">Geral</button>
+      <button class="tab-button" data-tab="tab-membros">Membros</button>
       <button class="tab-button" data-tab="tab-kids">Kids</button>
       <button class="tab-button" data-tab="tab-familias">Famílias</button>
       <button class="tab-button" data-tab="tab-alertas">Alertas</button>
     </div>
 
     <!-- ========================== -->
-    <!-- 🔵 ABA 1 — GERAL -->
+    <!-- 🔵 ABA 1 — GERAL (VISITANTES) -->
     <!-- ========================== -->
     <section id="tab-geral" class="tab-content active">
 
@@ -90,9 +91,72 @@
       </div>
     </section>
 
+    <!-- ========================== -->
+    <!-- 🟠 ABA 2 — MEMBROS -->
+    <!-- ========================== -->
+    <section id="tab-membros" class="tab-content">
+
+      <h2>👥 Membros da Igreja</h2>
+
+      <!-- KPIs -->
+      <div class="grid-3">
+        <div class="info-card" id="membrosTotal">
+          <h3>Total de Membros</h3>
+          <p>...</p>
+        </div>
+        <div class="info-card" id="membrosHomens">
+          <h3>Homens</h3>
+          <p>...</p>
+        </div>
+        <div class="info-card" id="membrosMulheres">
+          <h3>Mulheres</h3>
+          <p>...</p>
+        </div>
+      </div>
+
+      <!-- Caminhada espiritual -->
+      <h2>📖 Caminhada Espiritual</h2>
+      <div class="grid-3">
+        <div class="info-card">
+          <h3>Novo Começo</h3>
+          <canvas id="graficoMembrosNovoComeco"></canvas>
+        </div>
+        <div class="info-card">
+          <h3>Classe de Membros</h3>
+          <canvas id="graficoMembrosClasse"></canvas>
+        </div>
+        <div class="info-card">
+          <h3>Consagração</h3>
+          <canvas id="graficoMembrosConsagracao"></canvas>
+        </div>
+      </div>
+
+      <!-- Perfil -->
+      <h2>📊 Perfil dos Membros</h2>
+      <div class="grid-2">
+        <div class="info-card">
+          <h3>Estado Civil</h3>
+          <canvas id="graficoMembrosEstadoCivil"></canvas>
+        </div>
+        <div class="info-card">
+          <h3>Cidades</h3>
+          <canvas id="graficoMembrosCidades"></canvas>
+        </div>
+      </div>
+
+      <!-- Evolução -->
+      <h2>📈 Crescimento</h2>
+      <div class="grid-1">
+        <div class="info-card">
+          <h3>Cadastro Mensal</h3>
+          <canvas id="graficoMembrosMensal"></canvas>
+        </div>
+      </div>
+
+    </section>
 
     <!-- ========================== -->
-    <!-- 🟣 ABA 2 — KIDS -->
+    <!-- 🟣 ABA 3 — KIDS -->
     <!-- ========================== -->
     <section id="tab-kids" class="tab-content">
 
@@ -113,9 +177,8 @@
       </div>
     </section>
 
-
     <!-- ========================== -->
-    <!-- 🟢 ABA 3 — FAMÍLIAS -->
+    <!-- 🟢 ABA 4 — FAMÍLIAS -->
     <!-- ========================== -->
     <section id="tab-familias" class="tab-content">
 
@@ -137,16 +200,15 @@
 
     </section>
 
-
     <!-- ========================== -->
-    <!-- 🔴 ABA 4 — ALERTAS -->
+    <!-- 🔴 ABA 5 — ALERTAS -->
     <!-- ========================== -->
     <section id="tab-alertas" class="tab-content">
 
       <h2>⚠️ Alertas Pastorais</h2>
 
       <div id="alertasContainer" class="grid-1">
-        <!-- cards dos alertas serão inseridos pelo JS -->
+        <!-- cards dos alertas via JS -->
       </div>
 
     </section>
