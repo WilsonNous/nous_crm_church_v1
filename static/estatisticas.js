@@ -80,7 +80,6 @@
     const data = await fetchEstatisticas(meses);
     const v = data.visitantes || {};
 
-    // KPIs
     setText("totalVisitantesInicio", v.inicio?.total);
     setText("discipuladosAtivos", v.discipulado?.total_discipulado);
     setText("totalPedidosOracao", v.oracao?.total_pedidos);
@@ -92,7 +91,6 @@
       `Enviadas: ${v.conversas?.enviadas ?? 0} | Recebidas: ${v.conversas?.recebidas ?? 0}`
     );
 
-    // Gráficos
     renderChart(
       "graficoMensal",
       "line",
@@ -114,7 +112,6 @@
       safeArray(v.fases).map(x => Number(x.total))
     );
 
-    // Demografia
     const idade = v.demografia?.idade || {};
     setText(
       "idadeMedia",
@@ -143,12 +140,10 @@
     const data = await fetchEstatisticas();
     const m = data.membros || {};
 
-    // KPIs
     setText("membrosTotal", m.total?.total);
     setText("membrosHomens", m.genero?.homens);
     setText("membrosMulheres", m.genero?.mulheres);
 
-    // Caminhada espiritual
     renderChart(
       "graficoMembrosNovoComeco",
       "pie",
@@ -179,7 +174,6 @@
       ]
     );
 
-    // Perfil
     renderChart(
       "graficoMembrosEstadoCivil",
       "bar",
@@ -194,7 +188,6 @@
       safeArray(m.cidades).map(x => Number(x.total))
     );
 
-    // Evolução
     renderChart(
       "graficoMembrosMensal",
       "line",
@@ -204,7 +197,7 @@
   }
 
   // ================================
-  // TROCA DE ABAS
+  // TROCA DE ABAS (CORRIGIDO)
   // ================================
   function setupTabs() {
     document.querySelectorAll(".tab-button").forEach(btn => {
@@ -213,10 +206,19 @@
         document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
 
         btn.classList.add("active");
-        document.getElementById(btn.dataset.tab).classList.add("active");
 
-        if (btn.dataset.tab === "tab-geral") await carregarGeral();
-        if (btn.dataset.tab === "tab-membros") await carregarMembros();
+        const targetId = btn.dataset.tab;
+        const targetSection = document.getElementById(targetId);
+
+        if (targetSection) {
+          targetSection.classList.add("active");
+        } else {
+          console.warn(`⚠️ Aba não encontrada no DOM: ${targetId}`);
+          return;
+        }
+
+        if (targetId === "tab-geral") await carregarGeral();
+        if (targetId === "tab-membros") await carregarMembros();
       });
     });
   }
