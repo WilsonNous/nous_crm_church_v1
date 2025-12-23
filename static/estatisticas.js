@@ -15,7 +15,7 @@
   }
 
   async function fetchEstatisticas(meses = null) {
-    if (cacheEstatisticas && !meses) return cacheEstatisticas;
+    if (cacheEstatisticas && meses === null) return cacheEstatisticas;
 
     const url = meses !== null
       ? `${API}/geral?meses=${meses}`
@@ -61,7 +61,9 @@
       },
       options: {
         responsive: true,
-        plugins: { legend: { position: "bottom" } }
+        plugins: {
+          legend: { position: "bottom" }
+        }
       }
     });
   }
@@ -70,12 +72,15 @@
   // ABA: GERAL (VISITANTES)
   // ================================
   async function carregarGeral() {
-    const meses = document.getElementById("periodoSelect").value;
-    cacheEstatisticas = null; // força recálculo ao trocar período
+    const selectPeriodo = document.getElementById("periodoSelect");
+    const meses = selectPeriodo ? selectPeriodo.value : 6;
+
+    cacheEstatisticas = null;
 
     const data = await fetchEstatisticas(meses);
     const v = data.visitantes || {};
 
+    // KPIs
     setText("totalVisitantesInicio", v.inicio?.total);
     setText("discipuladosAtivos", v.discipulado?.total_discipulado);
     setText("totalPedidosOracao", v.oracao?.total_pedidos);
@@ -87,6 +92,7 @@
       `Enviadas: ${v.conversas?.enviadas ?? 0} | Recebidas: ${v.conversas?.recebidas ?? 0}`
     );
 
+    // Gráficos
     renderChart(
       "graficoMensal",
       "line",
@@ -108,6 +114,7 @@
       safeArray(v.fases).map(x => Number(x.total))
     );
 
+    // Demografia
     const idade = v.demografia?.idade || {};
     setText(
       "idadeMedia",
@@ -136,31 +143,43 @@
     const data = await fetchEstatisticas();
     const m = data.membros || {};
 
+    // KPIs
     setText("membrosTotal", m.total?.total);
     setText("membrosHomens", m.genero?.homens);
     setText("membrosMulheres", m.genero?.mulheres);
 
+    // Caminhada espiritual
     renderChart(
       "graficoMembrosNovoComeco",
       "pie",
       ["Fizeram", "Não fizeram"],
-      [Number(m.novo_comeco?.fizeram), Number(m.novo_comeco?.nao_fizeram)]
+      [
+        Number(m.novo_comeco?.fizeram ?? 0),
+        Number(m.novo_comeco?.nao_fizeram ?? 0)
+      ]
     );
 
     renderChart(
       "graficoMembrosClasse",
       "pie",
       ["Fizeram", "Não fizeram"],
-      [Number(m.classe?.fizeram), Number(m.classe?.nao_fizeram)]
+      [
+        Number(m.classe?.fizeram ?? 0),
+        Number(m.classe?.nao_fizeram ?? 0)
+      ]
     );
 
     renderChart(
       "graficoMembrosConsagracao",
       "pie",
       ["Consagrados", "Não consagrados"],
-      [Number(m.consagracao?.consagrados), Number(m.consagracao?.nao_consagrados)]
+      [
+        Number(m.consagracao?.consagrados ?? 0),
+        Number(m.consagracao?.nao_consagrados ?? 0)
+      ]
     );
 
+    // Perfil
     renderChart(
       "graficoMembrosEstadoCivil",
       "bar",
@@ -175,6 +194,7 @@
       safeArray(m.cidades).map(x => Number(x.total))
     );
 
+    // Evolução
     renderChart(
       "graficoMembrosMensal",
       "line",
