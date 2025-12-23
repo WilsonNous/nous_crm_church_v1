@@ -57,7 +57,7 @@
   }
 
   // ================================
-  // ABA: GERAL
+  // ABA: GERAL (VISITANTES)
   // ================================
   async function carregarGeral() {
     const meses = document.getElementById("periodoSelect").value;
@@ -65,43 +65,68 @@
 
     console.log("📊 Estatísticas Geral (RAW):", response);
 
-    const visitantes = response.visitantes || {};
+    const v = response.visitantes || {};
 
-    // =========================
-    // KPIs – VISITANTES
-    // =========================
-    setText("totalVisitantesInicio", visitantes.inicio?.total);
-    setText("totalHomens", visitantes.genero?.homens);
-    setText("totalMulheres", visitantes.genero?.mulheres);
+    // -------------------------
+    // KPIs
+    // -------------------------
+    setText("totalVisitantesInicio", v.inicio?.total);
+    setText("discipuladosAtivos", v.discipulado?.total_discipulado);
+    setText("totalPedidosOracao", v.oracao?.total_pedidos);
 
-    // =========================
-    // EVOLUÇÃO MENSAL
-    // =========================
+    setText("totalHomens", v.genero?.homens);
+    setText("totalMulheres", v.genero?.mulheres);
+
+    setText(
+      "conversasEnviadasRecebidas",
+      `Enviadas: ${v.conversas?.enviadas ?? 0} | Recebidas: ${v.conversas?.recebidas ?? 0}`
+    );
+
+    // -------------------------
+    // GRÁFICOS
+    // -------------------------
     renderChart(
       "graficoMensal",
       "line",
-      safeArray(visitantes.mensal).map(x => x.mes),
-      safeArray(visitantes.mensal).map(x => Number(x.total))
+      safeArray(v.mensal).map(x => x.mes),
+      safeArray(v.mensal).map(x => Number(x.total))
     );
 
-    // =========================
-    // ESTADO CIVIL
-    // =========================
+    renderChart(
+      "graficoOrigem",
+      "pie",
+      safeArray(v.origem).map(x => x.origem),
+      safeArray(v.origem).map(x => Number(x.total))
+    );
+
+    renderChart(
+      "graficoFases",
+      "bar",
+      safeArray(v.fases).map(x => x.fase),
+      safeArray(v.fases).map(x => Number(x.total))
+    );
+
+    // -------------------------
+    // DEMOGRAFIA
+    // -------------------------
+    const idade = v.demografia?.idade || {};
+    setText(
+      "idadeMedia",
+      `${idade.idade_media ?? "—"} anos | Jovens: ${idade.jovens ?? 0} | Adultos: ${idade.adultos ?? 0} | Idosos: ${idade.idosos ?? 0}`
+    );
+
     renderChart(
       "graficoEstadoCivil",
       "pie",
-      safeArray(visitantes.demografia?.estado_civil).map(x => x.estado_civil),
-      safeArray(visitantes.demografia?.estado_civil).map(x => Number(x.total))
+      safeArray(v.demografia?.estado_civil).map(x => x.estado_civil),
+      safeArray(v.demografia?.estado_civil).map(x => Number(x.total))
     );
 
-    // =========================
-    // CIDADES
-    // =========================
     renderChart(
       "graficoCidades",
       "bar",
-      safeArray(visitantes.demografia?.cidades).map(x => x.cidade),
-      safeArray(visitantes.demografia?.cidades).map(x => Number(x.total))
+      safeArray(v.demografia?.cidades).map(x => x.cidade),
+      safeArray(v.demografia?.cidades).map(x => Number(x.total))
     );
   }
 
