@@ -2,7 +2,7 @@
   const token = localStorage.getItem("jwt_token");
 
   // 🔧 PREFIXO CORRETO PARA RENDER / FLASK
-  const API_BASE = "/app/api";
+  const API_BASE = "/api";
   const API = `${API_BASE}/estatisticas`;
 
   let charts = {};
