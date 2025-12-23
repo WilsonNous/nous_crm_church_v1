@@ -5,6 +5,7 @@
   const API = `${API_BASE}/estatisticas`;
 
   let charts = {};
+  let cacheEstatisticas = null;
 
   // ================================
   // UTILITÁRIOS
@@ -13,12 +14,21 @@
     return Array.isArray(v) ? v : [];
   }
 
-  async function fetchJSON(url) {
+  async function fetchEstatisticas(meses = null) {
+    if (cacheEstatisticas && !meses) return cacheEstatisticas;
+
+    const url = meses !== null
+      ? `${API}/geral?meses=${meses}`
+      : `${API}/geral`;
+
     const res = await fetch(url, {
       headers: { "Authorization": `Bearer ${token}` }
     });
-    if (!res.ok) throw new Error(`Erro ao acessar ${url}`);
-    return res.json();
+
+    if (!res.ok) throw new Error("Erro ao buscar estatísticas");
+
+    cacheEstatisticas = await res.json();
+    return cacheEstatisticas;
   }
 
   function setText(id, value) {
@@ -61,9 +71,10 @@
   // ================================
   async function carregarGeral() {
     const meses = document.getElementById("periodoSelect").value;
-    const response = await fetchJSON(`${API}/geral?meses=${meses}`);
+    cacheEstatisticas = null; // força recálculo ao trocar período
 
-    const v = response.visitantes || {};
+    const data = await fetchEstatisticas(meses);
+    const v = data.visitantes || {};
 
     setText("totalVisitantesInicio", v.inicio?.total);
     setText("discipuladosAtivos", v.discipulado?.total_discipulado);
@@ -122,8 +133,8 @@
   // ABA: MEMBROS
   // ================================
   async function carregarMembros() {
-    const response = await fetchJSON(`${API}/geral`);
-    const m = response.membros || {};
+    const data = await fetchEstatisticas();
+    const m = data.membros || {};
 
     setText("membrosTotal", m.total?.total);
     setText("membrosHomens", m.genero?.homens);
@@ -177,15 +188,15 @@
   // ================================
   function setupTabs() {
     document.querySelectorAll(".tab-button").forEach(btn => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         document.querySelectorAll(".tab-button").forEach(b => b.classList.remove("active"));
         document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
 
         btn.classList.add("active");
         document.getElementById(btn.dataset.tab).classList.add("active");
 
-        if (btn.dataset.tab === "tab-geral") carregarGeral();
-        if (btn.dataset.tab === "tab-membros") carregarMembros();
+        if (btn.dataset.tab === "tab-geral") await carregarGeral();
+        if (btn.dataset.tab === "tab-membros") await carregarMembros();
       });
     });
   }
@@ -193,14 +204,14 @@
   // ================================
   // INIT
   // ================================
-  document.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("DOMContentLoaded", async () => {
     if (!token) {
       window.location = "/app/login";
       return;
     }
 
     setupTabs();
-    carregarGeral();
+    await carregarGeral();
 
     document
       .getElementById("periodoSelect")
