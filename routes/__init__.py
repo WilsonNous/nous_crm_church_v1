@@ -32,6 +32,8 @@ def register_routes(app):
     agendamentos.register(app)
     logging.info("✅ Rotas agendamentos registradas.")
 
+    membros.register(app)   # 👈 NOVO
+    logging.info("✅ Rotas membros registradas.")
 
 
 
