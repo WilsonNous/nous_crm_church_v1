@@ -3,32 +3,18 @@
 
   const API_BASE = "/api";
   const API = `${API_BASE}/estatisticas`;
+  const API_MEMBROS = `${API_BASE}/membros`; // futuro endpoint real
 
   let charts = {};
   let cacheEstatisticas = null;
+  let listaMembros = [];
+  let selecionados = new Set();
 
   // ================================
   // UTILITÁRIOS
   // ================================
   function safeArray(v) {
     return Array.isArray(v) ? v : [];
-  }
-
-  async function fetchEstatisticas(meses = null) {
-    if (cacheEstatisticas && meses === null) return cacheEstatisticas;
-
-    const url = meses !== null
-      ? `${API}/geral?meses=${meses}`
-      : `${API}/geral`;
-
-    const res = await fetch(url, {
-      headers: { "Authorization": `Bearer ${token}` }
-    });
-
-    if (!res.ok) throw new Error("Erro ao buscar estatísticas");
-
-    cacheEstatisticas = await res.json();
-    return cacheEstatisticas;
   }
 
   function setText(id, value) {
@@ -61,80 +47,24 @@
       },
       options: {
         responsive: true,
-        plugins: {
-          legend: { position: "bottom" }
-        }
+        plugins: { legend: { position: "bottom" } }
       }
     });
   }
 
-  // ================================
-  // ABA: GERAL (VISITANTES)
-  // ================================
-  async function carregarGeral() {
-    const selectPeriodo = document.getElementById("periodoSelect");
-    const meses = selectPeriodo ? selectPeriodo.value : 6;
+  async function fetchEstatisticas() {
+    if (cacheEstatisticas) return cacheEstatisticas;
 
-    cacheEstatisticas = null;
+    const res = await fetch(`${API}/geral`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
-    const data = await fetchEstatisticas(meses);
-    const v = data.visitantes || {};
-
-    setText("totalVisitantesInicio", v.inicio?.total);
-    setText("discipuladosAtivos", v.discipulado?.total_discipulado);
-    setText("totalPedidosOracao", v.oracao?.total_pedidos);
-    setText("totalHomens", v.genero?.homens);
-    setText("totalMulheres", v.genero?.mulheres);
-
-    setText(
-      "conversasEnviadasRecebidas",
-      `Enviadas: ${v.conversas?.enviadas ?? 0} | Recebidas: ${v.conversas?.recebidas ?? 0}`
-    );
-
-    renderChart(
-      "graficoMensal",
-      "line",
-      safeArray(v.mensal).map(x => x.mes),
-      safeArray(v.mensal).map(x => Number(x.total))
-    );
-
-    renderChart(
-      "graficoOrigem",
-      "pie",
-      safeArray(v.origem).map(x => x.origem),
-      safeArray(v.origem).map(x => Number(x.total))
-    );
-
-    renderChart(
-      "graficoFases",
-      "bar",
-      safeArray(v.fases).map(x => x.fase),
-      safeArray(v.fases).map(x => Number(x.total))
-    );
-
-    const idade = v.demografia?.idade || {};
-    setText(
-      "idadeMedia",
-      `${idade.idade_media ?? "—"} anos | Jovens: ${idade.jovens ?? 0} | Adultos: ${idade.adultos ?? 0} | Idosos: ${idade.idosos ?? 0}`
-    );
-
-    renderChart(
-      "graficoEstadoCivil",
-      "pie",
-      safeArray(v.demografia?.estado_civil).map(x => x.estado_civil),
-      safeArray(v.demografia?.estado_civil).map(x => Number(x.total))
-    );
-
-    renderChart(
-      "graficoCidades",
-      "bar",
-      safeArray(v.demografia?.cidades).map(x => x.cidade),
-      safeArray(v.demografia?.cidades).map(x => Number(x.total))
-    );
+    cacheEstatisticas = await res.json();
+    return cacheEstatisticas;
   }
 
   // ================================
-  // ABA: MEMBROS
+  // ABA: MEMBROS (KPIs)
   // ================================
   async function carregarMembros() {
     const data = await fetchEstatisticas();
@@ -143,61 +73,106 @@
     setText("membrosTotal", m.total?.total);
     setText("membrosHomens", m.genero?.homens);
     setText("membrosMulheres", m.genero?.mulheres);
-
-    renderChart(
-      "graficoMembrosNovoComeco",
-      "pie",
-      ["Fizeram", "Não fizeram"],
-      [
-        Number(m.novo_comeco?.fizeram ?? 0),
-        Number(m.novo_comeco?.nao_fizeram ?? 0)
-      ]
-    );
-
-    renderChart(
-      "graficoMembrosClasse",
-      "pie",
-      ["Fizeram", "Não fizeram"],
-      [
-        Number(m.classe?.fizeram ?? 0),
-        Number(m.classe?.nao_fizeram ?? 0)
-      ]
-    );
-
-    renderChart(
-      "graficoMembrosConsagracao",
-      "pie",
-      ["Consagrados", "Não consagrados"],
-      [
-        Number(m.consagracao?.consagrados ?? 0),
-        Number(m.consagracao?.nao_consagrados ?? 0)
-      ]
-    );
-
-    renderChart(
-      "graficoMembrosEstadoCivil",
-      "bar",
-      safeArray(m.estado_civil).map(x => x.estado_civil),
-      safeArray(m.estado_civil).map(x => Number(x.total))
-    );
-
-    renderChart(
-      "graficoMembrosCidades",
-      "bar",
-      safeArray(m.cidades).map(x => x.cidade),
-      safeArray(m.cidades).map(x => Number(x.total))
-    );
-
-    renderChart(
-      "graficoMembrosMensal",
-      "line",
-      safeArray(m.mensal).map(x => x.mes),
-      safeArray(m.mensal).map(x => Number(x.total))
-    );
   }
 
   // ================================
-  // TROCA DE ABAS (CORRIGIDO)
+  // 📋 LISTA DE MEMBROS
+  // ================================
+  async function carregarListaMembros() {
+    // 🔹 MOCK TEMPORÁRIO (até ligar no backend)
+    listaMembros = [
+      { id: 1, nome: "João Silva", telefone: "48999990001", estado_civil: "Casado", cidade: "Florianópolis" },
+      { id: 2, nome: "Maria Souza", telefone: "48999990002", estado_civil: "Solteira", cidade: "São José" },
+      { id: 3, nome: "Carlos Lima", telefone: "48999990003", estado_civil: "Casado", cidade: "Palhoça" }
+    ];
+
+    renderTabela(listaMembros);
+  }
+
+  function renderTabela(lista) {
+    const tbody = document.querySelector("#tabelaMembros tbody");
+    if (!tbody) return;
+
+    tbody.innerHTML = "";
+
+    lista.forEach(m => {
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = `
+        <td><input type="checkbox" data-id="${m.id}"></td>
+        <td>${m.nome}</td>
+        <td>${m.telefone}</td>
+        <td>${m.estado_civil}</td>
+        <td>${m.cidade}</td>
+      `;
+
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll("input[type=checkbox]").forEach(cb => {
+      cb.addEventListener("change", () => {
+        const id = cb.dataset.id;
+        cb.checked ? selecionados.add(id) : selecionados.delete(id);
+        atualizarBotaoEnvio();
+      });
+    });
+  }
+
+  function atualizarBotaoEnvio() {
+    const btn = document.getElementById("btnEnviarMensagem");
+    if (!btn) return;
+    btn.disabled = selecionados.size === 0;
+    btn.textContent = selecionados.size
+      ? `✉️ Enviar mensagem (${selecionados.size})`
+      : "✉️ Enviar mensagem";
+  }
+
+  // ================================
+  // EVENTOS LISTA
+  // ================================
+  function setupListaMembros() {
+    const btnAbrir = document.getElementById("btnAbrirListaMembros");
+    const painel = document.getElementById("painelListaMembros");
+    const busca = document.getElementById("buscaMembro");
+    const btnTodos = document.getElementById("btnSelecionarTodos");
+
+    if (!btnAbrir || !painel) return;
+
+    btnAbrir.addEventListener("click", async () => {
+      painel.style.display = painel.style.display === "none" ? "block" : "none";
+
+      if (painel.style.display === "block" && listaMembros.length === 0) {
+        await carregarListaMembros();
+      }
+    });
+
+    busca?.addEventListener("input", () => {
+      const termo = busca.value.toLowerCase();
+      const filtrados = listaMembros.filter(m =>
+        m.nome.toLowerCase().includes(termo) ||
+        m.telefone.includes(termo)
+      );
+      renderTabela(filtrados);
+    });
+
+    btnTodos?.addEventListener("click", () => {
+      document
+        .querySelectorAll("#tabelaMembros input[type=checkbox]")
+        .forEach(cb => {
+          cb.checked = true;
+          selecionados.add(cb.dataset.id);
+        });
+      atualizarBotaoEnvio();
+    });
+
+    document.getElementById("btnEnviarMensagem")?.addEventListener("click", () => {
+      alert(`Enviar mensagem para ${selecionados.size} membros`);
+      // aqui entra WhatsApp / Integra+
+    });
+  }
+
+  // ================================
+  // TROCA DE ABAS
   // ================================
   function setupTabs() {
     document.querySelectorAll(".tab-button").forEach(btn => {
@@ -206,19 +181,10 @@
         document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
 
         btn.classList.add("active");
+        const target = document.getElementById(btn.dataset.tab);
+        if (target) target.classList.add("active");
 
-        const targetId = btn.dataset.tab;
-        const targetSection = document.getElementById(targetId);
-
-        if (targetSection) {
-          targetSection.classList.add("active");
-        } else {
-          console.warn(`⚠️ Aba não encontrada no DOM: ${targetId}`);
-          return;
-        }
-
-        if (targetId === "tab-geral") await carregarGeral();
-        if (targetId === "tab-membros") await carregarMembros();
+        if (btn.dataset.tab === "tab-membros") await carregarMembros();
       });
     });
   }
@@ -233,10 +199,7 @@
     }
 
     setupTabs();
-    await carregarGeral();
-
-    document
-      .getElementById("periodoSelect")
-      ?.addEventListener("change", carregarGeral);
+    setupListaMembros();
+    await carregarMembros();
   });
 })();
