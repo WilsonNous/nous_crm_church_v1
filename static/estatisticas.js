@@ -1,6 +1,10 @@
 (function () {
-  const token = localStorage.getItem('jwt_token');
-  const API = "/api/estatisticas";
+  const token = localStorage.getItem("jwt_token");
+
+  // 🔧 PREFIXO CORRETO PARA RENDER / FLASK
+  const API_BASE = "/app/api";
+  const API = `${API_BASE}/estatisticas`;
+
   let charts = {};
 
   // ================================
@@ -8,15 +12,20 @@
   // ================================
   async function fetchJSON(url) {
     const res = await fetch(url, {
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
     });
-    if (!res.ok) throw new Error(`Erro ao acessar ${url}`);
+
+    if (!res.ok) {
+      throw new Error(`Erro ao acessar ${url}`);
+    }
     return res.json();
   }
 
   function setText(id, text) {
     const el = document.querySelector(`#${id} p`);
-    if (el) el.textContent = text;
+    if (el) el.textContent = text ?? "—";
   }
 
   function renderChart(id, type, labels, data, colors) {
@@ -32,15 +41,22 @@
         datasets: [{
           data,
           backgroundColor: colors || [
-            "#004f90", "#FF6B6B", "#2ECC40",
-            "#FFCC00", "#7FDBFF", "#B10DC9", "#AAAAAA"
+            "#004f90",
+            "#FF6B6B",
+            "#2ECC40",
+            "#FFCC00",
+            "#7FDBFF",
+            "#B10DC9",
+            "#AAAAAA"
           ],
           borderWidth: 1
         }]
       },
       options: {
         responsive: true,
-        plugins: { legend: { position: "bottom" } }
+        plugins: {
+          legend: { position: "bottom" }
+        }
       }
     });
   }
@@ -53,18 +69,19 @@
     const geral = await fetchJSON(`${API}/geral?meses=${periodo}`);
 
     // KPIs
-    setText("totalVisitantesInicio", geral.inicio.total);
-    setText("discipuladosAtivos", geral.discipulado.total_discipulado);
-    setText("totalPedidosOracao", geral.oracao.total_pedidos);
+    setText("totalVisitantesInicio", geral.inicio?.total);
+    setText("discipuladosAtivos", geral.discipulado?.total_discipulado);
+    setText("totalPedidosOracao", geral.oracao?.total_pedidos);
 
-    setText("totalHomens", geral.genero.homens);
-    setText("totalMulheres", geral.genero.mulheres);
+    setText("totalHomens", geral.genero?.homens);
+    setText("totalMulheres", geral.genero?.mulheres);
+
     setText(
       "conversasEnviadasRecebidas",
-      `Enviadas: ${geral.conversas.enviadas} | Recebidas: ${geral.conversas.recebidas}`
+      `Enviadas: ${geral.conversas?.enviadas ?? 0} | Recebidas: ${geral.conversas?.recebidas ?? 0}`
     );
 
-    // Gráficos principais
+    // Gráficos
     renderChart(
       "graficoMensal",
       "line",
@@ -87,10 +104,10 @@
     );
 
     // Demografia
-    const idade = geral.demografia.idade;
+    const idade = geral.demografia?.idade || {};
     setText(
       "idadeMedia",
-      `${idade.idade_media ?? "—"} anos | Jovens: ${idade.jovens} | Adultos: ${idade.adultos} | Idosos: ${idade.idosos}`
+      `${idade.idade_media ?? "—"} anos | Jovens: ${idade.jovens ?? 0} | Adultos: ${idade.adultos ?? 0} | Idosos: ${idade.idosos ?? 0}`
     );
 
     renderChart(
@@ -114,12 +131,10 @@
   async function carregarKids() {
     const kids = await fetchJSON(`${API}/kids`);
 
-    // Totais
-    setText("kidsTotal", kids.totais.total_checkins || 0);
-    setText("kidsAlertas", kids.totais.alertas_enviados || 0);
-    setText("kidsPaiVeio", kids.totais.pai_veio || 0);
+    setText("kidsTotal", kids.totais?.total_checkins ?? 0);
+    setText("kidsAlertas", kids.totais?.alertas_enviados ?? 0);
+    setText("kidsPaiVeio", kids.totais?.pai_veio ?? 0);
 
-    // Por turma
     renderChart(
       "graficoKidsTurma",
       "bar",
@@ -134,9 +149,9 @@
   async function carregarFamilias() {
     const familias = await fetchJSON(`${API}/familias`);
 
-    setText("familiasAtivas", familias.totais.familias_ativas);
-    setText("cestasEntregues", familias.totais.total_cestas);
-    setText("necessidadesEspecificas", familias.totais.necessidades);
+    setText("familiasAtivas", familias.totais?.familias_ativas ?? 0);
+    setText("cestasEntregues", familias.totais?.total_cestas ?? 0);
+    setText("necessidadesEspecificas", familias.totais?.necessidades ?? 0);
 
     renderChart(
       "graficoKidsFamilias",
@@ -152,6 +167,7 @@
   async function carregarAlertas() {
     const data = await fetchJSON(`${API}/alertas`);
     const container = document.getElementById("alertasContainer");
+
     container.innerHTML = "";
 
     data.alertas.forEach(a => {
@@ -168,10 +184,10 @@
 
   function cor(c) {
     return {
-      "vermelho": "#FF3B3B",
-      "amarelo": "#FFCC00",
-      "verde": "#2ECC40",
-      "laranja": "#FF851B"
+      vermelho: "#FF3B3B",
+      amarelo: "#FFCC00",
+      verde: "#2ECC40",
+      laranja: "#FF851B"
     }[c] || "#004f90";
   }
 
@@ -184,16 +200,13 @@
 
     buttons.forEach(btn => {
       btn.addEventListener("click", () => {
-        // Remove active
         buttons.forEach(b => b.classList.remove("active"));
         sections.forEach(sec => sec.classList.remove("active"));
 
-        // Ativa a aba
         btn.classList.add("active");
         const tab = document.getElementById(btn.dataset.tab);
         tab.classList.add("active");
 
-        // Carrega conteúdo correspondente
         if (btn.dataset.tab === "tab-geral") carregarGeral();
         if (btn.dataset.tab === "tab-kids") carregarKids();
         if (btn.dataset.tab === "tab-familias") carregarFamilias();
@@ -206,13 +219,15 @@
   // INICIALIZAÇÃO
   // ================================
   document.addEventListener("DOMContentLoaded", () => {
-    if (!token) return (window.location = "/app/login");
+    if (!token) {
+      window.location = "/app/login";
+      return;
+    }
 
     setupTabs();
-    carregarGeral(); // Carrega a primeira aba por padrão
+    carregarGeral();
 
-    // Filtro período
     const sel = document.getElementById("periodoSelect");
-    sel.addEventListener("change", () => carregarGeral());
+    sel.addEventListener("change", carregarGeral);
   });
 })();
