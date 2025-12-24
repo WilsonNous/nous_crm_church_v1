@@ -1,0 +1,97 @@
+{% extends "estatisticas_base.html" %}
+
+{% block title %}
+👥 Membros | Estatísticas - CRM Church
+{% endblock %}
+
+{% set active_tab = 'membros' %}
+
+{% block content %}
+
+<h2>👥 Membros da Igreja</h2>
+
+<!-- ===================== -->
+<!-- 📊 KPIs PRINCIPAIS -->
+<!-- ===================== -->
+<div class="grid-3">
+  <div class="info-card" id="membrosTotal">
+    <h3>Total de Membros</h3>
+    <p>—</p>
+  </div>
+
+  <div class="info-card" id="membrosHomens">
+    <h3>Homens</h3>
+    <p>—</p>
+  </div>
+
+  <div class="info-card" id="membrosMulheres">
+    <h3>Mulheres</h3>
+    <p>—</p>
+  </div>
+</div>
+
+<!-- ===================== -->
+<!-- 📋 AÇÃO -->
+<!-- ===================== -->
+<div style="margin: 20px 0; text-align: right;">
+  <button id="btnAbrirListaMembros" class="btn-primary">
+    📋 Ver lista de membros
+  </button>
+</div>
+
+<!-- ===================== -->
+<!-- 📋 LISTA DE MEMBROS -->
+<!-- ===================== -->
+<section id="painelListaMembros" style="display:none;">
+
+  <h2>📋 Seleção de Membros</h2>
+
+  <!-- AÇÕES -->
+  <div class="grid-3">
+    <div class="info-card">
+      <input
+        type="text"
+        id="buscaMembro"
+        placeholder="🔍 Buscar por nome ou telefone"
+        style="width:100%; padding:8px;"
+      />
+    </div>
+
+    <div class="info-card center">
+      <button id="btnSelecionarTodos">
+        Selecionar todos
+      </button>
+    </div>
+
+    <div class="info-card center">
+      <button id="btnEnviarMensagem" disabled>
+        ✉️ Enviar mensagem
+      </button>
+    </div>
+  </div>
+
+  <!-- TABELA -->
+  <div class="info-card">
+    <table width="100%" id="tabelaMembros">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Nome</th>
+          <th>Telefone</th>
+          <th>Estado Civil</th>
+          <th>Cidade</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- preenchido via JS -->
+      </tbody>
+    </table>
+  </div>
+
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/estatisticas_membros.js"></script>
+{% endblock %}
