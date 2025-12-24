@@ -1,16 +1,9 @@
 import logging
 from flask import Blueprint, jsonify, request, render_template
 from database import get_db_connection
-# from utils_auth import login_required  # se quiser ativar depois
+# from utils_auth import login_required
 
 bp_membros = Blueprint("membros", __name__)
-
-# ============================================================
-# HELPERS
-# ============================================================
-def fetch_all_dict(cursor):
-    columns = [col[0] for col in cursor.description]
-    return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 # ============================================================
 # API — LISTAGEM / BUSCA DE MEMBROS
@@ -22,7 +15,7 @@ def listar_membros():
         termo = request.args.get("q", "").strip()
 
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)  # 🔥 ESSENCIAL
 
         sql = """
             SELECT
@@ -48,7 +41,7 @@ def listar_membros():
         sql += " ORDER BY nome LIMIT 500"
 
         cursor.execute(sql, params)
-        membros = fetch_all_dict(cursor)
+        membros = cursor.fetchall()  # ✅ agora já é dict
 
         cursor.close()
         conn.close()
@@ -63,12 +56,14 @@ def listar_membros():
         logging.exception(e)
         return jsonify({"error": str(e)}), 500
 
+
 # ============================================================
 # TELA HTML (opcional / futura)
 # ============================================================
 @bp_membros.route("/membros", methods=["GET"])
 def tela_membros():
     return render_template("membros.html")
+
 
 # ============================================================
 # REGISTRO
