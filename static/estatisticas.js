@@ -2,20 +2,18 @@
   const token = localStorage.getItem("jwt_token");
 
   const API_BASE = "/api";
-  const API = `${API_BASE}/estatisticas`;
-  const API_MEMBROS = `${API_BASE}/membros`; // futuro endpoint real
+  const API_EST = `${API_BASE}/estatisticas/geral`;
+  const API_MEMBROS = `${API_BASE}/membros`;
 
   let charts = {};
-  let cacheEstatisticas = null;
+  let cacheEst = null;
   let listaMembros = [];
   let selecionados = new Set();
 
-  // ================================
-  // UTILITÁRIOS
-  // ================================
-  function safeArray(v) {
-    return Array.isArray(v) ? v : [];
-  }
+  // ======================================================
+  // UTIL
+  // ======================================================
+  const safeArray = v => Array.isArray(v) ? v : [];
 
   function setText(id, value) {
     const el = document.querySelector(`#${id} p`);
@@ -35,13 +33,8 @@
         datasets: [{
           data,
           backgroundColor: [
-            "#004f90",
-            "#FF6B6B",
-            "#2ECC40",
-            "#FFCC00",
-            "#7FDBFF",
-            "#B10DC9",
-            "#AAAAAA"
+            "#004f90", "#FF6B6B", "#2ECC40",
+            "#FFCC00", "#7FDBFF", "#B10DC9", "#AAAAAA"
           ]
         }]
       },
@@ -53,19 +46,79 @@
   }
 
   async function fetchEstatisticas() {
-    if (cacheEstatisticas) return cacheEstatisticas;
+    if (cacheEst) return cacheEst;
 
-    const res = await fetch(`${API}/geral`, {
+    const res = await fetch(API_EST, {
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    cacheEstatisticas = await res.json();
-    return cacheEstatisticas;
+    cacheEst = await res.json();
+    return cacheEst;
   }
 
-  // ================================
-  // ABA: MEMBROS (KPIs)
-  // ================================
+  // ======================================================
+  // ABA: GERAL (VISITANTES)
+  // ======================================================
+  async function carregarGeral() {
+    const data = await fetchEstatisticas();
+    const v = data.visitantes || {};
+
+    setText("totalVisitantesInicio", v.inicio?.total);
+    setText("discipuladosAtivos", v.discipulado?.total_discipulado);
+    setText("totalPedidosOracao", v.oracao?.total_pedidos);
+    setText("totalHomens", v.genero?.homens);
+    setText("totalMulheres", v.genero?.mulheres);
+
+    setText(
+      "conversasEnviadasRecebidas",
+      `Enviadas: ${v.conversas?.enviadas ?? 0} | Recebidas: ${v.conversas?.recebidas ?? 0}`
+    );
+
+    renderChart(
+      "graficoMensal",
+      "line",
+      safeArray(v.mensal).map(x => x.mes),
+      safeArray(v.mensal).map(x => Number(x.total))
+    );
+
+    renderChart(
+      "graficoOrigem",
+      "pie",
+      safeArray(v.origem).map(x => x.origem),
+      safeArray(v.origem).map(x => Number(x.total))
+    );
+
+    renderChart(
+      "graficoFases",
+      "bar",
+      safeArray(v.fases).map(x => x.fase),
+      safeArray(v.fases).map(x => Number(x.total))
+    );
+
+    const idade = v.demografia?.idade || {};
+    setText(
+      "idadeMedia",
+      `${idade.idade_media ?? "—"} anos | Jovens: ${idade.jovens ?? 0} | Adultos: ${idade.adultos ?? 0} | Idosos: ${idade.idosos ?? 0}`
+    );
+
+    renderChart(
+      "graficoEstadoCivil",
+      "pie",
+      safeArray(v.demografia?.estado_civil).map(x => x.estado_civil),
+      safeArray(v.demografia?.estado_civil).map(x => Number(x.total))
+    );
+
+    renderChart(
+      "graficoCidades",
+      "bar",
+      safeArray(v.demografia?.cidades).map(x => x.cidade),
+      safeArray(v.demografia?.cidades).map(x => Number(x.total))
+    );
+  }
+
+  // ======================================================
+  // ABA: MEMBROS
+  // ======================================================
   async function carregarMembros() {
     const data = await fetchEstatisticas();
     const m = data.membros || {};
@@ -75,17 +128,16 @@
     setText("membrosMulheres", m.genero?.mulheres);
   }
 
-  // ================================
-  // 📋 LISTA DE MEMBROS
-  // ================================
-  async function carregarListaMembros() {
-    // 🔹 MOCK TEMPORÁRIO (até ligar no backend)
-    listaMembros = [
-      { id: 1, nome: "João Silva", telefone: "48999990001", estado_civil: "Casado", cidade: "Florianópolis" },
-      { id: 2, nome: "Maria Souza", telefone: "48999990002", estado_civil: "Solteira", cidade: "São José" },
-      { id: 3, nome: "Carlos Lima", telefone: "48999990003", estado_civil: "Casado", cidade: "Palhoça" }
-    ];
+  // ======================================================
+  // LISTA DE MEMBROS (BACKEND REAL)
+  // ======================================================
+  async function carregarListaMembros(termo = "") {
+    const res = await fetch(`${API_MEMBROS}?q=${encodeURIComponent(termo)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
+    const data = await res.json();
+    listaMembros = data.membros || [];
     renderTabela(listaMembros);
   }
 
@@ -97,22 +149,19 @@
 
     lista.forEach(m => {
       const tr = document.createElement("tr");
-
       tr.innerHTML = `
         <td><input type="checkbox" data-id="${m.id}"></td>
         <td>${m.nome}</td>
-        <td>${m.telefone}</td>
-        <td>${m.estado_civil}</td>
-        <td>${m.cidade}</td>
+        <td>${m.telefone ?? "-"}</td>
+        <td>${m.estado_civil ?? "-"}</td>
+        <td>${m.cidade ?? "-"}</td>
       `;
-
       tbody.appendChild(tr);
     });
 
     tbody.querySelectorAll("input[type=checkbox]").forEach(cb => {
       cb.addEventListener("change", () => {
-        const id = cb.dataset.id;
-        cb.checked ? selecionados.add(id) : selecionados.delete(id);
+        cb.checked ? selecionados.add(cb.dataset.id) : selecionados.delete(cb.dataset.id);
         atualizarBotaoEnvio();
       });
     });
@@ -121,59 +170,16 @@
   function atualizarBotaoEnvio() {
     const btn = document.getElementById("btnEnviarMensagem");
     if (!btn) return;
+
     btn.disabled = selecionados.size === 0;
     btn.textContent = selecionados.size
       ? `✉️ Enviar mensagem (${selecionados.size})`
       : "✉️ Enviar mensagem";
   }
 
-  // ================================
-  // EVENTOS LISTA
-  // ================================
-  function setupListaMembros() {
-    const btnAbrir = document.getElementById("btnAbrirListaMembros");
-    const painel = document.getElementById("painelListaMembros");
-    const busca = document.getElementById("buscaMembro");
-    const btnTodos = document.getElementById("btnSelecionarTodos");
-
-    if (!btnAbrir || !painel) return;
-
-    btnAbrir.addEventListener("click", async () => {
-      painel.style.display = painel.style.display === "none" ? "block" : "none";
-
-      if (painel.style.display === "block" && listaMembros.length === 0) {
-        await carregarListaMembros();
-      }
-    });
-
-    busca?.addEventListener("input", () => {
-      const termo = busca.value.toLowerCase();
-      const filtrados = listaMembros.filter(m =>
-        m.nome.toLowerCase().includes(termo) ||
-        m.telefone.includes(termo)
-      );
-      renderTabela(filtrados);
-    });
-
-    btnTodos?.addEventListener("click", () => {
-      document
-        .querySelectorAll("#tabelaMembros input[type=checkbox]")
-        .forEach(cb => {
-          cb.checked = true;
-          selecionados.add(cb.dataset.id);
-        });
-      atualizarBotaoEnvio();
-    });
-
-    document.getElementById("btnEnviarMensagem")?.addEventListener("click", () => {
-      alert(`Enviar mensagem para ${selecionados.size} membros`);
-      // aqui entra WhatsApp / Integra+
-    });
-  }
-
-  // ================================
-  // TROCA DE ABAS
-  // ================================
+  // ======================================================
+  // TABS
+  // ======================================================
   function setupTabs() {
     document.querySelectorAll(".tab-button").forEach(btn => {
       btn.addEventListener("click", async () => {
@@ -184,14 +190,15 @@
         const target = document.getElementById(btn.dataset.tab);
         if (target) target.classList.add("active");
 
+        if (btn.dataset.tab === "tab-geral") await carregarGeral();
         if (btn.dataset.tab === "tab-membros") await carregarMembros();
       });
     });
   }
 
-  // ================================
+  // ======================================================
   // INIT
-  // ================================
+  // ======================================================
   document.addEventListener("DOMContentLoaded", async () => {
     if (!token) {
       window.location = "/app/login";
@@ -199,7 +206,16 @@
     }
 
     setupTabs();
-    setupListaMembros();
-    await carregarMembros();
+    await carregarGeral();
+
+    document.getElementById("btnAbrirListaMembros")?.addEventListener("click", async () => {
+      const painel = document.getElementById("painelListaMembros");
+      painel.style.display = painel.style.display === "none" ? "block" : "none";
+      if (painel.style.display === "block") await carregarListaMembros();
+    });
+
+    document.getElementById("buscaMembro")?.addEventListener("input", e => {
+      carregarListaMembros(e.target.value);
+    });
   });
 })();
