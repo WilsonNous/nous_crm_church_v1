@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}📊 Estatísticas - CRM Church{% endblock %}</title>
+
+  <link rel="stylesheet" href="/static/estatisticas.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  {% block head_extra %}{% endblock %}
+</head>
+
+<body>
+
+<header>
+  <img src="/static/logo_maisdecristo_b2.png" id="logo" />
+  <h1>📊 Estatísticas do Ministério de Integração</h1>
+</header>
+
+<main>
+
+  <!-- 🔵 MENU PRINCIPAL -->
+  <nav id="tabs">
+    <a href="/app/estatisticas" class="tab-link {% if active_tab == 'geral' %}active{% endif %}">
+      Geral
+    </a>
+    <a href="/app/estatisticas/membros" class="tab-link {% if active_tab == 'membros' %}active{% endif %}">
+      Membros
+    </a>
+    <a href="/app/estatisticas/kids" class="tab-link {% if active_tab == 'kids' %}active{% endif %}">
+      Kids
+    </a>
+    <a href="/app/estatisticas/familias" class="tab-link {% if active_tab == 'familias' %}active{% endif %}">
+      Famílias
+    </a>
+    <a href="/app/estatisticas/alertas" class="tab-link {% if active_tab == 'alertas' %}active{% endif %}">
+      Alertas
+    </a>
+  </nav>
+
+  <!-- 🔽 CONTEÚDO ESPECÍFICO -->
+  <section id="conteudo">
+    {% block content %}
+    <!-- conteúdo específico entra aqui -->
+    {% endblock %}
+  </section>
+
+</main>
+
+<footer>
+  <p>© 2025 Nous Tecnologia - CRM Church</p>
+</footer>
+
+{% block scripts %}
+<!-- JS específico de cada página -->
+{% endblock %}
+
+</body>
+</html>
