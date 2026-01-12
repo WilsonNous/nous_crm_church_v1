@@ -132,8 +132,21 @@ def register(app):
             if response.ok:
                 logging.info(f"✅ Mensagem enviada via Z-API para {telefone_envio}: {mensagem[:60]}")
 
-                # 💾 Registra conversa no banco
-                salvar_conversa(telefone_normalizado, mensagem, tipo="enviada", origem="integra+")
+                # 💾 Garante visitante antes de salvar conversa
+                if not visitante_existe(telefone_normalizado):
+                    logging.warning(f"👤 Visitante não encontrado, criando registro mínimo: {telefone_normalizado}")
+                    salvar_novo_visitante(
+                        telefone=telefone_normalizado,
+                        nome="Visitante WhatsApp",
+                        origem="integra+"
+                    )
+                
+                salvar_conversa(
+                    telefone_normalizado,
+                    mensagem,
+                    tipo="enviada",
+                    origem="integra+"
+                )
 
                 # 🔁 Atualiza fase do visitante
                 try:
