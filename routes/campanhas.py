@@ -21,7 +21,7 @@ def register(app):
     @app.route('/api/visitantes/filtro', methods=['POST'])
     def filtrar_visitantes():
         try:
-            filtros = request.get_json()
+            filtros = request.get_json() or {}
             data_inicio = filtros.get("dataInicio")
             data_fim = filtros.get("dataFim")
             idade_min = filtros.get("idadeMin")
@@ -35,18 +35,17 @@ def register(app):
             resultado = []
             for v in visitantes:
                 idade = None
-                if v.get("data_nascimento"):
-                    nasc = v["data_nascimento"]
-                    if isinstance(nasc, datetime):
-                        idade = datetime.now().year - nasc.year - (
-                            (datetime.now().month, datetime.now().day) < (nasc.month, nasc.day)
-                        )
+                nasc = v.get("data_nascimento")
+                if nasc and isinstance(nasc, datetime):
+                    idade = datetime.now().year - nasc.year - (
+                        (datetime.now().month, datetime.now().day) < (nasc.month, nasc.day)
+                    )
 
                 resultado.append({
                     "id": v["id"],
-                    "nome": v["nome"],
-                    "telefone": v["telefone"],
-                    "genero": v["genero"],
+                    "nome": v.get("nome"),
+                    "telefone": v.get("telefone"),
+                    "genero": v.get("genero"),
                     "idade": idade,
                     "data_cadastro": v["data_cadastro"].strftime("%d/%m/%Y") if v.get("data_cadastro") else "-"
                 })
@@ -59,17 +58,17 @@ def register(app):
 
 
     # ------------------------------------------------
-    # 📢 2. Enviar Campanha (modo texto puro)
+    # 📢 2. Enviar Campanha (enfileira e CONFIRMA depois)
     # ------------------------------------------------
     @app.route('/api/campanhas/enviar', methods=['POST'])
     def enviar_campanha():
         try:
             data = request.get_json() or {}
-            nome_evento = data.get("nome_evento")
-            mensagem = data.get("mensagem")
-            
-            # 🔹 Ignora imagem — envio sempre em modo texto puro
-            imagem = None  
+            nome_evento = (data.get("nome_evento") or "").strip()
+            mensagem = (data.get("mensagem") or "").strip()
+
+            if not nome_evento or not mensagem:
+                return jsonify({"error": "nome_evento e mensagem são obrigatórios"}), 400
 
             data_inicio = data.get("dataInicio")
             data_fim = data.get("dataFim")
@@ -88,57 +87,84 @@ def register(app):
             if not visitantes:
                 return jsonify({"message": "Nenhum visitante encontrado para envio."}), 200
 
-            enviados, falhas = 0, 0
+            enfileirados = 0
+            sem_telefone = 0
 
             for v in visitantes:
                 visitante_id = v["id"]
                 telefone = v.get("telefone")
-                nome = v.get("nome")
+                nome = v.get("nome") or "-"
 
+                # 1) Registra envio (pendente)
                 try:
-                    # Registra como pendente
                     database.salvar_envio_evento(
                         visitante_id=visitante_id,
                         evento_nome=nome_evento,
                         mensagem=mensagem,
-                        imagem_url=None,  # garante que não salva mídia
+                        imagem_url=None,
                         status="pendente",
                         origem="campanha"
                     )
-
-                    if not telefone:
-                        database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                        logging.warning(f"⚠️ Visitante sem telefone: {nome}")
-                        falhas += 1
-                        continue
-
-                    # 🔹 Envia apenas texto via fila
-                    adicionar_na_fila(telefone, mensagem)
-
-                    # 💬 Salva no histórico de conversas
-                    salvar_conversa(
-                        numero=telefone,
-                        mensagem=mensagem,
-                        tipo="enviada",
-                        sid=None,
-                        origem="campanha"
-                    )
-
-                    # 🔄 Atualiza status do envio no banco
-                    database.atualizar_status_envio_evento(visitante_id, nome_evento, "enviado")
-                    logging.info(f"📬 Visitante {nome} adicionado à fila de envio.")
-                    enviados += 1
-
                 except Exception as e:
-                    falhas += 1
-                    database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
-                    logging.error(f"❌ Erro ao processar visitante {nome}: {e}")
+                    logging.error(f"❌ Falha ao registrar envio_evento (pendente) p/ {nome}: {e}")
+                    continue
 
-            logging.info(f"📢 Campanha '{nome_evento}' concluída → {enviados} enviados, {falhas} falhas.")
+                # 2) Sem telefone => falha imediata
+                if not telefone:
+                    sem_telefone += 1
+                    database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
+                    logging.warning(f"⚠️ Visitante sem telefone: {nome}")
+                    continue
+
+                # 3) Marca como em fila (opcional mas recomendado)
+                database.atualizar_status_envio_evento(visitante_id, nome_evento, "em_fila")
+
+                # 4) Callbacks para confirmar somente após envio real
+                def _on_success(_res=None, vid=visitante_id, ev=nome_evento, tel=telefone, msg=mensagem):
+                    try:
+                        salvar_conversa(
+                            numero=tel,
+                            mensagem=msg,
+                            tipo="enviada",
+                            sid=None,
+                            origem="campanha"
+                        )
+                    except Exception as e:
+                        logging.error(f"❌ Erro ao salvar_conversa (campanha) tel={tel}: {e}")
+
+                    try:
+                        database.atualizar_status_envio_evento(vid, ev, "enviado")
+                    except Exception as e:
+                        logging.error(f"❌ Erro ao atualizar_status_envio_evento(enviado) vid={vid}: {e}")
+
+                def _on_fail(_res=None, vid=visitante_id, ev=nome_evento):
+                    try:
+                        database.atualizar_status_envio_evento(vid, ev, "falha")
+                    except Exception as e:
+                        logging.error(f"❌ Erro ao atualizar_status_envio_evento(falha) vid={vid}: {e}")
+
+                # 5) Enfileira (não salva conversa e não marca enviado aqui!)
+                ok_fila = adicionar_na_fila(
+                    telefone,
+                    mensagem,
+                    imagem_url=None,
+                    on_success=_on_success,
+                    on_fail=_on_fail
+                )
+
+                if ok_fila:
+                    enfileirados += 1
+                    logging.info(f"📬 Visitante {nome} enfileirado para campanha '{nome_evento}'.")
+                else:
+                    _on_fail()
+                    logging.error(f"❌ Falha ao enfileirar tel={telefone} (campanha).")
+
             return jsonify({
-                "message": f"📢 Campanha '{nome_evento}' concluída: {enviados} enviados, {falhas} falhas.",
-                "enviados": enviados,
-                "falhas": falhas
+                "message": f"📢 Campanha '{nome_evento}' enfileirada.",
+                "total_alvo": len(visitantes),
+                "enfileirados": enfileirados,
+                "sem_telefone": sem_telefone,
+                "obs": "O status 'enviado' será marcado automaticamente após o envio real na fila."
             }), 200
 
         except Exception as e:
@@ -157,12 +183,34 @@ def register(app):
             reprocessados = 0
 
             for f in falhas:
-                adicionar_na_fila(f["telefone"], f["mensagem"])
+                telefone = f.get("telefone")
+                mensagem = f.get("mensagem")
+                evento_nome = f.get("evento_nome")
+                visitante_id = f.get("visitante_id") or None
+
+                if not telefone or not mensagem:
+                    continue
+
+                # Marca como em fila
+                if visitante_id and evento_nome:
+                    database.atualizar_status_envio_evento(visitante_id, evento_nome, "em_fila")
+
+                def _on_success(_res=None, tel=telefone, msg=mensagem, vid=visitante_id, ev=evento_nome):
+                    try:
+                        salvar_conversa(numero=tel, mensagem=msg, tipo="enviada", sid=None, origem="campanha")
+                    except Exception:
+                        pass
+                    if vid and ev:
+                        database.atualizar_status_envio_evento(vid, ev, "reprocessado")
+
+                def _on_fail(_res=None, vid=visitante_id, ev=evento_nome):
+                    if vid and ev:
+                        database.atualizar_status_envio_evento(vid, ev, "falha")
+
+                adicionar_na_fila(telefone, mensagem, None, on_success=_on_success, on_fail=_on_fail)
                 reprocessados += 1
 
-            return jsonify({
-                "message": f"🔄 {reprocessados} mensagens com falha reprocessadas via fila."
-            }), 200
+            return jsonify({"message": f"🔄 {reprocessados} falhas reenfileiradas."}), 200
 
         except Exception as e:
             logging.exception(f"Erro ao reprocessar falhas: {e}")
@@ -188,12 +236,11 @@ def register(app):
                     "falhas": c.get("falhas", 0),
                     "pendentes": c.get("pendentes", 0),
                     "status": (
-                        "✅ Concluída" if c["falhas"] == 0 and c["pendentes"] == 0
+                        "✅ Concluída" if c.get("falhas", 0) == 0 and c.get("pendentes", 0) == 0
                         else "⚠️ Parcial"
                     )
                 })
 
-            logging.info(f"📊 {len(resultado)} campanhas resumidas com sucesso.")
             return jsonify({"status": resultado}), 200
 
         except Exception as e:
@@ -208,10 +255,7 @@ def register(app):
     def limpar_campanhas():
         try:
             total = database.limpar_envios_eventos()
-            logging.info(f"🧹 {total} registros de campanhas apagados com sucesso.")
-            return jsonify({
-                "message": f"🧹 Histórico limpo ({total} registros removidos)."
-            }), 200
+            return jsonify({"message": f"🧹 Histórico limpo ({total} registros removidos)."}), 200
         except Exception as e:
             logging.exception(f"Erro ao limpar histórico: {e}")
             return jsonify({"error": "Falha ao limpar histórico"}), 500
