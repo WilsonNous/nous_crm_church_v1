@@ -10,7 +10,7 @@ import time
 import threading
 import logging
 from collections import deque
-from typing import Any, Tuple
+from typing import Any, Tuple, Optional, Callable, Dict
 
 from servicos.zapi_cliente import enviar_mensagem
 
@@ -19,14 +19,23 @@ log = logging.getLogger(__name__)
 # =========================
 # Config
 # =========================
-ENVIO_INTERVALO_SEG = float(os.getenv("FILA_ENVIO_INTERVALO_SEG", "2"))  # 2s padrão
+ENVIO_INTERVALO_SEG = float(os.getenv("FILA_ENVIO_INTERVALO_SEG", "2"))   # 2s padrão
 RETRY_MAX = int(os.getenv("FILA_RETRY_MAX", "2"))                         # 2 tentativas extra
 RETRY_SLEEP_SEG = float(os.getenv("FILA_RETRY_SLEEP_SEG", "3"))           # 3s entre retries
 
 # =========================
+# Tipos
+# =========================
+CallbackFn = Optional[Callable[[Dict[str, Any]], None]]
+
+# item da fila:
+# (numero, mensagem, imagem_url, on_success, on_fail, meta)
+FilaItem = Tuple[str, str, Optional[str], CallbackFn, CallbackFn, Dict[str, Any]]
+
+# =========================
 # Estado da fila
 # =========================
-fila_mensagens = deque()
+fila_mensagens: deque[FilaItem] = deque()
 lock = threading.Lock()
 _worker_running = False
 _worker_thread = None
@@ -78,12 +87,10 @@ def _parse_result(res: Any) -> Tuple[bool, str, int]:
         status_code = int(res.get("status_code") or 0)
 
         err_text = ""
-        # prioridade: erro explícito
         if res.get("erro"):
             err_text = str(res.get("erro"))
         elif res.get("error"):
             err_text = str(res.get("error"))
-        # senão, usa resposta crua
         elif res.get("resposta"):
             err_text = str(res.get("resposta"))
         else:
@@ -91,7 +98,6 @@ def _parse_result(res: Any) -> Tuple[bool, str, int]:
 
         return ok, err_text, status_code
 
-    # tipo inesperado
     ok = bool(res)
     return ok, "" if ok else f"retorno_tipo_inesperado={type(res)}", 0
 
@@ -139,6 +145,16 @@ def _should_retry(err_text: str, status_code: int = 0) -> bool:
     ])
 
 
+def _safe_call(cb: CallbackFn, payload: Dict[str, Any]) -> None:
+    """Executa callback sem deixar quebrar o worker."""
+    if not callable(cb):
+        return
+    try:
+        cb(payload)
+    except Exception as e:
+        log.error(f"❌ Erro no callback da fila: {e}")
+
+
 def _processar_fila_worker():
     global _worker_running
 
@@ -153,7 +169,7 @@ def _processar_fila_worker():
                 log.info(f"✅ Fila vazia. Worker encerrando. OK={enviados_ok} | Falhas={falhas}")
                 return
 
-            numero, mensagem, imagem_url = fila_mensagens.popleft()
+            numero, mensagem, imagem_url, on_success, on_fail, meta = fila_mensagens.popleft()
             restante = len(fila_mensagens)
 
         numero_envio = _normalizar_para_envio(numero)
@@ -161,18 +177,29 @@ def _processar_fila_worker():
         if not numero_envio:
             falhas += 1
             log.warning("⚠️ Item sem número válido. Ignorando.")
+            _safe_call(on_fail, {
+                "ok": False,
+                "numero": numero,
+                "numero_envio": numero_envio,
+                "status_code": 0,
+                "erro": "numero_invalido",
+                "mensagem": mensagem,
+                "imagem_url": imagem_url,
+                "meta": meta
+            })
             continue
 
         ok = False
         last_err = ""
         last_code = 0
+        last_res: Any = None
 
         # Tentativas (1 + RETRY_MAX)
         max_tentativas = RETRY_MAX + 1
         for tentativa in range(1, max_tentativas + 1):
             try:
-                res = enviar_mensagem(numero_envio, mensagem, imagem_url)
-                ok, last_err, last_code = _parse_result(res)
+                last_res = enviar_mensagem(numero_envio, mensagem, imagem_url)
+                ok, last_err, last_code = _parse_result(last_res)
 
                 if ok:
                     break
@@ -181,8 +208,8 @@ def _processar_fila_worker():
                 ok = False
                 last_err = str(e)
                 last_code = 0
+                last_res = None
 
-            # retry?
             if tentativa < max_tentativas and _should_retry(last_err, last_code):
                 log.warning(
                     f"🔁 Retry {tentativa}/{max_tentativas} → {numero_envio} | "
@@ -207,19 +234,50 @@ def _processar_fila_worker():
             f"code={last_code} | err={err_preview} | restante={restante}"
         )
 
+        payload = {
+            "ok": ok,
+            "numero": numero,
+            "numero_envio": numero_envio,
+            "status_code": last_code,
+            "erro": last_err,
+            "mensagem": mensagem,
+            "imagem_url": imagem_url,
+            "res": last_res,   # retorno bruto (dict/bool)
+            "meta": meta
+        }
+
+        if ok:
+            _safe_call(on_success, payload)
+        else:
+            _safe_call(on_fail, payload)
+
         time.sleep(ENVIO_INTERVALO_SEG)
 
 
-def adicionar_na_fila(numero: str, mensagem: str, imagem_url: str = None) -> bool:
+def adicionar_na_fila(
+    numero: str,
+    mensagem: str,
+    imagem_url: str = None,
+    on_success: CallbackFn = None,
+    on_fail: CallbackFn = None,
+    meta: Optional[Dict[str, Any]] = None
+) -> bool:
     """
     Adiciona mensagem na fila e garante que existe um worker rodando.
-    Retorna True se enfileirou.
+    Callbacks:
+      - on_success(payload): chamado quando a Z-API confirmou envio
+      - on_fail(payload): chamado quando falhou (sem retry ou após esgotar tentativas)
+
+    meta: dict livre (ex.: {"origem":"campanha","visitante_id":1,"evento":"X"})
     """
     global _worker_running, _worker_thread
 
     try:
+        if meta is None:
+            meta = {}
+
         with lock:
-            fila_mensagens.append((numero, mensagem, imagem_url))
+            fila_mensagens.append((numero, mensagem, imagem_url, on_success, on_fail, meta))
             tam = len(fila_mensagens)
 
             if not _worker_running:
