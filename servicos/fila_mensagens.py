@@ -10,7 +10,11 @@ import time
 import threading
 import logging
 from collections import deque
+from typing import Any, Tuple
+
 from servicos.zapi_cliente import enviar_mensagem
+
+log = logging.getLogger(__name__)
 
 # =========================
 # Config
@@ -53,46 +57,100 @@ def _normalizar_para_envio(numero: str) -> str:
 
     # veio 10 dígitos (DDD + número sem 9) -> tenta corrigir
     if len(digits) == 10:
-        # adiciona '9' após DDD
         return "55" + digits[:2] + "9" + digits[2:]
 
     # fallback: devolve como está (melhor logar do que explodir)
     return digits
 
 
-def _should_retry(err_text: str) -> bool:
+def _parse_result(res: Any) -> Tuple[bool, str, int]:
+    """
+    Normaliza o retorno do enviar_mensagem:
+      - se vier bool, usa direto
+      - se vier dict, lê success / erro / resposta / status_code
+    Retorna: (ok, err_text, status_code)
+    """
+    if isinstance(res, bool):
+        return res, "" if res else "retorno_false", 0
+
+    if isinstance(res, dict):
+        ok = bool(res.get("success", False))
+        status_code = int(res.get("status_code") or 0)
+
+        err_text = ""
+        # prioridade: erro explícito
+        if res.get("erro"):
+            err_text = str(res.get("erro"))
+        elif res.get("error"):
+            err_text = str(res.get("error"))
+        # senão, usa resposta crua
+        elif res.get("resposta"):
+            err_text = str(res.get("resposta"))
+        else:
+            err_text = "" if ok else "retorno_sem_detalhes"
+
+        return ok, err_text, status_code
+
+    # tipo inesperado
+    ok = bool(res)
+    return ok, "" if ok else f"retorno_tipo_inesperado={type(res)}", 0
+
+
+def _should_retry(err_text: str, status_code: int = 0) -> bool:
     """
     Define se vale tentar novamente.
-    Ajuste conforme teu retorno real da Z-API.
+    - Retry: timeouts, 429, 5xx, erros transitórios
+    - NÃO retry: "must subscribe again", unauthorized, invalid phone etc.
     """
-    if not err_text:
+    t = (err_text or "").lower()
+
+    # falhas que NÃO adianta insistir
+    if any(x in t for x in [
+        "must subscribe to this instance again",
+        "subscribe to this instance again",
+        "unauthorized",
+        "invalid phone",
+        "telefone inválido",
+        "número inválido",
+        "token inválido",
+        "expired",
+    ]):
         return False
-    t = err_text.lower()
+
+    # por status_code (se vier)
+    if status_code in (429, 500, 502, 503, 504):
+        return True
+
+    # por texto
     return any(x in t for x in [
         "timeout",
         "timed out",
-        "429",
         "too many requests",
         "temporarily",
         "try again",
         "server error",
-        "502",
-        "503",
-        "504",
+        "bad gateway",
+        "service unavailable",
+        "gateway timeout",
+        "rate limit",
+        "connection reset",
+        "connection aborted",
+        "read timed out",
     ])
 
 
 def _processar_fila_worker():
     global _worker_running
 
-    logging.info("🧵 Worker da fila iniciado.")
-    enviados_total = 0
+    log.info("🧵 Worker da fila iniciado.")
+    enviados_ok = 0
+    falhas = 0
 
     while True:
         with lock:
             if not fila_mensagens:
                 _worker_running = False
-                logging.info(f"✅ Fila vazia. Worker encerrando. Total enviados nesta rodada: {enviados_total}")
+                log.info(f"✅ Fila vazia. Worker encerrando. OK={enviados_ok} | Falhas={falhas}")
                 return
 
             numero, mensagem, imagem_url = fila_mensagens.popleft()
@@ -100,37 +158,53 @@ def _processar_fila_worker():
 
         numero_envio = _normalizar_para_envio(numero)
 
-        # Segurança mínima
         if not numero_envio:
-            logging.warning("⚠️ Item sem número. Ignorando.")
+            falhas += 1
+            log.warning("⚠️ Item sem número válido. Ignorando.")
             continue
 
-        # Tentativas (retry)
         ok = False
         last_err = ""
-        for tentativa in range(1, RETRY_MAX + 2):  # ex: 1 + 2 retries = 3 tentativas
+        last_code = 0
+
+        # Tentativas (1 + RETRY_MAX)
+        max_tentativas = RETRY_MAX + 1
+        for tentativa in range(1, max_tentativas + 1):
             try:
-                ok = enviar_mensagem(numero_envio, mensagem, imagem_url)
+                res = enviar_mensagem(numero_envio, mensagem, imagem_url)
+                ok, last_err, last_code = _parse_result(res)
+
                 if ok:
                     break
-                last_err = "retorno_false"
+
             except Exception as e:
+                ok = False
                 last_err = str(e)
+                last_code = 0
 
             # retry?
-            if tentativa < (RETRY_MAX + 2) and _should_retry(last_err):
-                logging.warning(f"🔁 Retry {tentativa}/{RETRY_MAX+1} → {numero_envio} | motivo={last_err}")
+            if tentativa < max_tentativas and _should_retry(last_err, last_code):
+                log.warning(
+                    f"🔁 Retry {tentativa}/{max_tentativas} → {numero_envio} | "
+                    f"code={last_code} | motivo={last_err[:160]}"
+                )
                 time.sleep(RETRY_SLEEP_SEG)
             else:
                 break
 
-        status = "✅" if ok else "❌"
-        enviados_total += 1 if ok else 0
+        if ok:
+            enviados_ok += 1
+            status = "✅"
+        else:
+            falhas += 1
+            status = "❌"
 
-        logging.info(
-            f"{status} Fila → {numero_envio} | "
-            f"{(mensagem or '')[:60].replace('\\n',' ')}... | "
-            f"restante={restante}"
+        msg_preview = (mensagem or "").replace("\n", " ")[:60]
+        err_preview = (last_err or "").replace("\n", " ")[:180]
+
+        log.info(
+            f"{status} Fila → {numero_envio} | {msg_preview}... | "
+            f"code={last_code} | err={err_preview} | restante={restante}"
         )
 
         time.sleep(ENVIO_INTERVALO_SEG)
@@ -148,19 +222,18 @@ def adicionar_na_fila(numero: str, mensagem: str, imagem_url: str = None) -> boo
             fila_mensagens.append((numero, mensagem, imagem_url))
             tam = len(fila_mensagens)
 
-            # Se não tem worker rodando, inicia
             if not _worker_running:
                 _worker_running = True
                 _worker_thread = threading.Thread(target=_processar_fila_worker, daemon=True)
                 _worker_thread.start()
-                logging.info(f"🚀 Worker disparado. Tamanho atual da fila={tam}")
+                log.info(f"🚀 Worker disparado. Tamanho atual da fila={tam}")
             else:
-                logging.info(f"➕ Item adicionado na fila. Tamanho atual da fila={tam}")
+                log.info(f"➕ Item adicionado na fila. Tamanho atual da fila={tam}")
 
         return True
 
     except Exception as e:
-        logging.error(f"❌ Falha ao enfileirar: {e}")
+        log.error(f"❌ Falha ao enfileirar: {e}")
         return False
 
 
