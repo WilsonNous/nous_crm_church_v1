@@ -1,13 +1,17 @@
 import logging
 import os
-import requests
 from flask import request, jsonify, Response
+
 from database import (
     salvar_visitante, visitante_existe, normalizar_para_recebimento,
     listar_todos_visitantes, monitorar_status_visitantes,
     visitantes_listar_fases, visitantes_listar_estatisticas,
-    salvar_conversa, obter_conversa_por_visitante, get_db_connection, atualizar_status   
+    salvar_conversa, obter_conversa_por_visitante, get_db_connection, atualizar_status
 )
+
+# ✅ NOVO: usar fila unificada (com callback)
+from servicos.fila_mensagens import adicionar_na_fila
+
 
 def register(app):
     @app.route('/api/register', methods=['POST'])
@@ -35,6 +39,7 @@ def register(app):
             'pedido_oracao': data.get('prayerRequest'),
             'horario_contato': data.get('contactTime')
         }
+
         try:
             if salvar_visitante(**visitante_data):
                 return jsonify({"message": "Cadastro realizado com sucesso!"}), 201
@@ -44,11 +49,13 @@ def register(app):
             logging.exception(f"Erro ao salvar visitante: {e}")
             return jsonify({"error": "Erro interno do servidor"}), 500
 
+
     @app.route('/api/get-visitors', methods=['GET'])
     def api_get_visitors():
         try:
             visitantes = listar_todos_visitantes()
             visitors = []
+
             for v in visitantes:
                 if isinstance(v, dict):
                     visitors.append({
@@ -62,10 +69,13 @@ def register(app):
                         "name": v[1],
                         "phone": v[2] if len(v) > 2 else None
                     })
+
             return jsonify({"status": "success", "visitors": visitors}), 200
+
         except Exception as e:
             logging.error(f"Erro em /api/get-visitors: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
+
 
     @app.route('/api/monitor-status', methods=['GET'])
     def monitor_status():
@@ -76,12 +86,14 @@ def register(app):
             logging.error(f"Erro ao monitorar status: {e}")
             return jsonify({"error": str(e)}), 500
 
+
     @app.route('/api/fases-visitantes', methods=['GET'])
     def get_fases_visitantes():
         try:
             return jsonify(visitantes_listar_fases()), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
 
     @app.route('/api/estatisticas-visitantes', methods=['GET'])
     def get_estatisticas_visitantes():
@@ -90,80 +102,99 @@ def register(app):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+
     # ==============================
-    # NOVO: Envio manual via Z-API
+    # ✅ Envio manual (PADRÃO FILA + CONFIRMAÇÃO)
     # ==============================
     @app.route('/api/send-message-manual', methods=['POST'])
     def api_send_message_manual():
         try:
-            data = request.get_json()
-            numero = data.get("numero")
-            mensagem = data.get("mensagem", "")
-            imagem_url = data.get("imagem_url")
+            data = request.get_json() or {}
+
+            visitante_id = data.get("visitante_id")
+            numero = (data.get("numero") or "").strip()
+            mensagem = (data.get("mensagem") or "").strip()
+            imagem_url = data.get("imagem_url")  # opcional
+
+            if not visitante_id:
+                return jsonify({"success": False, "error": "visitante_id não informado"}), 400
 
             if not numero:
                 return jsonify({"success": False, "error": "Número não informado"}), 400
 
-            # 🔧 Normaliza número (remove +55 e garante formato consistente)
-            telefone_envio = f"55{numero}" if not numero.startswith("55") else numero
+            if not mensagem:
+                return jsonify({"success": False, "error": "Mensagem vazia"}), 400
+
+            # 🔧 Normaliza telefone (mantém padrão de recebimento)
+            telefone_envio = f"55{numero}" if not str(numero).startswith("55") else str(numero)
             telefone_normalizado = normalizar_para_recebimento(telefone_envio)
 
-            # ⚙️ Tokens da Z-API (configuração)
-            ZAPI_INSTANCE = os.getenv("ZAPI_INSTANCE")
-            ZAPI_TOKEN = os.getenv("ZAPI_TOKEN")
-            ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN")
+            # ✅ Callback: só salva conversa quando Z-API confirmar envio
+            def _on_success(payload):
+                try:
+                    # tenta assinatura com visitante_id (se existir no teu database.py)
+                    try:
+                        salvar_conversa(
+                            numero=telefone_normalizado,
+                            mensagem=mensagem,
+                            tipo="enviada",
+                            sid=None,
+                            origem="integra+",
+                            visitante_id=int(visitante_id),
+                        )
+                    except TypeError:
+                        # fallback assinatura antiga
+                        salvar_conversa(
+                            telefone_normalizado,
+                            mensagem,
+                            tipo="enviada",
+                            origem="integra+"
+                        )
 
-            if not (ZAPI_INSTANCE and ZAPI_TOKEN and ZAPI_CLIENT_TOKEN):
-                return jsonify({"success": False, "error": "Configuração Z-API ausente"}), 500
+                except Exception as e:
+                    logging.error(f"❌ Erro ao salvar_conversa (manual) tel={telefone_normalizado}: {e}")
 
-            headers = {"Client-Token": ZAPI_CLIENT_TOKEN, "Content-Type": "application/json"}
-
-            # 🔄 Monta payload e URL conforme tipo
-            if imagem_url:
-                payload = {"phone": telefone_envio, "caption": mensagem, "image": imagem_url}
-                url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-image"
-            else:
-                payload = {"phone": telefone_envio, "message": mensagem}
-                url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
-
-            # 🚀 Envia via Z-API
-            response = requests.post(url, json=payload, headers=headers, timeout=15)
-
-            if response.ok:
-                logging.info(f"✅ Mensagem enviada via Z-API para {telefone_envio}: {mensagem[:60]}")
-
-                # 💾 Garante visitante antes de salvar conversa
-                if not visitante_existe(telefone_normalizado):
-                    logging.warning(f"👤 Visitante não encontrado, criando registro mínimo: {telefone_normalizado}")
-                    salvar_novo_visitante(
-                        telefone=telefone_normalizado,
-                        nome="Visitante WhatsApp",
-                        origem="integra+"
-                    )
-                
-                salvar_conversa(
-                    telefone_normalizado,
-                    mensagem,
-                    tipo="enviada",
-                    origem="integra+"
-                )
-
-                # 🔁 Atualiza fase do visitante
+                # 🔁 Atualiza fase do visitante após envio confirmado
                 try:
                     atualizar_status(telefone_normalizado, "INICIO")
                     logging.info(f"🔄 Status atualizado para INICIO ({telefone_normalizado})")
                 except Exception as e:
                     logging.warning(f"⚠️ Falha ao atualizar status: {e}")
 
-                return jsonify({"success": True, "message": "Mensagem enviada com sucesso"}), 200
 
-            else:
-                logging.error(f"❌ Falha Z-API {response.status_code}: {response.text}")
-                return jsonify({"success": False, "error": f"Falha Z-API {response.status_code}"}), 500
+            def _on_fail(payload):
+                code = payload.get("status_code") or 0
+                err = (payload.get("erro") or "").replace("\n", " ")[:200]
+                logging.error(f"❌ Envio manual falhou | tel={telefone_normalizado} | code={code} | err={err}")
+
+                # opcional: marca uma fase de falha
+                try:
+                    atualizar_status(telefone_normalizado, "FALHA_ENVIO")
+                except Exception:
+                    pass
+
+
+            ok_fila = adicionar_na_fila(
+                telefone_normalizado,
+                mensagem,
+                imagem_url=imagem_url,
+                on_success=_on_success,
+                on_fail=_on_fail,
+                meta={"origem": "integra+", "tipo": "manual", "visitante_id": visitante_id}
+            )
+
+            if not ok_fila:
+                return jsonify({"success": False, "error": "Falha ao enfileirar mensagem"}), 500
+
+            return jsonify({
+                "success": True,
+                "message": "Mensagem enfileirada. Será registrada como enviada após confirmação."
+            }), 200
 
         except Exception as e:
-            logging.error(f"❌ Erro em /api/send-message-manual: {e}")
+            logging.exception(f"❌ Erro em /api/send-message-manual: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+
 
     @app.route('/api/visitantes/fase-null', methods=['GET'])
     def get_visitantes_fase_null():
@@ -179,8 +210,7 @@ def register(app):
             rows = cursor.fetchall()
             cursor.close()
             conn.close()
-    
-            # ✅ Converte resultados em lista de dicionários
+
             visitantes = []
             for row in rows:
                 if isinstance(row, dict):
@@ -195,13 +225,14 @@ def register(app):
                         "nome": row[1],
                         "telefone": row[2] if len(row) > 2 else None
                     })
-    
+
             logging.info(f"🔍 Visitantes com fase nula: {len(visitantes)} encontrados")
             return jsonify({"status": "success", "visitantes": visitantes}), 200
-    
+
         except Exception as e:
             logging.error(f"Erro em /api/visitantes/fase-null: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
+
 
     # ==============================
     # Conversas do Visitante (histórico em HTML)
@@ -211,7 +242,6 @@ def register(app):
         try:
             html = obter_conversa_por_visitante(visitante_id)
 
-            # estilo inline simples para chat
             styled_html = f"""
             <html>
             <head>
@@ -265,6 +295,7 @@ def register(app):
             """
 
             return Response(styled_html, mimetype='text/html')
+
         except Exception as e:
             logging.error(f"Erro em /api/conversas/{visitante_id}: {e}")
             return Response(f"<p>Erro: {e}</p>", mimetype='text/html', status=500)
