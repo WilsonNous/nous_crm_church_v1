@@ -40,7 +40,7 @@ async function carregarVisitantes() {
       const opt = document.createElement("option");
       opt.value = String(v.id);
       opt.textContent = v.nome || "Sem nome";
-      opt.dataset.telefone = v.telefone || "Sem telefone";
+      opt.dataset.telefone = v.telefone || "";
       select.appendChild(opt);
     });
 
@@ -128,9 +128,7 @@ async function carregarConversas() {
         msg.classList.add("msg", c.tipo === "enviada" ? "bot" : "user");
         msg.innerHTML = `
           <p>${c.mensagem}</p>
-          <small>${c.autor} • ${new Date(
-          c.data_hora
-        ).toLocaleString("pt-BR")}</small>
+          <small>${c.autor} • ${new Date(c.data_hora).toLocaleString("pt-BR")}</small>
         `;
         area.appendChild(msg);
       });
@@ -155,11 +153,14 @@ async function enviarMensagemManual(e) {
   e.preventDefault();
 
   const visitanteSelect = document.getElementById("visitanteSelect");
+  const visitanteId = normalizarVisitanteId(visitanteSelect.value);
+
   const optionSel = visitanteSelect.options[visitanteSelect.selectedIndex];
   const numero = optionSel?.dataset.telefone;
 
   const mensagem = document.getElementById("mensagemInput").value.trim();
 
+  if (!visitanteId) return alert("Selecione um visitante antes de enviar.");
   if (!mensagem) return alert("Digite uma mensagem antes de enviar.");
   if (!numero) return alert("Número do visitante não encontrado.");
 
@@ -167,15 +168,19 @@ async function enviarMensagemManual(e) {
     const res = await fetch("/api/send-message-manual", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ numero, mensagem }),
+      // ✅ agora envia visitante_id junto (obrigatório no backend novo)
+      body: JSON.stringify({ visitante_id: visitanteId, numero, mensagem }),
     });
+
     const data = await res.json();
 
     if (data.success) {
       document.getElementById("mensagemInput").value = "";
+      // Obs: como agora é fila, pode demorar alguns segundos até aparecer como "enviada"
+      // (vai aparecer depois do callback on_success salvar no banco)
       carregarConversas();
     } else {
-      alert("Erro ao enviar: " + data.error);
+      alert("Erro ao enviar: " + (data.error || "Falha desconhecida"));
     }
   } catch (err) {
     alert("Falha na comunicação com o servidor.");
