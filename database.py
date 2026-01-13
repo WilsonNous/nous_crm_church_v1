@@ -6,7 +6,7 @@ import os
 import logging
 from datetime import datetime
 from contextlib import closing
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 # =======================
 # PyMySQL (com fallback)
@@ -23,6 +23,8 @@ except Exception:
 
     class _DummyPymysql:
         MySQLError = _DummyError
+        class cursors:
+            DictCursor = object
 
     pymysql = _DummyPymysql()
 
@@ -49,6 +51,66 @@ def get_db_connection():
 
 
 # =======================
+# Helpers internos
+# =======================
+def _digits(s: Any) -> str:
+    return "".join(ch for ch in str(s or "") if ch.isdigit())
+
+
+def _telefone_db(telefone: str) -> str:
+    """
+    Telefone padrão no banco:
+    - remove whatsapp:
+    - remove 55
+    - garante 11 dígitos (DDD + 9 + número) quando vier com 10
+    """
+    if not telefone:
+        return ""
+
+    tel = str(telefone).strip()
+
+    if tel.startswith("whatsapp:"):
+        tel = tel.replace("whatsapp:", "")
+
+    tel = _digits(tel)
+
+    if tel.startswith("55"):
+        tel = tel[2:]
+
+    if len(tel) == 10:
+        tel = f"{tel[:2]}9{tel[2:]}"
+    elif len(tel) == 11:
+        pass
+    else:
+        # não explode aqui pra não derrubar worker; só retorna o que der
+        return tel
+
+    return tel
+
+
+def _get_or_create_visitante_id_by_tel(cursor, telefone_db: str, nome_padrao: str = "Visitante") -> Optional[int]:
+    """
+    Resolve visitante_id pelo telefone.
+    Se não existir, cria um visitante minimalista (origem auto_bot) e retorna o id.
+    """
+    if not telefone_db:
+        return None
+
+    cursor.execute("SELECT id, nome FROM visitantes WHERE telefone = %s LIMIT 1", (telefone_db,))
+    row = cursor.fetchone()
+    if row and row.get("id"):
+        return int(row["id"])
+
+    # cria visitante auto
+    cursor.execute("""
+        INSERT INTO visitantes (nome, telefone, data_cadastro, origem)
+        VALUES (%s, %s, NOW(), %s)
+    """, (nome_padrao, telefone_db, "auto_bot"))
+
+    return int(cursor.lastrowid or 0) or None
+
+
+# =======================
 # Visitantes / Membros
 # =======================
 def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
@@ -56,6 +118,7 @@ def salvar_visitante(nome, telefone, email, data_nascimento, cidade, genero,
                      membro, pedido_oracao, horario_contato, origem="integra+"):
     """Salva um visitante no banco de dados com origem."""
     try:
+        telefone = _telefone_db(telefone)
         if visitante_existe(telefone):
             logging.error(f"Erro: O telefone {telefone} já está cadastrado.")
             return False
@@ -91,7 +154,7 @@ def salvar_membro(dados: dict):
     'dados' deve vir como JSON enviado pelo front-end.
     """
     try:
-        telefone = dados.get("telefone")
+        telefone = _telefone_db(dados.get("telefone"))
 
         if membro_existe(telefone):
             logging.error(f"❌ O telefone {telefone} já está cadastrado.")
@@ -182,6 +245,7 @@ def salvar_membro(dados: dict):
 
 def membro_existe(telefone):
     try:
+        telefone = _telefone_db(telefone)
         with closing(get_db_connection()) as conn:
             if not conn:
                 return False
@@ -196,6 +260,7 @@ def membro_existe(telefone):
 def salvar_novo_visitante(telefone, nome, origem="integra+"):
     """Salva um novo visitante no banco de dados com origem."""
     try:
+        telefone = _telefone_db(telefone)
         with closing(get_db_connection()) as conn:
             if not conn:
                 return False
@@ -230,6 +295,7 @@ def buscar_numeros_telefone():
 def visitante_existe(telefone):
     """Verifica se um visitante com o telefone especificado já existe."""
     try:
+        telefone = _telefone_db(telefone)
         with closing(get_db_connection()) as conn:
             if not conn:
                 return False
@@ -250,7 +316,7 @@ def atualizar_status(telefone: str, nova_fase_nome: str, origem="integra+"):
     Atualiza ou insere o status (fase atual) do visitante no MySQL com base na tabela `fases`.
     """
     try:
-        telefone = telefone.replace("+", "").replace(" ", "").strip()
+        telefone = _telefone_db(telefone)
 
         with closing(get_db_connection()) as conn:
             if not conn:
@@ -325,6 +391,7 @@ def buscar_fase_id(descricao_fase):
 
 def obter_estado_atual_do_banco(telefone):
     try:
+        telefone = _telefone_db(telefone)
         with closing(get_db_connection()) as conn:
             if not conn:
                 return "INICIO"
@@ -349,6 +416,7 @@ def obter_estado_atual_do_banco(telefone):
 # =======================
 def salvar_estatistica(numero, estado_atual, proximo_estado, origem="integra+"):
     try:
+        numero = _telefone_db(numero)
         with closing(get_db_connection()) as conn:
             if not conn:
                 return False
@@ -379,30 +447,33 @@ def salvar_conversa(numero: str, mensagem: str, tipo="recebida", sid=None, orige
     """
     Salva conversa:
     - Se visitante_id vier, usa ele (mais confiável).
-    - Caso contrário, resolve visitante pelo telefone (compatível com chamadas antigas).
+    - Caso contrário, resolve visitante pelo telefone.
+    ✅ Corrigido: se não existir visitante, cria um registro minimalista (auto_bot) para não quebrar FK.
     """
     try:
+        telefone_db = _telefone_db(numero)
+
         with closing(get_db_connection()) as conn:
             if not conn:
                 return False
             cursor = conn.cursor()
 
-            if visitante_id:
-                cursor.execute("""
-                    INSERT INTO conversas (visitante_id, mensagem, tipo, message_sid, origem, created_at)
-                    VALUES (%s, %s, %s, %s, %s, NOW())
-                """, (visitante_id, mensagem, tipo, sid, origem))
-            else:
-                cursor.execute("""
-                    INSERT INTO conversas (visitante_id, mensagem, tipo, message_sid, origem, created_at)
-                    VALUES (
-                        (SELECT id FROM visitantes WHERE telefone = %s LIMIT 1),
-                        %s, %s, %s, %s, NOW()
-                    )
-                """, (numero, mensagem, tipo, sid, origem))
+            vid = visitante_id
+            if not vid:
+                vid = _get_or_create_visitante_id_by_tel(cursor, telefone_db, nome_padrao="Visitante")
+
+            if not vid:
+                logging.error(f"❌ salvar_conversa: não foi possível resolver visitante_id para tel={numero}")
+                conn.rollback()
+                return False
+
+            cursor.execute("""
+                INSERT INTO conversas (visitante_id, mensagem, tipo, message_sid, origem, created_at)
+                VALUES (%s, %s, %s, %s, %s, NOW())
+            """, (vid, mensagem, tipo, sid, origem))
 
             conn.commit()
-            logging.info(f"💬 Conversa salva: tel={numero}, tipo={tipo}, origem={origem}")
+            logging.info(f"💬 Conversa salva: tel={telefone_db}, tipo={tipo}, origem={origem}")
             return True
 
     except Exception as e:
@@ -657,6 +728,7 @@ def obter_dados_visitante(telefone: str) -> Optional[Dict]:
         LIMIT 1
     """
     try:
+        telefone = _telefone_db(telefone)
         with closing(get_db_connection()) as conn:
             if not conn:
                 return None
@@ -687,6 +759,7 @@ def obter_nome_do_visitante(telefone: str) -> str:
 
 def atualizar_dado_visitante(numero, campo, valor):
     """Atenção: campo vem de código (não do usuário)."""
+    numero = _telefone_db(numero)
     query = f"UPDATE visitantes SET {campo} = %s WHERE telefone = %s"
     with closing(get_db_connection()) as conn:
         if not conn:
@@ -700,6 +773,7 @@ def atualizar_dado_visitante(numero, campo, valor):
 def salvar_pedido_oracao(telefone, pedido, origem="integra+"):
     """Salva o pedido de oração com origem."""
     try:
+        telefone = _telefone_db(telefone)
         with closing(get_db_connection()) as conn:
             if not conn:
                 return False
@@ -724,7 +798,7 @@ def normalizar_para_envio(telefone: str) -> str:
     Retorna no formato internacional: 55 + DDD + número.
     Ex: 48999999999 -> 5548999999999
     """
-    telefone = ''.join(filter(str.isdigit, telefone))
+    telefone = _digits(telefone)
 
     if telefone.startswith('55') and len(telefone) == 13:
         return telefone
@@ -744,11 +818,11 @@ def normalizar_para_recebimento(telefone: str) -> str:
     """
     logging.info(f"Recebendo telefone para normalização: {telefone}")
 
-    if telefone.startswith('whatsapp:'):
-        telefone = telefone.replace('whatsapp:', '')
+    if str(telefone).startswith('whatsapp:'):
+        telefone = str(telefone).replace('whatsapp:', '')
         logging.info(f"Prefixo 'whatsapp:' removido, número agora é: {telefone}")
 
-    telefone = ''.join(filter(str.isdigit, telefone))
+    telefone = _digits(telefone)
 
     if telefone.startswith('55'):
         telefone = telefone[2:]
@@ -768,6 +842,10 @@ def normalizar_para_recebimento(telefone: str) -> str:
 # =======================
 # Contagens / Indicadores
 # =======================
+def formatar_com_pontos(numero):
+    return "{:,.0f}".format(numero).replace(",", ".")
+
+
 def visitantes_contar_novos():
     try:
         with closing(get_db_connection()) as conn:
@@ -986,28 +1064,22 @@ def obter_dados_genero():
         return {"Homens": 0, "Homens_Percentual": 0, "Mulheres": 0, "Mulheres_Percentual": 0}
 
 
-def formatar_com_pontos(numero):
-    return "{:,.0f}".format(numero).replace(",", ".")
-
-
 # =======================
 # Treinamento IA
 # =======================
 def salvar_par_treinamento(pergunta: str, resposta: str, categoria: str = "geral", fonte: str = "manual"):
     try:
-        conn = get_db_connection()
-        if not conn:
-            return False
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO training_pairs (question, answer, category, fonte, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE answer = VALUES(answer), updated_at = NOW()
-        """, (pergunta, resposta, categoria, fonte))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return True
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return False
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO training_pairs (question, answer, category, fonte, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE answer = VALUES(answer), updated_at = NOW()
+            """, (pergunta, resposta, categoria, fonte))
+            conn.commit()
+            return True
     except Exception as e:
         logging.error(f"Erro ao salvar par de treinamento: {e}")
         return False
@@ -1015,18 +1087,15 @@ def salvar_par_treinamento(pergunta: str, resposta: str, categoria: str = "geral
 
 def obter_pares_treinamento():
     try:
-        conn = get_db_connection()
-        if not conn:
-            return []
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT question, answer FROM training_pairs 
-            ORDER BY id DESC LIMIT 1000
-        """)
-        pares = cursor.fetchall() or []
-        cursor.close()
-        conn.close()
-        return pares
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return []
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT question, answer FROM training_pairs 
+                ORDER BY id DESC LIMIT 1000
+            """)
+            return cursor.fetchall() or []
     except Exception as e:
         logging.error(f"Erro ao obter pares de treinamento: {e}")
         return []
@@ -1034,21 +1103,18 @@ def obter_pares_treinamento():
 
 def obter_perguntas_pendentes():
     try:
-        conn = get_db_connection()
-        if not conn:
-            return []
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, user_id, question, created_at 
-            FROM unknown_questions 
-            WHERE status = 'pending' 
-            ORDER BY created_at DESC 
-            LIMIT 50
-        """)
-        perguntas = cursor.fetchall() or []
-        cursor.close()
-        conn.close()
-        return perguntas
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return []
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, user_id, question, created_at 
+                FROM unknown_questions 
+                WHERE status = 'pending' 
+                ORDER BY created_at DESC 
+                LIMIT 50
+            """)
+            return cursor.fetchall() or []
     except Exception as e:
         logging.error(f"Erro ao obter perguntas pendentes: {e}")
         return []
@@ -1056,15 +1122,13 @@ def obter_perguntas_pendentes():
 
 def marcar_pergunta_como_respondida(pergunta: str):
     try:
-        conn = get_db_connection()
-        if not conn:
-            return False
-        cursor = conn.cursor()
-        cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (pergunta,))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return True
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return False
+            cursor = conn.cursor()
+            cursor.execute("UPDATE unknown_questions SET status = 'answered' WHERE question = %s", (pergunta,))
+            conn.commit()
+            return True
     except Exception as e:
         logging.error(f"Erro ao marcar pergunta como respondida: {e}")
         return False
@@ -1074,42 +1138,51 @@ def marcar_pergunta_como_respondida(pergunta: str):
 # Campanhas / Eventos
 # =======================
 def salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url=None, status="pendente", origem="integra+"):
-    """Salva envio e atualiza fase do visitante para EVENTO_ENVIADO."""
+    """
+    Salva envio e atualiza fase do visitante para EVENTO_ENVIADO.
+    ✅ Corrigido: update/insert robusto na tabela status (sem depender de UNIQUE).
+    """
     try:
-        conn = get_db_connection()
-        if not conn:
-            return False
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return False
 
-        cursor = conn.cursor()
+            cursor = conn.cursor()
 
-        # garantir fase EVENTO_ENVIADO
-        cursor.execute("SELECT id FROM fases WHERE descricao = %s LIMIT 1", ("EVENTO_ENVIADO",))
-        fase_row = cursor.fetchone()
-        if not fase_row:
-            cursor.execute("INSERT INTO fases (descricao) VALUES (%s)", ("EVENTO_ENVIADO",))
-            conn.commit()
+            # garantir fase EVENTO_ENVIADO
             cursor.execute("SELECT id FROM fases WHERE descricao = %s LIMIT 1", ("EVENTO_ENVIADO",))
             fase_row = cursor.fetchone()
+            if not fase_row:
+                cursor.execute("INSERT INTO fases (descricao) VALUES (%s)", ("EVENTO_ENVIADO",))
+                conn.commit()
+                cursor.execute("SELECT id FROM fases WHERE descricao = %s LIMIT 1", ("EVENTO_ENVIADO",))
+                fase_row = cursor.fetchone()
 
-        fase_id = fase_row["id"]
+            fase_id = int(fase_row["id"])
 
-        # atualizar/ inserir status
-        cursor.execute("""
-            INSERT INTO status (visitante_id, fase_id)
-            VALUES (%s, %s)
-            ON DUPLICATE KEY UPDATE fase_id = VALUES(fase_id)
-        """, (visitante_id, fase_id))
+            # atualizar / inserir status de forma segura
+            cursor.execute("SELECT id FROM status WHERE visitante_id = %s LIMIT 1", (visitante_id,))
+            st = cursor.fetchone()
+            if st and st.get("id"):
+                cursor.execute("""
+                    UPDATE status
+                    SET fase_id=%s, data_atualizacao=NOW(), origem=%s
+                    WHERE visitante_id=%s
+                """, (fase_id, origem, visitante_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO status (visitante_id, fase_id, data_atualizacao, origem)
+                    VALUES (%s, %s, NOW(), %s)
+                """, (visitante_id, fase_id, origem))
 
-        # registrar envio
-        cursor.execute("""
-            INSERT INTO eventos_envios
-                (visitante_id, evento_nome, mensagem, imagem_url, status, origem, data_envio)
-            VALUES (%s, %s, %s, %s, %s, %s, NOW())
-        """, (visitante_id, evento_nome, mensagem, imagem_url, status, origem))
+            # registrar envio
+            cursor.execute("""
+                INSERT INTO eventos_envios
+                    (visitante_id, evento_nome, mensagem, imagem_url, status, origem, data_envio)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW())
+            """, (visitante_id, evento_nome, mensagem, imagem_url, status, origem))
 
-        conn.commit()
-        cursor.close()
-        conn.close()
+            conn.commit()
 
         logging.info(f"📢 Evento '{evento_nome}' salvo e fase do visitante {visitante_id} atualizada para EVENTO_ENVIADO")
         return True
@@ -1122,20 +1195,18 @@ def salvar_envio_evento(visitante_id, evento_nome, mensagem, imagem_url=None, st
 def atualizar_status_envio_evento(visitante_id, evento_nome, novo_status):
     """Atualiza o status de um envio específico."""
     try:
-        conn = get_db_connection()
-        if not conn:
-            return False
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE eventos_envios
-            SET status = %s, data_envio = NOW()
-            WHERE visitante_id = %s AND evento_nome = %s
-        """, (novo_status, visitante_id, evento_nome))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        logging.debug(f"🟢 Status atualizado para {novo_status} ({visitante_id} - {evento_nome})")
-        return True
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return False
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE eventos_envios
+                SET status = %s, data_envio = NOW()
+                WHERE visitante_id = %s AND evento_nome = %s
+            """, (novo_status, visitante_id, evento_nome))
+            conn.commit()
+            logging.debug(f"🟢 Status atualizado para {novo_status} ({visitante_id} - {evento_nome})")
+            return True
     except Exception as e:
         logging.error(f"Erro ao atualizar status do envio: {e}")
         return False
@@ -1144,31 +1215,27 @@ def atualizar_status_envio_evento(visitante_id, evento_nome, novo_status):
 def listar_envios_eventos(limit=100, origem: str = None):
     """Lista os últimos envios de eventos/campanhas, opcionalmente filtrando por origem."""
     try:
-        conn = get_db_connection()
-        if not conn:
-            return []
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return []
+            cursor = conn.cursor()
+            base_query = """
+                SELECT e.id, v.nome, v.telefone, e.evento_nome, e.mensagem, 
+                       e.imagem_url, e.status, e.origem, e.data_envio
+                FROM eventos_envios e
+                JOIN visitantes v ON v.id = e.visitante_id
+            """
+            params = []
 
-        cursor = conn.cursor()
-        base_query = """
-            SELECT e.id, v.nome, v.telefone, e.evento_nome, e.mensagem, 
-                   e.imagem_url, e.status, e.origem, e.data_envio
-            FROM eventos_envios e
-            JOIN visitantes v ON v.id = e.visitante_id
-        """
-        params = []
+            if origem:
+                base_query += " WHERE e.origem = %s"
+                params.append(origem)
 
-        if origem:
-            base_query += " WHERE e.origem = %s"
-            params.append(origem)
+            base_query += " ORDER BY e.data_envio DESC LIMIT %s"
+            params.append(int(limit))
 
-        base_query += " ORDER BY e.data_envio DESC LIMIT %s"
-        params.append(int(limit))
-
-        cursor.execute(base_query, tuple(params))
-        rows = cursor.fetchall() or []
-        cursor.close()
-        conn.close()
-        return rows
+            cursor.execute(base_query, tuple(params))
+            return cursor.fetchall() or []
 
     except Exception as e:
         logging.error(f"Erro ao listar envios de eventos: {e}")
@@ -1223,16 +1290,14 @@ def filtrar_visitantes_para_evento(data_inicio=None, data_fim=None, idade_min=No
 def limpar_envios_eventos():
     """Remove todos os registros de campanhas enviadas."""
     try:
-        conn = get_db_connection()
-        if not conn:
-            return 0
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM eventos_envios")
-        total = cursor.rowcount
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return total
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return 0
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM eventos_envios")
+            total = cursor.rowcount
+            conn.commit()
+            return total
     except Exception as e:
         logging.error(f"Erro ao limpar envios: {e}")
         return 0
