@@ -14,7 +14,8 @@ import logging
 from contextlib import closing
 from typing import Any, Tuple, Optional, Callable, Dict, List
 
-from database import get_db_connection  # usa tua função atual
+import database
+from database import get_db_connection, salvar_conversa
 from servicos.zapi_cliente import enviar_mensagem
 
 log = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ RETRY_SLEEP_SEG = float(os.getenv("FILA_RETRY_SLEEP_SEG", "3"))           # 3s e
 POLL_SECONDS = float(os.getenv("FILA_POLL_SECONDS", "1"))                 # 1s
 BATCH_SIZE = int(os.getenv("FILA_BATCH_SIZE", "20"))                      # 20
 
+MAX_ATTEMPTS = 1 + RETRY_MAX  # total de tentativas = 1 + retries
+
 # =========================
 # Tipos
 # =========================
@@ -40,6 +43,10 @@ CallbackFn = Optional[Callable[[Dict[str, Any]], None]]
 _lock = threading.Lock()
 _worker_running = False
 _worker_thread = None
+
+
+def _digits(s: Any) -> str:
+    return "".join(ch for ch in str(s or "") if ch.isdigit())
 
 
 def _normalizar_para_envio(numero: str) -> str:
@@ -55,7 +62,7 @@ def _normalizar_para_envio(numero: str) -> str:
     if not numero:
         return ""
 
-    digits = "".join(ch for ch in str(numero) if ch.isdigit())
+    digits = _digits(numero)
 
     # já tem 55 + DDD + 9 + número (13 dígitos)
     if digits.startswith("55") and len(digits) == 13:
@@ -69,8 +76,21 @@ def _normalizar_para_envio(numero: str) -> str:
     if len(digits) == 10:
         return "55" + digits[:2] + "9" + digits[2:]
 
-    # fallback: devolve como está (melhor logar do que explodir)
+    # fallback
     return digits
+
+
+def _normalizar_para_salvar_no_banco(telefone_envio: str) -> str:
+    """
+    Para salvar em conversas/visitantes:
+    - remove 55 se existir
+    - mantém apenas dígitos
+    Retorna DDD + 9 + número (11 dígitos) quando possível.
+    """
+    d = _digits(telefone_envio)
+    if d.startswith("55") and len(d) >= 12:
+        d = d[2:]
+    return d
 
 
 def _parse_result(res: Any) -> Tuple[bool, str, int]:
@@ -180,6 +200,7 @@ def _db_insert_item(numero_envio: str, mensagem: str, imagem_url: Optional[str],
 def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
     """
     Pega um lote de pendentes e marca como 'processando' de forma transacional.
+    Usa FOR UPDATE para evitar dois workers pegarem o mesmo item em cenários com múltiplos processos.
     """
     try:
         with closing(get_db_connection()) as conn:
@@ -195,6 +216,7 @@ def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
                 WHERE status = 'pendente'
                 ORDER BY created_at ASC
                 LIMIT %s
+                FOR UPDATE
             """, (limit,))
             rows = cur.fetchall() or []
 
@@ -205,7 +227,12 @@ def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
             ids = [r["id"] for r in rows]
 
             cur.execute(
-                f"UPDATE fila_envios SET status='processando' WHERE id IN ({','.join(['%s'] * len(ids))})",
+                f"""
+                UPDATE fila_envios
+                SET status='processando'
+                WHERE status='pendente'
+                  AND id IN ({','.join(['%s'] * len(ids))})
+                """,
                 tuple(ids)
             )
 
@@ -233,8 +260,9 @@ def _db_mark_success(envio_id: int, status_code: int = 200) -> None:
         log.error(f"❌ Erro ao marcar sucesso envio_id={envio_id}: {e}")
 
 
-def _db_mark_fail_or_retry(envio_id: int, tentativas: int, status_code: int, err: str) -> str:
+def _db_mark_fail_or_retry(envio_id: int, next_attempt_count: int, status_code: int, err: str) -> str:
     """
+    next_attempt_count = tentativas + 1 (ou seja, a contagem após esta tentativa)
     Retorna novo status: 'pendente' (retry) ou 'falha' (final)
     """
     err = (err or "")[:480]
@@ -245,23 +273,71 @@ def _db_mark_fail_or_retry(envio_id: int, tentativas: int, status_code: int, err
 
             cur = conn.cursor()
 
-            # Se ainda dá retry, volta pra pendente incrementando tentativas
-            if tentativas < (RETRY_MAX + 1) and _should_retry(err, int(status_code or 0)):
-                novo_status = "pendente"
-            else:
-                novo_status = "falha"
+            allow_retry = (next_attempt_count < MAX_ATTEMPTS) and _should_retry(err, int(status_code or 0))
+            novo_status = "pendente" if allow_retry else "falha"
 
             cur.execute("""
                 UPDATE fila_envios
                 SET status=%s, tentativas=%s, status_code=%s, last_error=%s
                 WHERE id=%s
-            """, (novo_status, int(tentativas), int(status_code or 0), err, envio_id))
+            """, (novo_status, int(next_attempt_count), int(status_code or 0), err, envio_id))
             conn.commit()
             return novo_status
 
     except Exception as e:
         log.error(f"❌ Erro ao marcar falha/retry envio_id={envio_id}: {e}")
         return "falha"
+
+
+# =========================
+# Pós-envio: campanha (confirma no CRM)
+# =========================
+
+def _pos_envio_sucesso(meta: Dict[str, Any], mensagem: str, numero_envio: str) -> None:
+    """
+    - salva conversa como enviada
+    - marca eventos_envios como enviado
+    """
+    try:
+        visitante_id = meta.get("visitante_id")
+        evento_nome = meta.get("evento")
+        origem = meta.get("origem", "campanha")
+
+        if not visitante_id or not evento_nome:
+            return  # não é campanha, ou não tem info suficiente
+
+        # telefone para salvar na tabela conversas (normalmente sem 55)
+        telefone_raw = meta.get("telefone_raw") or _normalizar_para_salvar_no_banco(numero_envio)
+        telefone_db = _normalizar_para_salvar_no_banco(telefone_raw)
+
+        # 1) conversa
+        salvar_conversa(
+            numero=telefone_db,
+            mensagem=mensagem,
+            tipo="enviada",
+            sid=None,
+            origem=origem
+        )
+
+        # 2) status do envio
+        database.atualizar_status_envio_evento(int(visitante_id), str(evento_nome), "enviado")
+
+    except Exception as e:
+        log.error(f"❌ Pós-envio sucesso (campanha) falhou: {e}")
+
+
+def _pos_envio_falha_final(meta: Dict[str, Any]) -> None:
+    """
+    Marca eventos_envios como falha quando for falha final.
+    """
+    try:
+        visitante_id = meta.get("visitante_id")
+        evento_nome = meta.get("evento")
+        if not visitante_id or not evento_nome:
+            return
+        database.atualizar_status_envio_evento(int(visitante_id), str(evento_nome), "falha")
+    except Exception as e:
+        log.error(f"❌ Pós-envio falha final (campanha) falhou: {e}")
 
 
 # =========================
@@ -294,15 +370,17 @@ def _processar_fila_worker():
             meta = {}
             try:
                 if item.get("meta_json"):
-                    meta = json.loads(item["meta_json"]) if isinstance(item["meta_json"], str) else item["meta_json"]
+                    meta = json.loads(item["meta_json"]) if isinstance(item["meta_json"], str) else (item["meta_json"] or {})
             except Exception:
                 meta = {}
 
             # valida número
             numero_envio = _normalizar_para_envio(numero)
             if not numero_envio:
-                _db_mark_fail_or_retry(envio_id, tentativas_atual + 1, 0, "numero_invalido")
-                log.warning(f"⚠️ envio_id={envio_id} número inválido. Marcado falha.")
+                novo_status = _db_mark_fail_or_retry(envio_id, tentativas_atual + 1, 0, "numero_invalido")
+                if novo_status == "falha":
+                    _pos_envio_falha_final(meta)
+                log.warning(f"⚠️ envio_id={envio_id} número inválido. status={novo_status}")
                 continue
 
             ok = False
@@ -310,7 +388,7 @@ def _processar_fila_worker():
             last_code = 0
             last_res: Any = None
 
-            # 1 tentativa agora (tentativas e retry são re-enfileirados)
+            # 1 tentativa agora (retry volta pra pendente)
             try:
                 last_res = enviar_mensagem(numero_envio, mensagem, imagem_url)
                 ok, last_err, last_code = _parse_result(last_res)
@@ -336,20 +414,25 @@ def _processar_fila_worker():
                 "envio_id": envio_id
             }
 
-            # callbacks opcionais (se você quiser usar no futuro via meta)
-            on_success = meta.get("_on_success_cb")  # normalmente não use isso em DB queue
+            # callbacks opcionais (não use em DB Queue)
+            on_success = meta.get("_on_success_cb")
             on_fail = meta.get("_on_fail_cb")
 
             if ok:
                 _db_mark_success(envio_id, last_code)
+                _pos_envio_sucesso(meta, mensagem, numero_envio)
+
                 log.info(f"✅ Fila(DB) → {numero_envio} | {msg_preview}... | code={last_code} | envio_id={envio_id}")
                 _safe_call(on_success, payload)
+
             else:
                 novo_status = _db_mark_fail_or_retry(envio_id, tentativas_atual + 1, last_code, last_err)
+
                 if novo_status == "pendente":
                     log.warning(f"🔁 Retry agendado → envio_id={envio_id} | {numero_envio} | code={last_code} | err={err_preview}")
                     time.sleep(RETRY_SLEEP_SEG)
                 else:
+                    _pos_envio_falha_final(meta)
                     log.error(f"❌ Falha final → envio_id={envio_id} | {numero_envio} | code={last_code} | err={err_preview}")
                     _safe_call(on_fail, payload)
 
@@ -401,7 +484,7 @@ def adicionar_na_fila(
             log.warning("⚠️ Tentativa de enfileirar com número inválido.")
             return False
 
-        # NÃO recomendo persistir callbacks no DB. Mantém só por compatibilidade (não será usado).
+        # NÃO recomendo persistir callbacks no DB (fica só comentado)
         # meta["_on_success_cb"] = on_success
         # meta["_on_fail_cb"] = on_fail
 
