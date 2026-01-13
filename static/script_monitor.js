@@ -7,6 +7,7 @@
 function normalizarVisitanteId(value) {
   if (!value) return "";
   const s = String(value).trim();
+
   // Corrige formatos tipo "id:1"
   if (s.toLowerCase().startsWith("id:")) {
     const partes = s.split(":");
@@ -38,13 +39,13 @@ async function carregarVisitantes() {
     // Preenche select (nome visível, telefone no dataset)
     data.visitantes.forEach((v) => {
       const opt = document.createElement("option");
-      opt.value = String(v.id);
+      opt.value = String(v.id);          // ✅ visitante_id
       opt.textContent = v.nome || "Sem nome";
       opt.dataset.telefone = v.telefone || "";
       select.appendChild(opt);
     });
 
-    // Verifica se há ?visitante= na URL (ex: /app/monitor?visitante=id:1 ou ?visitante=1)
+    // Verifica se há ?visitante= na URL
     const urlParams = new URLSearchParams(window.location.search);
     const visitanteBruto = urlParams.get("visitante");
     const visitanteId = normalizarVisitanteId(visitanteBruto);
@@ -153,14 +154,13 @@ async function enviarMensagemManual(e) {
   e.preventDefault();
 
   const visitanteSelect = document.getElementById("visitanteSelect");
-  const visitanteId = normalizarVisitanteId(visitanteSelect.value);
-
   const optionSel = visitanteSelect.options[visitanteSelect.selectedIndex];
-  const numero = optionSel?.dataset.telefone;
 
+  const visitante_id = normalizarVisitanteId(optionSel?.value);
+  const numero = optionSel?.dataset.telefone;
   const mensagem = document.getElementById("mensagemInput").value.trim();
 
-  if (!visitanteId) return alert("Selecione um visitante antes de enviar.");
+  if (!visitante_id) return alert("Selecione um visitante antes de enviar.");
   if (!mensagem) return alert("Digite uma mensagem antes de enviar.");
   if (!numero) return alert("Número do visitante não encontrado.");
 
@@ -168,17 +168,22 @@ async function enviarMensagemManual(e) {
     const res = await fetch("/api/send-message-manual", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // ✅ agora envia visitante_id junto (obrigatório no backend novo)
-      body: JSON.stringify({ visitante_id: visitanteId, numero, mensagem }),
+      body: JSON.stringify({
+        visitante_id, // ✅ obrigatório no backend novo
+        numero,
+        mensagem
+      }),
     });
 
     const data = await res.json();
 
     if (data.success) {
       document.getElementById("mensagemInput").value = "";
-      // Obs: como agora é fila, pode demorar alguns segundos até aparecer como "enviada"
-      // (vai aparecer depois do callback on_success salvar no banco)
-      carregarConversas();
+
+      // ⚠️ Importante:
+      // como agora é FILA, a mensagem só aparece após confirmação da Z-API
+      // então o reload pode demorar alguns segundos
+      setTimeout(carregarConversas, 1500);
     } else {
       alert("Erro ao enviar: " + (data.error || "Falha desconhecida"));
     }
