@@ -1,17 +1,20 @@
 # ==============================================
-# servicos/fila_mensagens.py
+# servicos/fila_mensagens.py  (VERSÃO DB QUEUE)
 # ==============================================
 # 📨 Fila unificada de envio de mensagens Z-API
+# Persistida no MySQL (não perde com restart do Gunicorn)
 # Usada pelo bot e pelas campanhas (envio sequencial)
 # ==============================================
 
 import os
 import time
+import json
 import threading
 import logging
-from collections import deque
-from typing import Any, Tuple, Optional, Callable, Dict
+from contextlib import closing
+from typing import Any, Tuple, Optional, Callable, Dict, List
 
+from database import get_db_connection  # usa tua função atual
 from servicos.zapi_cliente import enviar_mensagem
 
 log = logging.getLogger(__name__)
@@ -23,20 +26,18 @@ ENVIO_INTERVALO_SEG = float(os.getenv("FILA_ENVIO_INTERVALO_SEG", "2"))   # 2s p
 RETRY_MAX = int(os.getenv("FILA_RETRY_MAX", "2"))                         # 2 tentativas extra
 RETRY_SLEEP_SEG = float(os.getenv("FILA_RETRY_SLEEP_SEG", "3"))           # 3s entre retries
 
+POLL_SECONDS = float(os.getenv("FILA_POLL_SECONDS", "1"))                 # 1s
+BATCH_SIZE = int(os.getenv("FILA_BATCH_SIZE", "20"))                      # 20
+
 # =========================
 # Tipos
 # =========================
 CallbackFn = Optional[Callable[[Dict[str, Any]], None]]
 
-# item da fila:
-# (numero, mensagem, imagem_url, on_success, on_fail, meta)
-FilaItem = Tuple[str, str, Optional[str], CallbackFn, CallbackFn, Dict[str, Any]]
-
 # =========================
-# Estado da fila
+# Worker
 # =========================
-fila_mensagens: deque[FilaItem] = deque()
-lock = threading.Lock()
+_lock = threading.Lock()
 _worker_running = False
 _worker_thread = None
 
@@ -106,7 +107,7 @@ def _should_retry(err_text: str, status_code: int = 0) -> bool:
     """
     Define se vale tentar novamente.
     - Retry: timeouts, 429, 5xx, erros transitórios
-    - NÃO retry: "must subscribe again", unauthorized, invalid phone etc.
+    - NÃO retry: subscribe again, unauthorized, invalid phone etc.
     """
     t = (err_text or "").lower()
 
@@ -146,7 +147,6 @@ def _should_retry(err_text: str, status_code: int = 0) -> bool:
 
 
 def _safe_call(cb: CallbackFn, payload: Dict[str, Any]) -> None:
-    """Executa callback sem deixar quebrar o worker."""
     if not callable(cb):
         return
     try:
@@ -155,104 +155,227 @@ def _safe_call(cb: CallbackFn, payload: Dict[str, Any]) -> None:
         log.error(f"❌ Erro no callback da fila: {e}")
 
 
+# =========================
+# DB helpers
+# =========================
+
+def _db_insert_item(numero_envio: str, mensagem: str, imagem_url: Optional[str], meta: Dict[str, Any]) -> bool:
+    try:
+        meta_json = json.dumps(meta or {}, ensure_ascii=False)
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return False
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO fila_envios (numero, mensagem, imagem_url, status, tentativas, meta_json)
+                VALUES (%s, %s, %s, 'pendente', 0, %s)
+            """, (numero_envio, mensagem, imagem_url, meta_json))
+            conn.commit()
+            return True
+    except Exception as e:
+        log.error(f"❌ Falha ao gravar item na fila_envios: {e}")
+        return False
+
+
+def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
+    """
+    Pega um lote de pendentes e marca como 'processando' de forma transacional.
+    """
+    try:
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return []
+
+            cur = conn.cursor()
+            conn.begin()
+
+            cur.execute("""
+                SELECT id, numero, mensagem, imagem_url, tentativas, meta_json
+                FROM fila_envios
+                WHERE status = 'pendente'
+                ORDER BY created_at ASC
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall() or []
+
+            if not rows:
+                conn.commit()
+                return []
+
+            ids = [r["id"] for r in rows]
+
+            cur.execute(
+                f"UPDATE fila_envios SET status='processando' WHERE id IN ({','.join(['%s'] * len(ids))})",
+                tuple(ids)
+            )
+
+            conn.commit()
+            return rows
+
+    except Exception as e:
+        log.error(f"❌ Erro ao buscar/claim batch da fila_envios: {e}")
+        return []
+
+
+def _db_mark_success(envio_id: int, status_code: int = 200) -> None:
+    try:
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE fila_envios
+                SET status='enviado', status_code=%s, last_error=NULL
+                WHERE id=%s
+            """, (int(status_code or 0), envio_id))
+            conn.commit()
+    except Exception as e:
+        log.error(f"❌ Erro ao marcar sucesso envio_id={envio_id}: {e}")
+
+
+def _db_mark_fail_or_retry(envio_id: int, tentativas: int, status_code: int, err: str) -> str:
+    """
+    Retorna novo status: 'pendente' (retry) ou 'falha' (final)
+    """
+    err = (err or "")[:480]
+    try:
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                return "falha"
+
+            cur = conn.cursor()
+
+            # Se ainda dá retry, volta pra pendente incrementando tentativas
+            if tentativas < (RETRY_MAX + 1) and _should_retry(err, int(status_code or 0)):
+                novo_status = "pendente"
+            else:
+                novo_status = "falha"
+
+            cur.execute("""
+                UPDATE fila_envios
+                SET status=%s, tentativas=%s, status_code=%s, last_error=%s
+                WHERE id=%s
+            """, (novo_status, int(tentativas), int(status_code or 0), err, envio_id))
+            conn.commit()
+            return novo_status
+
+    except Exception as e:
+        log.error(f"❌ Erro ao marcar falha/retry envio_id={envio_id}: {e}")
+        return "falha"
+
+
+# =========================
+# Worker loop
+# =========================
+
 def _processar_fila_worker():
     global _worker_running
 
-    log.info("🧵 Worker da fila iniciado.")
-    enviados_ok = 0
-    falhas = 0
+    log.info("🧵 Worker DB-Queue iniciado.")
 
     while True:
-        with lock:
-            if not fila_mensagens:
-                _worker_running = False
-                log.info(f"✅ Fila vazia. Worker encerrando. OK={enviados_ok} | Falhas={falhas}")
+        with _lock:
+            if not _worker_running:
+                log.info("🛑 Worker DB-Queue finalizado (flag).")
                 return
 
-            numero, mensagem, imagem_url, on_success, on_fail, meta = fila_mensagens.popleft()
-            restante = len(fila_mensagens)
-
-        numero_envio = _normalizar_para_envio(numero)
-
-        if not numero_envio:
-            falhas += 1
-            log.warning("⚠️ Item sem número válido. Ignorando.")
-            _safe_call(on_fail, {
-                "ok": False,
-                "numero": numero,
-                "numero_envio": numero_envio,
-                "status_code": 0,
-                "erro": "numero_invalido",
-                "mensagem": mensagem,
-                "imagem_url": imagem_url,
-                "meta": meta
-            })
+        itens = _db_claim_batch(BATCH_SIZE)
+        if not itens:
+            time.sleep(POLL_SECONDS)
             continue
 
-        ok = False
-        last_err = ""
-        last_code = 0
-        last_res: Any = None
+        for item in itens:
+            envio_id = item["id"]
+            numero = item["numero"]
+            mensagem = item["mensagem"]
+            imagem_url = item.get("imagem_url")
+            tentativas_atual = int(item.get("tentativas") or 0)
 
-        # Tentativas (1 + RETRY_MAX)
-        max_tentativas = RETRY_MAX + 1
-        for tentativa in range(1, max_tentativas + 1):
+            meta = {}
+            try:
+                if item.get("meta_json"):
+                    meta = json.loads(item["meta_json"]) if isinstance(item["meta_json"], str) else item["meta_json"]
+            except Exception:
+                meta = {}
+
+            # valida número
+            numero_envio = _normalizar_para_envio(numero)
+            if not numero_envio:
+                _db_mark_fail_or_retry(envio_id, tentativas_atual + 1, 0, "numero_invalido")
+                log.warning(f"⚠️ envio_id={envio_id} número inválido. Marcado falha.")
+                continue
+
+            ok = False
+            last_err = ""
+            last_code = 0
+            last_res: Any = None
+
+            # 1 tentativa agora (tentativas e retry são re-enfileirados)
             try:
                 last_res = enviar_mensagem(numero_envio, mensagem, imagem_url)
                 ok, last_err, last_code = _parse_result(last_res)
-
-                if ok:
-                    break
-
             except Exception as e:
                 ok = False
                 last_err = str(e)
                 last_code = 0
                 last_res = None
 
-            if tentativa < max_tentativas and _should_retry(last_err, last_code):
-                log.warning(
-                    f"🔁 Retry {tentativa}/{max_tentativas} → {numero_envio} | "
-                    f"code={last_code} | motivo={last_err[:160]}"
-                )
-                time.sleep(RETRY_SLEEP_SEG)
+            msg_preview = (mensagem or "").replace("\n", " ")[:60]
+            err_preview = (last_err or "").replace("\n", " ")[:180]
+
+            payload = {
+                "ok": ok,
+                "numero": numero,
+                "numero_envio": numero_envio,
+                "status_code": last_code,
+                "erro": last_err,
+                "mensagem": mensagem,
+                "imagem_url": imagem_url,
+                "res": last_res,
+                "meta": meta,
+                "envio_id": envio_id
+            }
+
+            # callbacks opcionais (se você quiser usar no futuro via meta)
+            on_success = meta.get("_on_success_cb")  # normalmente não use isso em DB queue
+            on_fail = meta.get("_on_fail_cb")
+
+            if ok:
+                _db_mark_success(envio_id, last_code)
+                log.info(f"✅ Fila(DB) → {numero_envio} | {msg_preview}... | code={last_code} | envio_id={envio_id}")
+                _safe_call(on_success, payload)
             else:
-                break
+                novo_status = _db_mark_fail_or_retry(envio_id, tentativas_atual + 1, last_code, last_err)
+                if novo_status == "pendente":
+                    log.warning(f"🔁 Retry agendado → envio_id={envio_id} | {numero_envio} | code={last_code} | err={err_preview}")
+                    time.sleep(RETRY_SLEEP_SEG)
+                else:
+                    log.error(f"❌ Falha final → envio_id={envio_id} | {numero_envio} | code={last_code} | err={err_preview}")
+                    _safe_call(on_fail, payload)
 
-        if ok:
-            enviados_ok += 1
-            status = "✅"
-        else:
-            falhas += 1
-            status = "❌"
+            time.sleep(ENVIO_INTERVALO_SEG)
 
-        msg_preview = (mensagem or "").replace("\n", " ")[:60]
-        err_preview = (last_err or "").replace("\n", " ")[:180]
 
-        log.info(
-            f"{status} Fila → {numero_envio} | {msg_preview}... | "
-            f"code={last_code} | err={err_preview} | restante={restante}"
-        )
+def iniciar_worker() -> None:
+    global _worker_running, _worker_thread
+    with _lock:
+        if _worker_thread and _worker_thread.is_alive():
+            return
+        _worker_running = True
+        _worker_thread = threading.Thread(target=_processar_fila_worker, daemon=True)
+        _worker_thread.start()
+        log.info("🚀 Worker DB-Queue ligado.")
 
-        payload = {
-            "ok": ok,
-            "numero": numero,
-            "numero_envio": numero_envio,
-            "status_code": last_code,
-            "erro": last_err,
-            "mensagem": mensagem,
-            "imagem_url": imagem_url,
-            "res": last_res,   # retorno bruto (dict/bool)
-            "meta": meta
-        }
 
-        if ok:
-            _safe_call(on_success, payload)
-        else:
-            _safe_call(on_fail, payload)
+def parar_worker() -> None:
+    global _worker_running
+    with _lock:
+        _worker_running = False
 
-        time.sleep(ENVIO_INTERVALO_SEG)
 
+# =========================
+# API pública (mantém compatibilidade)
+# =========================
 
 def adicionar_na_fila(
     numero: str,
@@ -263,35 +386,34 @@ def adicionar_na_fila(
     meta: Optional[Dict[str, Any]] = None
 ) -> bool:
     """
-    Adiciona mensagem na fila e garante que existe um worker rodando.
-    Callbacks:
-      - on_success(payload): chamado quando a Z-API confirmou envio
-      - on_fail(payload): chamado quando falhou (sem retry ou após esgotar tentativas)
+    Adiciona mensagem na fila (MySQL) e garante que existe um worker rodando.
 
-    meta: dict livre (ex.: {"origem":"campanha","visitante_id":1,"evento":"X"})
+    IMPORTANTE:
+    - on_success/on_fail aqui não são ideais em DB Queue (porque o callback não existe após restart).
+    - Se você precisa ação pós-envio, grave isso no DB (status) e use tela/consulta.
     """
-    global _worker_running, _worker_thread
-
     try:
         if meta is None:
             meta = {}
 
-        with lock:
-            fila_mensagens.append((numero, mensagem, imagem_url, on_success, on_fail, meta))
-            tam = len(fila_mensagens)
+        numero_envio = _normalizar_para_envio(numero)
+        if not numero_envio:
+            log.warning("⚠️ Tentativa de enfileirar com número inválido.")
+            return False
 
-            if not _worker_running:
-                _worker_running = True
-                _worker_thread = threading.Thread(target=_processar_fila_worker, daemon=True)
-                _worker_thread.start()
-                log.info(f"🚀 Worker disparado. Tamanho atual da fila={tam}")
-            else:
-                log.info(f"➕ Item adicionado na fila. Tamanho atual da fila={tam}")
+        # NÃO recomendo persistir callbacks no DB. Mantém só por compatibilidade (não será usado).
+        # meta["_on_success_cb"] = on_success
+        # meta["_on_fail_cb"] = on_fail
 
+        ok = _db_insert_item(numero_envio, mensagem, imagem_url, meta)
+        if not ok:
+            return False
+
+        iniciar_worker()
         return True
 
     except Exception as e:
-        log.error(f"❌ Falha ao enfileirar: {e}")
+        log.error(f"❌ Falha ao enfileirar (DB Queue): {e}")
         return False
 
 
