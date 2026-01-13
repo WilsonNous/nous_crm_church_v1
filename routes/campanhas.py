@@ -9,8 +9,10 @@
 import logging
 from flask import request, jsonify
 from datetime import datetime
+from contextlib import closing
 
 import database
+from database import get_db_connection
 from servicos.fila_mensagens import adicionar_na_fila
 
 
@@ -31,7 +33,7 @@ def register(app):
 
             visitantes = database.filtrar_visitantes_para_evento(
                 data_inicio, data_fim, idade_min, idade_max, genero
-            )
+            ) or []
 
             resultado = []
             for v in visitantes:
@@ -56,6 +58,32 @@ def register(app):
         except Exception as e:
             logging.exception(f"❌ Erro ao filtrar visitantes: {e}")
             return jsonify({"error": "Erro ao filtrar visitantes"}), 500
+
+
+    # ------------------------------------------------
+    # Helpers (opcionais) - anti duplicidade
+    # ------------------------------------------------
+    def _envio_ja_existe(visitante_id: int, evento_nome: str) -> bool:
+        """
+        Evita duplicar campanhas se o mesmo evento for disparado duas vezes.
+        Considera como "já existe" qualquer status diferente de 'falha'.
+        """
+        try:
+            with closing(get_db_connection()) as conn:
+                if not conn:
+                    return False  # se sem conexão, não bloqueia
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT 1
+                    FROM eventos_envios
+                    WHERE visitante_id = %s
+                      AND evento_nome = %s
+                      AND status <> 'falha'
+                    LIMIT 1
+                """, (int(visitante_id), str(evento_nome)))
+                return cur.fetchone() is not None
+        except Exception:
+            return False
 
 
     # ------------------------------------------------
@@ -92,12 +120,23 @@ def register(app):
             sem_telefone = 0
             erro_registro = 0
             erro_fila = 0
+            pulados_duplicidade = 0
 
             # ⚠️ Anti-timeout: nada de chamar Z-API aqui. Só DB.
             for v in visitantes:
                 visitante_id = v.get("id")
                 telefone = v.get("telefone")
                 nome = v.get("nome") or "-"
+
+                if not visitante_id:
+                    erro_registro += 1
+                    logging.error(f"❌ Visitante sem ID válido (nome={nome}). Ignorando.")
+                    continue
+
+                # (Opcional) evita duplicar se já existe envio desse evento (exceto falha)
+                if _envio_ja_existe(visitante_id, nome_evento):
+                    pulados_duplicidade += 1
+                    continue
 
                 # 1) Registra envio (pendente) — fica em eventos_envios
                 try:
@@ -138,7 +177,7 @@ def register(app):
                     meta={
                         "origem": "campanha",
                         "evento": nome_evento,
-                        "visitante_id": visitante_id,
+                        "visitante_id": int(visitante_id),
                         "telefone_raw": telefone
                     }
                 )
@@ -161,6 +200,7 @@ def register(app):
                 "sem_telefone": sem_telefone,
                 "erro_registro": erro_registro,
                 "erro_fila": erro_fila,
+                "pulados_duplicidade": pulados_duplicidade,
                 "obs": "O status 'enviado' será marcado automaticamente após o envio real pelo worker (DB Queue)."
             }), 200
 
@@ -175,8 +215,26 @@ def register(app):
     @app.route('/api/campanhas/reprocessar', methods=['POST'])
     def reprocessar_falhas():
         try:
-            envios = database.listar_envios_eventos(limit=400) or []
-            falhas = [e for e in envios if (e.get("status") == "falha")]
+            # ✅ Busca direto no DB as falhas (com visitante_id garantido)
+            with closing(get_db_connection()) as conn:
+                if not conn:
+                    return jsonify({"error": "Sem conexão com o banco"}), 500
+
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT
+                        e.id AS envio_id,
+                        e.visitante_id,
+                        e.evento_nome,
+                        e.mensagem,
+                        v.telefone
+                    FROM eventos_envios e
+                    JOIN visitantes v ON v.id = e.visitante_id
+                    WHERE e.status = 'falha'
+                    ORDER BY e.data_envio DESC
+                    LIMIT 400
+                """)
+                falhas = cur.fetchall() or []
 
             reprocessados = 0
             ignorados = 0
@@ -204,7 +262,7 @@ def register(app):
                     meta={
                         "origem": "campanha_reprocesso",
                         "evento": evento_nome,
-                        "visitante_id": visitante_id,
+                        "visitante_id": int(visitante_id),
                         "telefone_raw": telefone
                     }
                 )
