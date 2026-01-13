@@ -9,7 +9,7 @@ from database import (
     salvar_conversa, obter_conversa_por_visitante, get_db_connection, atualizar_status
 )
 
-# ✅ NOVO: usar fila unificada (com callback)
+# ✅ usa fila unificada (com callback)
 from servicos.fila_mensagens import adicionar_na_fila
 
 
@@ -111,13 +111,10 @@ def register(app):
         try:
             data = request.get_json() or {}
 
-            visitante_id = data.get("visitante_id")
+            visitante_id = data.get("visitante_id")  # opcional (vem do monitor)
             numero = (data.get("numero") or "").strip()
             mensagem = (data.get("mensagem") or "").strip()
             imagem_url = data.get("imagem_url")  # opcional
-
-            if not visitante_id:
-                return jsonify({"success": False, "error": "visitante_id não informado"}), 400
 
             if not numero:
                 return jsonify({"success": False, "error": "Número não informado"}), 400
@@ -125,54 +122,39 @@ def register(app):
             if not mensagem:
                 return jsonify({"success": False, "error": "Mensagem vazia"}), 400
 
-            # 🔧 Normaliza telefone (mantém padrão de recebimento)
+            # 🔧 Normaliza número para padrão do banco (DDD+9+número, sem 55)
             telefone_envio = f"55{numero}" if not str(numero).startswith("55") else str(numero)
             telefone_normalizado = normalizar_para_recebimento(telefone_envio)
 
-            # ✅ Callback: só salva conversa quando Z-API confirmar envio
+            # ✅ Só salva conversa quando Z-API confirmar envio
             def _on_success(payload):
                 try:
-                    # tenta assinatura com visitante_id (se existir no teu database.py)
-                    try:
-                        salvar_conversa(
-                            numero=telefone_normalizado,
-                            mensagem=mensagem,
-                            tipo="enviada",
-                            sid=None,
-                            origem="integra+",
-                            visitante_id=int(visitante_id),
-                        )
-                    except TypeError:
-                        # fallback assinatura antiga
-                        salvar_conversa(
-                            telefone_normalizado,
-                            mensagem,
-                            tipo="enviada",
-                            origem="integra+"
-                        )
-
+                    salvar_conversa(
+                        telefone_normalizado,
+                        mensagem,
+                        tipo="enviada",
+                        sid=None,
+                        origem="integra+"
+                    )
                 except Exception as e:
                     logging.error(f"❌ Erro ao salvar_conversa (manual) tel={telefone_normalizado}: {e}")
 
-                # 🔁 Atualiza fase do visitante após envio confirmado
+                # status só após envio real
                 try:
                     atualizar_status(telefone_normalizado, "INICIO")
-                    logging.info(f"🔄 Status atualizado para INICIO ({telefone_normalizado})")
                 except Exception as e:
-                    logging.warning(f"⚠️ Falha ao atualizar status: {e}")
-
+                    logging.warning(f"⚠️ Falha ao atualizar status (manual): {e}")
 
             def _on_fail(payload):
                 code = payload.get("status_code") or 0
                 err = (payload.get("erro") or "").replace("\n", " ")[:200]
                 logging.error(f"❌ Envio manual falhou | tel={telefone_normalizado} | code={code} | err={err}")
 
-                # opcional: marca uma fase de falha
+                # opcional: marcar fase de falha
                 try:
                     atualizar_status(telefone_normalizado, "FALHA_ENVIO")
                 except Exception:
                     pass
-
 
             ok_fila = adicionar_na_fila(
                 telefone_normalizado,
