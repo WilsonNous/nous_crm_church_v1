@@ -3,7 +3,7 @@
 # ================================================
 # 📢 Rotas de Campanhas e Eventos - CRM Church
 # Envio 100% texto (sem imagem) para máxima entregabilidade
-# ✅ Enfileira e só marca "enviado" após confirmação real do worker
+# ✅ Enfileira e só marca "enviado" após confirmação real do worker (DB Queue)
 # ================================================
 
 import logging
@@ -11,7 +11,6 @@ from flask import request, jsonify
 from datetime import datetime
 
 import database
-from database import salvar_conversa
 from servicos.fila_mensagens import adicionar_na_fila
 
 
@@ -60,45 +59,7 @@ def register(app):
 
 
     # ------------------------------------------------
-    # ✅ Helpers (factories) para callbacks de fila
-    # ------------------------------------------------
-    def _on_success_factory(visitante_id: int, evento_nome: str, telefone: str, mensagem: str):
-        def _cb(_res=None):
-            # 1) salva conversa
-            try:
-                salvar_conversa(
-                    numero=telefone,
-                    mensagem=mensagem,
-                    tipo="enviada",
-                    sid=None,
-                    origem="campanha"
-                )
-            except Exception as e:
-                logging.error(f"❌ salvar_conversa (campanha) tel={telefone}: {e}")
-
-            # 2) marca como enviado no banco
-            try:
-                database.atualizar_status_envio_evento(visitante_id, evento_nome, "enviado")
-            except Exception as e:
-                logging.error(
-                    f"❌ atualizar_status_envio_evento(enviado) vid={visitante_id} ev={evento_nome}: {e}"
-                )
-        return _cb
-
-
-    def _on_fail_factory(visitante_id: int, evento_nome: str):
-        def _cb(_res=None):
-            try:
-                database.atualizar_status_envio_evento(visitante_id, evento_nome, "falha")
-            except Exception as e:
-                logging.error(
-                    f"❌ atualizar_status_envio_evento(falha) vid={visitante_id} ev={evento_nome}: {e}"
-                )
-        return _cb
-
-
-    # ------------------------------------------------
-    # 📢 2. Enviar Campanha (enfileira e CONFIRMA depois)
+    # 📢 2. Enviar Campanha (enfileira e CONFIRMA no worker)
     # ------------------------------------------------
     @app.route('/api/campanhas/enviar', methods=['POST'])
     def enviar_campanha():
@@ -122,7 +83,7 @@ def register(app):
                 idade_min=idade_min,
                 idade_max=idade_max,
                 genero=genero
-            )
+            ) or []
 
             if not visitantes:
                 return jsonify({"message": "Nenhum visitante encontrado para envio."}), 200
@@ -130,13 +91,15 @@ def register(app):
             enfileirados = 0
             sem_telefone = 0
             erro_registro = 0
+            erro_fila = 0
 
+            # ⚠️ Anti-timeout: nada de chamar Z-API aqui. Só DB.
             for v in visitantes:
                 visitante_id = v.get("id")
                 telefone = v.get("telefone")
                 nome = v.get("nome") or "-"
 
-                # 1) Registra envio (pendente)
+                # 1) Registra envio (pendente) — fica em eventos_envios
                 try:
                     database.salvar_envio_evento(
                         visitante_id=visitante_id,
@@ -161,27 +124,22 @@ def register(app):
                     logging.warning(f"⚠️ Visitante sem telefone: {nome}")
                     continue
 
-                # 3) Marca como em fila
+                # 3) Marca como em fila (quem marca ENVIADO é o worker)
                 try:
                     database.atualizar_status_envio_evento(visitante_id, nome_evento, "em_fila")
                 except Exception as e:
                     logging.error(f"❌ atualizar_status_envio_evento(em_fila) vid={visitante_id}: {e}")
 
-                # 4) Callbacks para confirmar somente após envio real
-                on_success = _on_success_factory(visitante_id, nome_evento, telefone, mensagem)
-                on_fail = _on_fail_factory(visitante_id, nome_evento)
-
-                # 5) Enfileira (não salva conversa e não marca enviado aqui!)
+                # 4) Enfileira no MySQL (fila_envios)
                 ok_fila = adicionar_na_fila(
                     telefone,
                     mensagem,
                     imagem_url=None,
-                    on_success=on_success,
-                    on_fail=on_fail,
                     meta={
                         "origem": "campanha",
                         "evento": nome_evento,
-                        "visitante_id": visitante_id
+                        "visitante_id": visitante_id,
+                        "telefone_raw": telefone
                     }
                 )
 
@@ -189,8 +147,11 @@ def register(app):
                     enfileirados += 1
                     logging.info(f"📬 Visitante {nome} enfileirado para campanha '{nome_evento}'.")
                 else:
-                    # se nem enfileirou, já marca falha
-                    on_fail()
+                    erro_fila += 1
+                    try:
+                        database.atualizar_status_envio_evento(visitante_id, nome_evento, "falha")
+                    except Exception:
+                        pass
                     logging.error(f"❌ Falha ao enfileirar tel={telefone} (campanha).")
 
             return jsonify({
@@ -199,7 +160,8 @@ def register(app):
                 "enfileirados": enfileirados,
                 "sem_telefone": sem_telefone,
                 "erro_registro": erro_registro,
-                "obs": "O status 'enviado' será marcado automaticamente após o envio real na fila."
+                "erro_fila": erro_fila,
+                "obs": "O status 'enviado' será marcado automaticamente após o envio real pelo worker (DB Queue)."
             }), 200
 
         except Exception as e:
@@ -208,13 +170,14 @@ def register(app):
 
 
     # ------------------------------------------------
-    # 🔁 3. Reprocessar Falhas (reenfileira e confirma depois)
+    # 🔁 3. Reprocessar Falhas (reenfileira)
     # ------------------------------------------------
     @app.route('/api/campanhas/reprocessar', methods=['POST'])
     def reprocessar_falhas():
         try:
-            envios = database.listar_envios_eventos(limit=200) or []
+            envios = database.listar_envios_eventos(limit=400) or []
             falhas = [e for e in envios if (e.get("status") == "falha")]
+
             reprocessados = 0
             ignorados = 0
 
@@ -234,22 +197,22 @@ def register(app):
                 except Exception as e:
                     logging.error(f"❌ atualizar_status_envio_evento(em_fila) reprocesso vid={visitante_id}: {e}")
 
-                on_success = _on_success_factory(visitante_id, evento_nome, telefone, mensagem)
-                on_fail = _on_fail_factory(visitante_id, evento_nome)
-
-                adicionar_na_fila(
+                ok_fila = adicionar_na_fila(
                     telefone,
                     mensagem,
                     imagem_url=None,
-                    on_success=on_success,
-                    on_fail=on_fail,
                     meta={
                         "origem": "campanha_reprocesso",
                         "evento": evento_nome,
-                        "visitante_id": visitante_id
+                        "visitante_id": visitante_id,
+                        "telefone_raw": telefone
                     }
                 )
-                reprocessados += 1
+
+                if ok_fila:
+                    reprocessados += 1
+                else:
+                    ignorados += 1
 
             return jsonify({
                 "message": f"🔄 {reprocessados} falhas reenfileiradas.",
@@ -267,9 +230,7 @@ def register(app):
     @app.route('/api/campanhas/status', methods=['GET'])
     def status_campanhas():
         try:
-            campanhas = database.obter_resumo_campanhas(limit=100)
-            if not campanhas:
-                return jsonify({"status": []}), 200
+            campanhas = database.obter_resumo_campanhas(limit=100) or []
 
             resultado = []
             for c in campanhas:
