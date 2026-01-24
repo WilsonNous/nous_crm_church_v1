@@ -28,14 +28,12 @@ def processar_saudacao(numero: str, message_sid: str, origem: str = "integra+") 
             visitor_name = "Visitante"
 
         resposta = f"""Olá, {visitor_name}! 😊  
-Sou o **Integra+**, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.
+Sou o _*Integra+*_, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.
 
 Como posso te ajudar hoje?
 
-👉 *Aqui, o batismo é o batismo nas águas por imersão, como uma decisão consciente.*
-
-1️⃣ **Já fiz batismo nas águas (imersão)** e quero me tornar membro  
-2️⃣ **Ainda não fiz batismo nas águas (imersão)** *(ou fui batizado quando criança)* e quero me tornar membro  
+1️⃣ *Já fiz batismo nas águas (imersão)* e quero me tornar membro  
+2️⃣ *Ainda não fiz batismo nas águas (imersão)* *(ou fui batizado quando criança)* e quero me tornar membro  
 3️⃣ 🙏 Gostaria de receber orações  
 4️⃣ 🕒 Quero saber os horários dos cultos  
 5️⃣ 👥 Entrar no grupo do WhatsApp  
