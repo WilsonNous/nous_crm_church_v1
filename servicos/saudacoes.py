@@ -27,19 +27,19 @@ def processar_saudacao(numero: str, message_sid: str, origem: str = "integra+") 
         else:
             visitor_name = "Visitante"
 
-        resposta = f"""Olá, {visitor_name}! 😊  
+        resposta = f"""Olá, {visitor_name}!   
 Sou o _*Integra+*_, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.
 
 Como posso te ajudar hoje?
 
 1️⃣ *Já fiz batismo nas águas (imersão)* e quero me tornar membro  
 2️⃣ *Ainda não fiz batismo nas águas (imersão)* *(ou fui batizado quando criança)* e quero me tornar membro  
-3️⃣ 🙏 Gostaria de receber orações  
-4️⃣ 🕒 Quero saber os horários dos cultos  
-5️⃣ 👥 Entrar no grupo do WhatsApp  
-6️⃣ ✍️ Outro assunto  
+3️⃣ Gostaria de receber orações  
+4️⃣ Quero saber os horários dos cultos  
+5️⃣ Entrar no grupo do WhatsApp  
+6️⃣ Outro assunto  
 
-Estou aqui pra caminhar com você! 🙌"""
+Estou aqui pra caminhar com você! """
 
 
         # Atualiza o status e envia resposta
