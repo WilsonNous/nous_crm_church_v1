@@ -52,21 +52,19 @@ def detectar_palavra_chave_ministerio(texto_recebido: str):
 # ------------------------
 def processar_saudacao(numero: str, nome_visitante: str, message_sid: str, origem: str = "integra+"):
     """Responde a uma saudação inicial"""
-    resposta = f"""Olá, {nome_visitante}! 😊
-Sou o **Integra+**, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.
+    resposta = f"""Olá, {nome_visitante}! 
+Sou o _*Integra+*_, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.
 
 Como posso te ajudar hoje?
 
-👉 *Aqui, o batismo é o batismo nas águas por imersão, como uma decisão consciente.*
+1️⃣ *Já fiz batismo nas águas (imersão)* e quero me tornar membro  
+2️⃣ *Ainda não fiz batismo nas águas (imersão)* *(ou fui batizado quando criança)* e quero me tornar membro  
+3️⃣ Gostaria de receber orações  
+4️⃣ Quero saber os horários dos cultos  
+5️⃣ Entrar no grupo do WhatsApp  
+6️⃣ Outro assunto  
 
-1️⃣ **Já fiz batismo nas águas (imersão)** e quero me tornar membro  
-2️⃣ **Ainda não fiz batismo nas águas (imersão)** *(ou fui batizado quando criança)* e quero me tornar membro  
-3️⃣ 🙏 Gostaria de receber orações  
-4️⃣ 🕒 Quero saber os horários dos cultos  
-5️⃣ 👥 Entrar no grupo do WhatsApp  
-6️⃣ ✍️ Outro assunto  
-
-Estou aqui pra caminhar com você! 🙌"""
+Estou aqui pra caminhar com você! """
 
     adicionar_na_fila(numero, resposta)
     salvar_conversa(numero, resposta, tipo="enviada", sid=message_sid, origem=origem)
