@@ -87,14 +87,17 @@ def processar_com_ia(numero: str, texto_recebido: str, texto_recebido_normalizad
 
     # Se nada foi detectado → resposta padrão de erro cordial
     resposta_fallback = (
-        "Desculpe, não entendi sua resposta. Por favor, tente novamente.\n\n"
-        "Aqui estão algumas opções que você pode escolher:\n\n"
-        "1⃣ Sou batizado em águas, e quero me tornar membro.\n"
-        "2⃣ Não sou batizado, e quero me tornar membro.\n"
-        "3⃣ Gostaria de receber orações.\n"
-        "4⃣ Queria saber mais sobre os horários dos cultos.\n"
-        "5⃣ Quero entrar no grupo do WhatsApp da igreja.\n"
-        "6⃣ Outro assunto."
+    "Tudo bem 😊 talvez eu não tenha entendido sua resposta.\n\n"
+    "Vamos tentar novamente?\n\n"
+    "👉 *Aqui, consideramos batismo como o batismo nas águas por imersão, feito de forma consciente.*\n\n"
+    "Escolha uma das opções abaixo:\n\n"
+    "1⃣ Já fiz batismo nas águas (imersão) e quero me tornar membro.\n"
+    "2⃣ Ainda não fiz batismo nas águas (imersão) *(ou fui batizado quando criança)* e quero me tornar membro.\n"
+    "3⃣ 🙏 Gostaria de receber orações.\n"
+    "4⃣ 🕒 Quero saber mais sobre os horários dos cultos.\n"
+    "5⃣ 👥 Quero entrar no grupo do WhatsApp da igreja.\n"
+    "6⃣ ✍️ Outro assunto.\n\n"
+    "Estou aqui pra te ajudar 🙌"
     )
 
     adicionar_na_fila(numero, resposta_fallback)
