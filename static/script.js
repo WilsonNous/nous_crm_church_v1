@@ -392,7 +392,7 @@ function fetchVisitorsAndSendMessagesManual() {
 
           return {
             numero: numeroZapi,
-            mensagem: `👋 A Paz de Cristo, ${v.nome || "Visitante"}! Tudo bem com você?
+            mensagem: `A Paz de Cristo, ${v.nome || "Visitante"}! Tudo bem com você?
 
 Sou o *Integra+*, assistente do Ministério de Integração da MAIS DE CRISTO Canasvieiras.
 Escolha uma das opções abaixo, respondendo com o número correspondente:
@@ -404,7 +404,7 @@ Escolha uma das opções abaixo, respondendo com o número correspondente:
 5⃣ Quero entrar no grupo do WhatsApp.
 6⃣ Outro assunto.
 
-🙏 Me diga sua escolha para podermos continuar!`,
+Me diga sua escolha para podermos continuar!`,
           };
         })
         .filter(Boolean);
@@ -704,3 +704,4 @@ function handleMemberFormSubmission(e) {
       alert("Erro ao enviar dados. Tente novamente.");
     });
 }
+
