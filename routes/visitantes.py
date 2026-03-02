@@ -162,7 +162,7 @@ def register(app):
                 imagem_url=imagem_url,
                 on_success=_on_success,
                 on_fail=_on_fail,
-                meta={"origem": "integra+", "tipo": "manual", "visitante_id": visitante_id}
+                meta={"origem": "integra+", "tipo": "manual", "visitante_id": visitante_id,"telefone_raw": telefone_normalizado}
             )
 
             if not ok_fila:
