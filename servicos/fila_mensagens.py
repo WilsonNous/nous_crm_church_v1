@@ -295,35 +295,68 @@ def _db_mark_fail_or_retry(envio_id: int, next_attempt_count: int, status_code: 
 
 def _pos_envio_sucesso(meta: Dict[str, Any], mensagem: str, numero_envio: str) -> None:
     """
-    - salva conversa como enviada
-    - marca eventos_envios como enviado
+    Pós-envio confirmado (Z-API OK):
+    - salva conversa como enviada (se fizer sentido)
+    - atualiza status/fase quando necessário
+    - trata campanha e manual
     """
     try:
-        visitante_id = meta.get("visitante_id")
-        evento_nome = meta.get("evento")
-        origem = meta.get("origem", "campanha")
-
-        if not visitante_id or not evento_nome:
-            return  # não é campanha, ou não tem info suficiente
-
-        # telefone para salvar na tabela conversas (normalmente sem 55)
+        origem = meta.get("origem", "integra+")
+        tipo = meta.get("tipo")  # ex.: "manual"
         telefone_raw = meta.get("telefone_raw") or _normalizar_para_salvar_no_banco(numero_envio)
         telefone_db = _normalizar_para_salvar_no_banco(telefone_raw)
 
-        # 1) conversa
-        salvar_conversa(
-            numero=telefone_db,
-            mensagem=mensagem,
-            tipo="enviada",
-            sid=None,
-            origem=origem
-        )
+        # ==========================================================
+        # 1) MANUAL / BOAS-VINDAS: após envio confirmado -> INICIO
+        # ==========================================================
+        if tipo == "manual":
+            # salva conversa
+            try:
+                salvar_conversa(
+                    numero=telefone_db,
+                    mensagem=mensagem,
+                    tipo="enviada",
+                    sid=None,
+                    origem=origem
+                )
+            except Exception as e:
+                log.error(f"❌ salvar_conversa manual falhou: {e}")
 
-        # 2) status do envio
-        database.atualizar_status_envio_evento(int(visitante_id), str(evento_nome), "enviado")
+            # ✅ AQUI está o ponto que você quer: após OK -> INICIO
+            try:
+                database.atualizar_status(telefone_db, "INICIO", origem=origem)
+            except Exception as e:
+                log.error(f"❌ atualizar_status(INICIO) manual falhou tel={telefone_db}: {e}")
+
+            return  # manual resolvido
+
+        # ==========================================================
+        # 2) CAMPANHA: mantém teu comportamento atual
+        # ==========================================================
+        visitante_id = meta.get("visitante_id")
+        evento_nome = meta.get("evento")
+
+        if visitante_id and evento_nome:
+            # conversa (campanha)
+            try:
+                salvar_conversa(
+                    numero=telefone_db,
+                    mensagem=mensagem,
+                    tipo="enviada",
+                    sid=None,
+                    origem=origem
+                )
+            except Exception as e:
+                log.error(f"❌ salvar_conversa campanha falhou: {e}")
+
+            # status do envio da campanha
+            try:
+                database.atualizar_status_envio_evento(int(visitante_id), str(evento_nome), "enviado")
+            except Exception as e:
+                log.error(f"❌ atualizar_status_envio_evento(enviado) falhou: {e}")
 
     except Exception as e:
-        log.error(f"❌ Pós-envio sucesso (campanha) falhou: {e}")
+        log.error(f"❌ Pós-envio sucesso falhou: {e}")
 
 
 def _pos_envio_falha_final(meta: Dict[str, Any]) -> None:
