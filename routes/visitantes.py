@@ -104,73 +104,55 @@ def register(app):
 
 
     # ==============================
-    # ✅ Envio manual (PADRÃO FILA + CONFIRMAÇÃO)
+    # ✅ Envio manual (PADRÃO FILA + CONFIRMAÇÃO PERSISTENTE)
     # ==============================
     @app.route('/api/send-message-manual', methods=['POST'])
     def api_send_message_manual():
         try:
             data = request.get_json() or {}
 
-            visitante_id = data.get("visitante_id")  # opcional (vem do monitor)
+            visitante_id = data.get("visitante_id")  # opcional
             numero = (data.get("numero") or "").strip()
             mensagem = (data.get("mensagem") or "").strip()
             imagem_url = data.get("imagem_url")  # opcional
 
             if not numero:
                 return jsonify({"success": False, "error": "Número não informado"}), 400
-
             if not mensagem:
                 return jsonify({"success": False, "error": "Mensagem vazia"}), 400
 
-            # 🔧 Normaliza número para padrão do banco (DDD+9+número, sem 55)
-            telefone_envio = f"55{numero}" if not str(numero).startswith("55") else str(numero)
-            telefone_normalizado = normalizar_para_recebimento(telefone_envio)
+            # 🔧 Normaliza para formato Z-API (55 + DDD + 9 + número = 13 dígitos)
+            telefone_zapi = f"55{numero}" if not str(numero).startswith("55") else str(numero)
+            
+            # 🔧 Normaliza para formato do banco (DDD + 9 + número = 11 dígitos, sem 55)
+            telefone_db = normalizar_para_recebimento(telefone_zapi)
 
-            # ✅ Só salva conversa quando Z-API confirmar envio
-            def _on_success(payload):
-                try:
-                    salvar_conversa(
-                        telefone_normalizado,
-                        mensagem,
-                        tipo="enviada",
-                        sid=None,
-                        origem="integra+"
-                    )
-                except Exception as e:
-                    logging.error(f"❌ Erro ao salvar_conversa (manual) tel={telefone_normalizado}: {e}")
+            # ✅ Meta com tipo="manual" para gatilho no worker
+            meta = {
+                "origem": "integra+",
+                "tipo": "manual",
+                "visitante_id": visitante_id,
+                "telefone_raw": telefone_db,  # Formato do banco para busca
+                "telefone_zapi": telefone_zapi  # Formato para envio
+            }
 
-                # status só após envio real
-                try:
-                    atualizar_status(telefone_normalizado, "INICIO")
-                except Exception as e:
-                    logging.warning(f"⚠️ Falha ao atualizar status (manual): {e}")
-
-            def _on_fail(payload):
-                code = payload.get("status_code") or 0
-                err = (payload.get("erro") or "").replace("\n", " ")[:200]
-                logging.error(f"❌ Envio manual falhou | tel={telefone_normalizado} | code={code} | err={err}")
-
-                # opcional: marcar fase de falha
-                try:
-                    atualizar_status(telefone_normalizado, "FALHA_ENVIO")
-                except Exception:
-                    pass
-
+            # 📤 Enfileira SEM callbacks críticos (lógica vai para o worker persistente)
             ok_fila = adicionar_na_fila(
-                telefone_normalizado,
+                telefone_zapi,  # Número no formato Z-API
                 mensagem,
                 imagem_url=imagem_url,
-                on_success=_on_success,
-                on_fail=_on_fail,
-                meta={"origem": "integra+", "tipo": "manual", "visitante_id": visitante_id,"telefone_raw": telefone_normalizado}
+                # on_success e on_fail REMOVIDOS para status crítico
+                meta=meta
             )
 
             if not ok_fila:
                 return jsonify({"success": False, "error": "Falha ao enfileirar mensagem"}), 500
 
+            logging.info(f"✅ Mensagem manual enfileirada | tel_db={telefone_db} | tel_zapi={telefone_zapi}")
+            
             return jsonify({
                 "success": True,
-                "message": "Mensagem enfileirada. Será registrada como enviada após confirmação."
+                "message": "Mensagem enfileirada. Status será atualizado após confirmação."
             }), 200
 
         except Exception as e:
