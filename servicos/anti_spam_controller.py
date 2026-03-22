@@ -68,59 +68,58 @@ class AntiSpamController:
         return datetime.now().date().isoformat()
 
     def _fetch_limits(self) -> dict:
-        """
-        Busca dados de rate limit do banco (com cache em memória).
-        
-        Returns:
-            dict com contadores e status do rate limiting
-        """
-        now = time.time()
-        
-        # Retorna do cache se válido (evita queries excessivas)
-        if now - self._cache_ts < self._cache_ttl:
-            return self._cache.copy()
+    """
+    Busca dados de rate limit do banco (com cache em memória).
+    ✅ Corrigido: usa cursor() sem argumentos (PyMySQL já retorna dict)
+    """
+    now = time.time()
+    
+    # Retorna do cache se válido (evita queries excessivas)
+    if now - self._cache_ts < self._cache_ttl:
+        return self._cache.copy()
 
-        try:
-            with closing(get_db_connection()) as conn:
-                if not conn:
-                    log.warning("⚠️ Sem conexão com DB para rate limits")
-                    return self._default_limits()
-                    
-                cur = conn.cursor(dictionary=True)
-                today = self._get_today_key()
+    try:
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                log.warning("⚠️ Sem conexão com DB para rate limits")
+                return self._default_limits()
                 
-                # Garante que existe registro para hoje (upsert)
-                cur.execute("""
-                    INSERT INTO fila_rate_limit (instance_id, date)
-                    VALUES (%s, %s)
-                    ON DUPLICATE KEY UPDATE updated_at=NOW()
-                """, (self.instance_id, today))
-                conn.commit()
-                
-                # Busca os dados atuais
-                cur.execute("""
-                    SELECT total_sent, total_failed, messages_in_current_batch,
-                           last_batch_pause_at, current_error_rate, slowdown_active
-                    FROM fila_rate_limit
-                    WHERE instance_id=%s AND date=%s
-                """, (self.instance_id, today))
-                
-                row = cur.fetchone() or {}
-                
-                self._cache = {
-                    "total_sent": int(row.get("total_sent") or 0),
-                    "total_failed": int(row.get("total_failed") or 0),
-                    "messages_in_batch": int(row.get("messages_in_current_batch") or 0),
-                    "last_batch_pause": row.get("last_batch_pause_at"),
-                    "error_rate": float(row.get("current_error_rate") or 0),
-                    "slowdown_active": bool(row.get("slowdown_active") or False),
-                }
-                self._cache_ts = now
-                return self._cache.copy()
-                
-        except Exception as e:
-            log.error(f"❌ Erro ao buscar rate limits: {e}")
-            return self._default_limits()
+            # ✅ PyMySQL: cursor() já retorna DictCursor (configurado na conexão)
+            cur = conn.cursor()
+            today = self._get_today_key()
+            
+            # Garante que existe registro para hoje (upsert)
+            cur.execute("""
+                INSERT INTO fila_rate_limit (instance_id, date)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE updated_at=NOW()
+            """, (self.instance_id, today))
+            conn.commit()
+            
+            # Busca os dados atuais
+            cur.execute("""
+                SELECT total_sent, total_failed, messages_in_current_batch,
+                       last_batch_pause_at, current_error_rate, slowdown_active
+                FROM fila_rate_limit
+                WHERE instance_id=%s AND date=%s
+            """, (self.instance_id, today))
+            
+            row = cur.fetchone() or {}
+            
+            self._cache = {
+                "total_sent": int(row.get("total_sent") or 0),
+                "total_failed": int(row.get("total_failed") or 0),
+                "messages_in_batch": int(row.get("messages_in_current_batch") or 0),
+                "last_batch_pause": row.get("last_batch_pause_at"),
+                "error_rate": float(row.get("current_error_rate") or 0),
+                "slowdown_active": bool(row.get("slowdown_active") or False),
+            }
+            self._cache_ts = now
+            return self._cache.copy()
+            
+    except Exception as e:
+        log.error(f"❌ Erro ao buscar rate limits: {e}")
+        return self._default_limits()
 
     def _default_limits(self) -> dict:
         """Retorna valores padrão em caso de erro no banco."""
