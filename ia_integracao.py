@@ -1,18 +1,19 @@
-# ia_integracao.py - Integração real com banco de dados (OTIMIZADA)
+# ia_integracao.py - Integração real com banco de dados (CORRIGIDA)
 import logging
 import re
 import unicodedata
 from datetime import datetime
 from functools import lru_cache
 from contextlib import closing
-from database import get_db_connection, normalizar_texto
+from database import get_db_connection
+from utilitarios.texto import normalizar_texto  # ✅ Import correto
 
 log = logging.getLogger(__name__)
 
 class IAIntegracao:
     def __init__(self, cache_size: int = 256):
         self.cache_size = cache_size
-        # Cache LRU para respostas frequentes (thread-safe por padrão no Python 3.2+)
+        # Cache LRU para respostas frequentes
         self._cached_responder = lru_cache(maxsize=cache_size)(self._responder_sem_cache)
 
     def responder_pergunta(self, pergunta_usuario: str = '', contexto: dict = None) -> tuple[str, float]:
@@ -31,7 +32,6 @@ class IAIntegracao:
             return self._cached_responder(pergunta_normalizada)
         except Exception as e:
             log.error(f"❌ Erro no cache da IA: {e}")
-            # Fallback sem cache em caso de erro
             return self._responder_sem_cache(pergunta_normalizada)
 
     def _normalizar_para_busca(self, texto: str) -> str:
@@ -43,11 +43,21 @@ class IAIntegracao:
         texto = unicodedata.normalize('NFKD', texto)
         texto = ''.join(c for c in texto if not unicodedata.combining(c))
         
-        # Lowercase e extrai apenas palavras (remove pontuação)
+        # Lowercase e extrai apenas palavras
         tokens = re.findall(r'\b[a-zà-ú0-9]+\b', texto.lower())
         
-        # Remove stopwords comuns em português (opcional, pode ajustar)
-        stopwords = {'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'da', 'do', 'das', 'dos', 'em', 'no', 'na', 'nos', 'nas', 'por', 'para', 'com', 'sem', 'sob', 'sobre', 'que', 'qual', 'quais', 'quem', 'como', 'quando', 'onde', 'por que', 'porque', 'entao', 'mas', 'e', 'ou', 'se', 'nao', 'não', 'sim', 'ja', 'já', 'ainda', 'tambem', 'também', 'so', 'só', 'somente', 'apenas', 'mais', 'menos', 'muito', 'pouco', 'tudo', 'nada', 'algo', 'alguem', 'ninguem', 'todo', 'toda', 'todos', 'todas', 'este', 'esta', 'estes', 'estas', 'esse', 'essa', 'esses', 'essas', 'aquele', 'aquela', 'aqueles', 'aquelas', 'isto', 'isso', 'aquilo'}
+        # Remove stopwords comuns em português
+        stopwords = {
+            'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'da', 'do', 
+            'das', 'dos', 'em', 'no', 'na', 'nos', 'nas', 'por', 'para', 'com', 
+            'sem', 'sob', 'sobre', 'que', 'qual', 'quais', 'quem', 'como', 
+            'quando', 'onde', 'por que', 'porque', 'entao', 'mas', 'e', 'ou', 
+            'se', 'nao', 'não', 'sim', 'ja', 'já', 'ainda', 'tambem', 'também', 
+            'so', 'só', 'somente', 'apenas', 'mais', 'menos', 'muito', 'pouco', 
+            'tudo', 'nada', 'algo', 'alguem', 'ninguem', 'todo', 'toda', 'todos', 
+            'todas', 'este', 'esta', 'estes', 'estas', 'esse', 'essa', 'esses', 
+            'essas', 'aquele', 'aquela', 'aqueles', 'aquelas', 'isto', 'isso', 'aquilo'
+        }
         tokens = [t for t in tokens if t not in stopwords]
         
         # Junta tokens únicos (ordem não importa para busca)
@@ -56,7 +66,6 @@ class IAIntegracao:
     def _responder_sem_cache(self, pergunta_normalizada: str) -> tuple[str, float]:
         """
         Lógica real de busca no banco (sem cache).
-        Chamada internamente ou quando cache falha.
         """
         try:
             with closing(get_db_connection()) as conn:
@@ -65,13 +74,11 @@ class IAIntegracao:
                 
                 cursor = conn.cursor()
                 
-                # 🔍 ESTRATÉGIA 1: Match exato ou muito próximo (alta confiança)
-                # Busca por pergunta exata ou contendo todos os tokens principais
+                # 🔍 ESTRATÉGIA 1: Match por tokens (AND lógico)
                 tokens = pergunta_normalizada.split()
                 if len(tokens) >= 2:
-                    # Constrói query com todos os tokens (AND lógico)
                     like_conditions = ' AND '.join(['question LIKE %s'] * len(tokens))
-                    params = [f'%{t}%' for t in tokens] + [pergunta_normalizada]  # +1 para ORDER BY
+                    params = [f'%{t}%' for t in tokens]
                     
                     # Prioriza knowledge_base (respostas oficiais)
                     cursor.execute(f"""
@@ -86,7 +93,7 @@ class IAIntegracao:
                         LIMIT 1
                     """, params)
                 else:
-                    # Fallback para perguntas curtas: busca por substring
+                    # Fallback para perguntas curtas
                     cursor.execute("""
                         SELECT answer, 'kb' as fonte FROM knowledge_base
                         WHERE question LIKE %s
@@ -107,7 +114,7 @@ class IAIntegracao:
                     log.debug(f"✅ IA: resposta encontrada (fonte={fonte}, conf={confidence})")
                     return resposta, confidence
                 
-                # 🔍 ESTRATÉGIA 2: Busca por categoria (se a pergunta mencionar uma)
+                # 🔍 ESTRATÉGIA 2: Busca por categoria
                 categorias_conhecidas = ['horarios', 'culto', 'batismo', 'membro', 'oracao', 'grupo', 'whatsapp', 'discipulado', 'novo come', 'pastor', 'lider', 'evento']
                 for cat in categorias_conhecidas:
                     if cat in pergunta_normalizada:
@@ -128,9 +135,9 @@ class IAIntegracao:
                         INSERT INTO unknown_questions (user_id, question, status, created_at)
                         VALUES (%s, %s, %s, NOW())
                         ON DUPLICATE KEY UPDATE status = VALUES(status), updated_at = NOW()
-                    """, ("whatsapp", pergunta_usuario, "pending"))
+                    """, ("whatsapp", pergunta_normalizada, "pending"))
                     conn.commit()
-                    log.info(f"📝 Pergunta registrada para treino: '{pergunta_usuario[:60]}...'")
+                    log.info(f"📝 Pergunta registrada para treino: '{pergunta_normalizada[:60]}...'")
                 except Exception as e:
                     log.warning(f"⚠️ Não foi possível registrar pergunta pendente: {e}")
                 
@@ -145,12 +152,12 @@ class IAIntegracao:
         return "Ainda não tenho essa resposta, mas já registrei sua pergunta para nosso time. 🙏"
 
     def limpar_cache(self):
-        """Limpa o cache LRU (útil para deploy de novas respostas)."""
+        """Limpa o cache LRU."""
         self._cached_responder.cache_clear()
         log.info("🔄 Cache da IA limpo")
 
     def get_cache_stats(self) -> dict:
-        """Retorna estatísticas do cache para monitoramento."""
+        """Retorna estatísticas do cache."""
         cache_info = self._cached_responder.cache_info()
         return {
             "hits": cache_info.hits,
@@ -162,10 +169,9 @@ class IAIntegracao:
 
 
 # =======================
-# Funções auxiliares (compatibilidade com código legado)
+# Funções auxiliares (compatibilidade)
 # =======================
 
-# Instância global singleton (evita recriar cache a cada chamada)
 _ia_instance = None
 
 def _get_ia_instance() -> IAIntegracao:
@@ -175,17 +181,14 @@ def _get_ia_instance() -> IAIntegracao:
     return _ia_instance
 
 def gerar_resposta(prompt: str, contexto: dict = None) -> dict:
-    """Compatível com código legado: retorna dict com texto e meta."""
     ia = _get_ia_instance()
     texto, conf = ia.responder_pergunta(prompt, contexto)
     return {'texto': texto, 'meta': {'confidence': conf}}
 
 def consulta_ia(prompt: str, *args, **kwargs) -> dict:
-    """Alias para gerar_resposta (compatibilidade)."""
     return gerar_resposta(prompt, *args, **kwargs)
 
 def call_ai(prompt: str, *args, **kwargs) -> dict:
-    """Alias para gerar_resposta (compatibilidade)."""
     return gerar_resposta(prompt, *args, **kwargs)
 
 # Flag de compatibilidade
@@ -193,13 +196,11 @@ IS_MOCK = False
 
 
 # =======================
-# Utilitários para admin (opcional)
+# Utilitários para admin
 # =======================
 
 def recarregar_cache_ia():
-    """Chamada manual para limpar cache após novo treinamento."""
     _get_ia_instance().limpar_cache()
 
 def obter_stats_ia() -> dict:
-    """Retorna stats da IA para dashboard admin."""
     return _get_ia_instance().get_cache_stats()
