@@ -1,8 +1,9 @@
 # ==============================================
-# servicos/fila_mensagens.py  (VERSÃO DB QUEUE + ANTI-SPAM)
+# servicos/fila_mensagens.py  (VERSÃO DB QUEUE + ANTI-SPAM + IS_REPLY)
 # ==============================================
 # 📨 Fila unificada de envio de mensagens Z-API
 # Persistida no MySQL + Proteções anti-spam
+# Suporta is_reply para respostas conversacionais
 # Usada pelo bot e pelas campanhas (envio sequencial)
 # ==============================================
 
@@ -235,20 +236,30 @@ def _db_reequeue_item(envio_id: int, scheduled_for: datetime) -> bool:
 
 
 # =========================
-# 🛡️ Anti-Spam: Verificação e Delay
+# 🛡️ Anti-Spam: Verificação e Delay (com is_reply)
 # =========================
 
-def _check_anti_spam_and_sleep(envio_id: int, numero: str) -> Tuple[bool, str]:
+def _check_anti_spam_and_sleep(envio_id: int, numero: str, meta: Dict[str, Any]) -> Tuple[bool, str]:
     """
     Verifica anti-spam antes do envio.
-    Retorna: (pode_enviar, motivo)
-    Se não puder e for reequeue, re-agenda o item e retorna False.
+    
+    Args:
+        envio_id: ID do envio na fila
+        numero: Número do destinatário
+        meta: Metadados do envio (contém is_reply)
+    
+    Returns:
+        Tuple[bool, str]: (pode_enviar, motivo)
+        Se não puder e for reequeue, re-agenda o item e retorna False.
     """
     global _anti_spam
     if not _anti_spam:
         return True, "ok"  # Fallback se controller não estiver inicializado
 
-    can_send, reason = _anti_spam.can_send_now()
+    # Extrai is_reply do meta (padrão: False para compatibilidade)
+    is_reply = meta.get("is_reply", False)
+    
+    can_send, reason = _anti_spam.can_send_now(is_reply=is_reply)
     
     if not can_send:
         if reason.startswith("reequeue:"):
@@ -262,27 +273,28 @@ def _check_anti_spam_and_sleep(envio_id: int, numero: str) -> Tuple[bool, str]:
             except Exception as e:
                 log.error(f"❌ Falha ao re-agendar envio_id={envio_id}: {e}")
         else:
-            log.info(f"⏸️ Aguardando anti-spam: {reason} | envio_id={envio_id}")
+            log.info(f"⏸️ Aguardando anti-spam: {reason} | envio_id={envio_id} | reply={is_reply}")
             time.sleep(5)  # Pequena pausa antes de reavaliar
     
     return can_send, reason
 
 
 # =========================
-# 🐛 Debug: Status "INICIO"
+# 🐛 Debug: Status "INICIO" (CORRIGIDO para PyMySQL)
 # =========================
 
 def _debug_status_update(meta: Dict[str, Any], telefone_db: str, origem: str, etapa: str):
     """
     Log de debug para investigar falha no update do status.
-    Chame antes e depois de atualizar_status para comparar.
+    ✅ Corrigido: usa cursor() sem dictionary=True (compatível com PyMySQL)
     """
     try:
         with closing(get_db_connection()) as conn:
             if not conn:
                 log.warning(f"🐛 DEBUG[{etapa}] Sem conexão DB para verificar status")
                 return
-            cur = conn.cursor(dictionary=True)
+            # ✅ PyMySQL: cursor() já retorna DictCursor (configurado na conexão)
+            cur = conn.cursor()
             # Tenta buscar por telefone normalizado (11 dígitos)
             cur.execute("SELECT id, telefone, status FROM visitantes WHERE telefone = %s LIMIT 1", (telefone_db,))
             row = cur.fetchone()
@@ -440,8 +452,8 @@ def _processar_fila_worker():
                 log.warning(f"⚠️ envio_id={envio_id} número inválido. status={novo_status}")
                 continue
 
-            # 🛡️ VERIFICAÇÃO ANTI-SPAM ANTES DO ENVIO
-            pode_enviar, motivo = _check_anti_spam_and_sleep(envio_id, numero)
+            # 🛡️ VERIFICAÇÃO ANTI-SPAM ANTES DO ENVIO (com is_reply)
+            pode_enviar, motivo = _check_anti_spam_and_sleep(envio_id, numero, meta)
             if not pode_enviar:
                 if motivo.startswith("reequeued:"):
                     continue  # Item re-agendado, pula para próximo
@@ -463,9 +475,10 @@ def _processar_fila_worker():
                 last_code = 0
                 last_res = None
 
-            # 🛡️ REGISTRA RESULTADO NO CONTROLLER ANTI-SPAM
+            # 🛡️ REGISTRA RESULTADO NO CONTROLLER ANTI-SPAM (com is_reply)
             if _anti_spam:
-                _anti_spam.register_send(ok)
+                is_reply = meta.get("is_reply", False)
+                _anti_spam.register_send(ok, is_reply=is_reply)
 
             msg_preview = (mensagem or "").replace("\n", " ")[:60]
             err_preview = (last_err or "").replace("\n", " ")[:180]
@@ -501,10 +514,11 @@ def _processar_fila_worker():
                     log.error(f"❌ Falha final → envio_id={envio_id} | {numero_envio} | code={last_code} | err={err_preview}")
                     _safe_call(on_fail, payload)
 
-            # 🛡️ DELAY ALEATÓRIO PÓS-ENVIO (anti-spam)
-            if _anti_spam and ok:
-                delay = _anti_spam.get_next_delay()
-                log.debug(f"😴 Delay anti-spam: {delay:.1f}s")
+            # 🛡️ DELAY ALEATÓRIO PÓS-ENVIO (anti-spam com is_reply)
+            if _anti_spam:
+                is_reply = meta.get("is_reply", False)
+                delay = _anti_spam.get_next_delay(is_reply=is_reply)
+                log.debug(f"😴 Delay aplicado: {delay:.1f}s (reply={is_reply})")
                 time.sleep(delay)
             else:
                 time.sleep(ENVIO_INTERVALO_SEG)
@@ -541,6 +555,14 @@ def adicionar_na_fila(
 ) -> bool:
     """
     Adiciona mensagem na fila (MySQL) e garante que existe um worker rodando.
+    
+    Args:
+        numero: Número do destinatário (formato Z-API: 55+DDD+número)
+        mensagem: Texto da mensagem
+        imagem_url: URL da imagem (opcional)
+        on_success: Callback para sucesso (não persiste em DB Queue)
+        on_fail: Callback para falha (não persiste em DB Queue)
+        meta: Metadados do envio (ex: {"tipo": "manual", "is_reply": True})
     """
     try:
         if meta is None:
@@ -581,7 +603,8 @@ def get_queue_anti_spam_stats() -> dict:
     try:
         with closing(get_db_connection()) as conn:
             if conn:
-                cur = conn.cursor(dictionary=True)
+                # ✅ PyMySQL: cursor() já retorna DictCursor
+                cur = conn.cursor()
                 cur.execute("""
                     SELECT 
                         COUNT(CASE WHEN status='pendente' THEN 1 END) as pending,
