@@ -156,6 +156,50 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": estado_atual.name}
 
+    # ========== Intenção: falar com os pastores / secretaria / agendar visita ==========
+    def detectar_intencao_falar_pastores(texto: str) -> bool:
+        """
+        Detecta se o visitante quer entrar em contato direto com os pastores ou secretaria.
+        """
+        texto = texto.lower().strip()
+        
+        padroes = [
+            r"falar (com|para) (os )?pastor(es)?",
+            r"falar (com|para) (a )?secretaria",
+            r"contato (com|dos )?pastor(es)?",
+            r"contato (com|da )?secretaria",
+            r"ligar (para|pros )?pastor(es)?",
+            r"ligar (para|pra )?secretaria",
+            r"whatsapp (dos )?pastor(es)?",
+            r"whatsapp (da )?secretaria",
+            r"agenda (com|dos )?pastor(es)?",
+            r"marcar (com|uma visita com )?pastor",
+            r"visita pastoral",
+            r"visita dos pastores",
+            r"como falo com os pastores",
+            r"como entro em contato com os pastores",
+            r"numero (dos )?pastor(es)?",
+            r"telefone (dos )?pastor(es)?",
+        ]
+        
+        return any(re.search(p, texto) for p in padroes)
+
+    if detectar_intencao_falar_pastores(texto_normalizado):
+        resposta = (
+            "Para falar diretamente com nossos pastores ou agendar uma visita pastoral, "
+            "entre em contato com nossa secretaria:\n\n"
+            "📞 *(48) 99828-4104*\n"
+            "👤 *Secretário Presbítero Wilson Martins*\n\n"
+            "Estaremos felizes em atendê-lo! 🙏"
+        )
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": estado_atual.name
+        }
+
     # ========== Fluxo normal ==========
     if proximo_estado:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
