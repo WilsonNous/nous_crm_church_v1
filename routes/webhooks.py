@@ -25,7 +25,6 @@ def register(app):
             logging.error(f"❌ Erro no webhook TWILIO: {e}", exc_info=True)
             return jsonify({"error": "Erro ao processar webhook Twilio"}), 500
 
-
     # --- Webhook Z-API ---
     @app.route('/api/webhook-zapi', methods=['POST'])
     def webhook_zapi():
@@ -74,17 +73,30 @@ def register(app):
                 logging.info("🛑 Ignorado: mensagem enviada pelo próprio bot (fromMe=True).")
                 return jsonify({"status": "ignored", "reason": "sent_by_bot"}), 200
 
+            # ✅ NOVO: Verifica se SID já foi processado (evita loop/duplicação)
+            from database import verificar_sid_existente
+            if message_sid and message_sid != "?" and verificar_sid_existente(message_sid):
+                logging.info(f"🔁 Mensagem com SID={message_sid} já processada. Ignorando.")
+                return jsonify({"status": "ignored", "reason": "duplicate_sid"}), 200
+
             # Normaliza e processa
             from_number_normalizado = normalizar_para_recebimento(from_number)
-            processar_mensagem(from_number_normalizado, message_body, message_sid, origem=origem)
+            
+            # ✅ NOVO: Passa flag is_webhook_reply=True para o bot saber que é resposta conversacional
+            processar_mensagem(
+                from_number_normalizado, 
+                message_body, 
+                message_sid, 
+                origem=origem,
+                is_webhook_reply=True  # ← NOVO PARÂMETRO
+            )
 
             return jsonify({"status": "success", "origem": origem}), 200
 
         except Exception as e:
             logging.error(f"❌ Erro no webhook Z-API: {e}", exc_info=True)
             return jsonify({"error": "Erro ao processar webhook Z-API"}), 500
-
-
+    
     # --- Fallback para endpoint da IA ---
     @app.route('/api/ia/pending-questions', methods=['GET'])
     def pending_questions():
