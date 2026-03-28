@@ -154,10 +154,12 @@ def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
                 return []
             cur = conn.cursor()
             conn.begin()
+            # ✅ FILTRAR mensagens agendadas para o futuro (evita loop de re-agendamento)
             cur.execute("""
                 SELECT id, numero, mensagem, imagem_url, tentativas, meta_json
                 FROM fila_envios
                 WHERE status = 'pendente'
+                AND (scheduled_for IS NULL OR scheduled_for <= NOW())
                 ORDER BY created_at ASC
                 LIMIT %s
                 FOR UPDATE
@@ -280,40 +282,6 @@ def _check_anti_spam_and_sleep(envio_id: int, numero: str, meta: Dict[str, Any])
 
 
 # =========================
-# 🐛 Debug: Status "INICIO" (CORRIGIDO para PyMySQL)
-# =========================
-
-def _debug_status_update(meta: Dict[str, Any], telefone_db: str, origem: str, etapa: str):
-    """
-    Log de debug para investigar falha no update do status.
-    ✅ Corrigido: usa cursor() sem dictionary=True (compatível com PyMySQL)
-    """
-    try:
-        with closing(get_db_connection()) as conn:
-            if not conn:
-                log.warning(f"🐛 DEBUG[{etapa}] Sem conexão DB para verificar status")
-                return
-            # ✅ PyMySQL: cursor() já retorna DictCursor (configurado na conexão)
-            cur = conn.cursor()
-            # Tenta buscar por telefone normalizado (11 dígitos)
-            cur.execute("SELECT id, telefone, status FROM visitantes WHERE telefone = %s LIMIT 1", (telefone_db,))
-            row = cur.fetchone()
-            if row:
-                log.info(f"🐛 DEBUG[{etapa}] visitante encontrado | id={row['id']} | tel={row['telefone']} | status_atual='{row['status']}'")
-            else:
-                # Tenta com 55+telefone
-                tel_com_55 = "55" + telefone_db if not telefone_db.startswith("55") else telefone_db
-                cur.execute("SELECT id, telefone, status FROM visitantes WHERE telefone = %s LIMIT 1", (tel_com_55,))
-                row2 = cur.fetchone()
-                if row2:
-                    log.info(f"🐛 DEBUG[{etapa}] visitante encontrado (com 55) | id={row2['id']} | tel={row2['telefone']} | status_atual='{row2['status']}'")
-                else:
-                    log.warning(f"🐛 DEBUG[{etapa}] ❌ visitante NÃO encontrado para tel={telefone_db} ou {tel_com_55}")
-    except Exception as e:
-        log.error(f"🐛 DEBUG[{etapa}] Erro ao verificar status: {e}")
-
-
-# =========================
 # Pós-envio: campanha (confirma no CRM)
 # =========================
 
@@ -336,9 +304,6 @@ def _pos_envio_sucesso(meta: Dict[str, Any], mensagem: str, numero_envio: str) -
         if tipo == "manual":
             log.info(f"🎯 Pós-envio manual | tel_db={telefone_db} | origem={origem}")
             
-            # 🐛 DEBUG: Verifica status ANTES da atualização
-            _debug_status_update(meta, telefone_db, origem, "ANTES_atualizar_status")
-            
             # salva conversa
             try:
                 salvar_conversa(
@@ -357,9 +322,6 @@ def _pos_envio_sucesso(meta: Dict[str, Any], mensagem: str, numero_envio: str) -
                 log.info(f"🔄 Chamando database.atualizar_status('{telefone_db}', 'INICIO', origem='{origem}')")
                 resultado = database.atualizar_status(telefone_db, "INICIO", origem=origem)
                 log.info(f"✅ atualizar_status retornou: {resultado}")
-                
-                # 🐛 DEBUG: Verifica status DEPOIS da atualização
-                _debug_status_update(meta, telefone_db, origem, "DEPOIS_atualizar_status")
                 
             except Exception as e:
                 log.error(f"❌ atualizar_status(INICIO) manual falhou tel={telefone_db}: {e}", exc_info=True)
