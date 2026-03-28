@@ -3,11 +3,17 @@ import logging
 from servicos.processamento_mensagens import processar_mensagem
 from database import normalizar_para_recebimento, verificar_sid_existente
 
-def tratar_mensagem_webhook(dados: dict, origem="integra+"):
+def tratar_mensagem_webhook(dados: dict, origem="integra+", is_webhook_reply: bool = True):
     """
     Função de entrada chamada pelas rotas (/api/webhook-zapi, etc).
     Valida dados recebidos, normaliza número, evita duplicidades
     e aciona o processador central.
+    
+    Args:
+        dados: Dict com dados do webhook Z-API/Twilio
+        origem: Origem da mensagem (padrão: "integra+")
+        is_webhook_reply: Se True, marca respostas do bot como conversacionais (is_reply=True)
+                         Padrão: True para webhooks, False para outros cenários
     """
     try:
         # Extrai informações principais
@@ -37,10 +43,16 @@ def tratar_mensagem_webhook(dados: dict, origem="integra+"):
             logging.debug(f"🟡 Ignorado: mensagem {message_sid} já registrada.")
             return {"status": "duplicada", "resposta": None}
 
-        logging.info(f"📥 Mensagem recebida | Origem={origem} | Número={numero_normalizado} | Texto={texto}")
+        logging.info(f"📥 Mensagem recebida | Origem={origem} | Número={numero_normalizado} | Texto={texto[:80]}... | is_webhook_reply={is_webhook_reply}")
 
-        # Chama o processador principal
-        resposta = processar_mensagem(numero_normalizado, texto, message_sid, origem=origem)
+        # Chama o processador principal passando is_webhook_reply
+        resposta = processar_mensagem(
+            numero_normalizado, 
+            texto, 
+            message_sid, 
+            origem=origem,
+            is_webhook_reply=is_webhook_reply  # ← NOVO: passa flag para respostas conversacionais
+        )
 
         return {"status": "ok", "resposta": resposta}
 
