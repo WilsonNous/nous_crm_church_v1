@@ -1,7 +1,7 @@
 import logging
 from flask import request, jsonify
-from botmsg import processar_mensagem
-from database import normalizar_para_recebimento
+from botmsg import tratar_mensagem_webhook
+from database import normalizar_para_recebimento, verificar_sid_existente
 from constantes import DEBUG
 
 def register(app):
@@ -16,10 +16,16 @@ def register(app):
             message_sid = data.get('MessageSid', '') or data.get('sid', '')
             origem = data.get('origem') or request.args.get('origem', 'integra+')
 
-            logging.info(f"📥 Webhook TWILIO | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body}")
+            logging.info(f"📥 Webhook TWILIO | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body[:80]}...")
 
-            processar_mensagem(from_number, message_body, message_sid, origem=origem)
-            return jsonify({"status": "success", "origem": origem}), 200
+            # ✅ Processa como resposta conversacional (is_webhook_reply=True)
+            resultado = tratar_mensagem_webhook(
+                dados=data,
+                origem=origem,
+                is_webhook_reply=True  # ← Marca como resposta conversacional
+            )
+            
+            return jsonify({"status": resultado["status"], "origem": origem}), 200
 
         except Exception as e:
             logging.error(f"❌ Erro no webhook TWILIO: {e}", exc_info=True)
@@ -73,25 +79,22 @@ def register(app):
                 logging.info("🛑 Ignorado: mensagem enviada pelo próprio bot (fromMe=True).")
                 return jsonify({"status": "ignored", "reason": "sent_by_bot"}), 200
 
-            # ✅ NOVO: Verifica se SID já foi processado (evita loop/duplicação)
-            from database import verificar_sid_existente
+            # ✅ Verifica se SID já foi processado (evita loop/duplicação)
             if message_sid and message_sid != "?" and verificar_sid_existente(message_sid):
                 logging.info(f"🔁 Mensagem com SID={message_sid} já processada. Ignorando.")
                 return jsonify({"status": "ignored", "reason": "duplicate_sid"}), 200
 
-            # Normaliza e processa
+            # Normaliza o número
             from_number_normalizado = normalizar_para_recebimento(from_number)
             
-            # ✅ NOVO: Passa flag is_webhook_reply=True para o bot saber que é resposta conversacional
-            processar_mensagem(
-                from_number_normalizado, 
-                message_body, 
-                message_sid, 
+            # ✅ Processa como resposta conversacional (is_webhook_reply=True)
+            resultado = tratar_mensagem_webhook(
+                dados=data,
                 origem=origem,
-                is_webhook_reply=True  # ← NOVO PARÂMETRO
+                is_webhook_reply=True  # ← Marca como resposta conversacional
             )
 
-            return jsonify({"status": "success", "origem": origem}), 200
+            return jsonify({"status": resultado["status"], "origem": origem}), 200
 
         except Exception as e:
             logging.error(f"❌ Erro no webhook Z-API: {e}", exc_info=True)
