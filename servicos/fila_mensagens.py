@@ -242,13 +242,12 @@ def _pode_enviar_proativo(numero: str) -> bool:
             cur = conn.cursor()
             
             # 🔍 Verifica bloqueios/denúncias recentes (30 dias)
-            # ✅ CORREÇÃO: Pré-formatar wildcards no Python, não na query
-            # Usa %s simples com valores já contendo %pare%, %bloque%, etc.
+            # ✅ CORREÇÃO: Usar 'numero' (não 'telefone') como nome da coluna na tabela conversas
             patterns = ['%pare%', '%bloque%', '%spam%', '%denuncia%']
             cur.execute("""
                 SELECT COUNT(*) as bloqueios 
                 FROM conversas 
-                WHERE telefone = %s 
+                WHERE numero = %s 
                 AND (
                     tipo = 'bloqueado' 
                     OR mensagem LIKE %s 
@@ -265,10 +264,11 @@ def _pode_enviar_proativo(numero: str) -> bool:
                 return False
             
             # 🔍 Verifica engajamento recente (7 dias)
+            # ✅ CORREÇÃO: Usar 'numero' (não 'telefone') como nome da coluna
             cur.execute("""
                 SELECT COUNT(*) as interacoes 
                 FROM conversas 
-                WHERE telefone = %s 
+                WHERE numero = %s 
                 AND tipo = 'recebida'
                 AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
             """, (numero,))
