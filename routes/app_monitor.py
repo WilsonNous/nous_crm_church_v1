@@ -1,11 +1,12 @@
 import logging
 import os
+import requests  # ✅ Usar requests diretamente para status Z-API
 from flask import Blueprint, render_template, jsonify, request
 from datetime import datetime, timedelta
 from contextlib import closing
 from database import get_db_connection
 from servicos.fila_mensagens import get_queue_anti_spam_stats
-from servicos.zapi_cliente import ZAPIClient  # Para status real do WhatsApp
+# ❌ REMOVIDO: from servicos.zapi_cliente import ZAPIClient  # Não existe!
 
 monitor_bp = Blueprint("app_monitor_bp", __name__)
 
@@ -28,7 +29,7 @@ def monitor_page():
 def monitor_visitantes():
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()   # DictCursor já é aplicado automaticamente
+        cursor = conn.cursor()
 
         cursor.execute("""
             SELECT id, nome, telefone
@@ -36,7 +37,7 @@ def monitor_visitantes():
             ORDER BY nome ASC
         """)
 
-        visitantes = cursor.fetchall()  # já devolve dicionários ❤️
+        visitantes = cursor.fetchall()
 
         cursor.close()
         conn.close()
@@ -54,7 +55,7 @@ def monitor_visitantes():
 def monitor_conversas_visitante(visitante_id):
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()  # DictCursor
+        cursor = conn.cursor()
 
         cursor.execute("""
             SELECT 
@@ -74,7 +75,7 @@ def monitor_conversas_visitante(visitante_id):
             ORDER BY c.data_hora ASC
         """, (visitante_id,))
 
-        conversas = cursor.fetchall()  # já vem como dict ❤️
+        conversas = cursor.fetchall()
 
         cursor.close()
         conn.close()
@@ -281,7 +282,7 @@ def fila_consent_stats():
 
 
 # ==========================================================
-# 🆕 NOVO: Status Real do WhatsApp (Z-API)
+# 🆕 NOVO: Status Real do WhatsApp (Z-API) via requests
 # ==========================================================
 
 @monitor_bp.route('/api/whatsapp/status', methods=['GET'])
@@ -289,6 +290,8 @@ def whatsapp_status():
     """
     Retorna status real da instância Z-API para o frontend.
     Usado pelo painel /app/whatsapp para mostrar 🟢 Conectado / 🔌 Desconectado
+    
+    ✅ Usa requests diretamente (não depende de ZAPIClient inexistente)
     """
     try:
         # Lê config do .env
@@ -304,9 +307,7 @@ def whatsapp_status():
                 "message": "🔌 Desconectado"
             }), 200
         
-        # Consulta status via Z-API
-        # Nota: Implementar método get_status() em zapi_cliente.py se não existir
-        import requests
+        # Consulta status via Z-API usando requests direto
         url = f"{base_url}/{instance_id}/status"
         headers = {
             "x-client-token": client_token,
