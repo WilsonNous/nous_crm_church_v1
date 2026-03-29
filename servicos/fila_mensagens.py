@@ -6,7 +6,8 @@
 # Suporta is_reply para respostas conversacionais
 # Otimizado para recuperação de reputação WhatsApp
 # ✅ Timezone-aware: respeita horário do Brasil (BRT/UTC-3)
-# ✅ CORREÇÃO: LIKE com %%%s%% para evitar conflito PyMySQL
+# ✅ CORREÇÃO: LIKE com patterns pré-formatados no Python
+# ✅ CONFIG: Variáveis mapeadas do .env (Render v4)
 # ==============================================
 
 import os
@@ -28,18 +29,41 @@ from servicos.anti_spam_controller import AntiSpamController
 log = logging.getLogger(__name__)
 
 # =========================
-# Config
+# Config - Variáveis do .env (Render v4)
 # =========================
+
+# 📤 Envio e Delay Base
 ENVIO_INTERVALO_SEG = float(os.getenv("FILA_ENVIO_INTERVALO_SEG", "2"))
+MIN_DELAY_SEG = float(os.getenv("FILA_MIN_DELAY_SEC", "25"))
+MAX_DELAY_SEG = float(os.getenv("FILA_MAX_DELAY_SEC", "45"))
+
+# 🔁 Retry e Tentativas
 RETRY_MAX = int(os.getenv("FILA_RETRY_MAX", "2"))
 RETRY_SLEEP_SEG = float(os.getenv("FILA_RETRY_SLEEP_SEG", "3"))
 
+# 📦 Batch e Polling
 POLL_SECONDS = float(os.getenv("FILA_POLL_SECONDS", "1"))
 BATCH_SIZE = int(os.getenv("FILA_BATCH_SIZE", "20"))
+BATCH_SEND_LIMIT = int(os.getenv("FILA_BATCH_SEND_LIMIT", "2"))
+BATCH_PAUSE_MIN_SEC = int(os.getenv("FILA_BATCH_PAUSE_MIN_SEC", "600"))
+BATCH_PAUSE_MAX_SEC = int(os.getenv("FILA_BATCH_PAUSE_MAX_SEC", "900"))
 
+# 📊 Limites e Throttling
+DAILY_LIMIT = int(os.getenv("FILA_DAILY_LIMIT", "10"))
+ERROR_RATE_THRESHOLD = float(os.getenv("FILA_ERROR_RATE_THRESHOLD", "0.02"))
+SLOWDOWN_FACTOR = float(os.getenv("FILA_SLOWDOWN_FACTOR", "5.0"))
+STATUS_TTL_SEC = int(os.getenv("FILA_STATUS_TTL_SEC", "30"))
+
+# 🕐 Horário Comercial (em horário do Brasil - BRT/UTC-3)
+# ⚠️ Estes valores SÃO em horário do Brasil, não UTC
+BUSINESS_HOURS_START = int(os.getenv("FILA_BUSINESS_HOURS_START", "8"))
+BUSINESS_HOURS_END = int(os.getenv("FILA_BUSINESS_HOURS_END", "19"))
+OUTSIDE_HOURS_ACTION = os.getenv("FILA_OUTSIDE_HOURS_ACTION", "reequeue")
+
+# 🔧 Cálculos derivados
 MAX_ATTEMPTS = 1 + RETRY_MAX
 
-# 🕐 Timezone Brasil (UTC-3) para cálculos de horário comercial
+# 🌍 Timezone Brasil (UTC-3) para cálculos de horário comercial
 TZ_BRASIL = timezone(timedelta(hours=-3))
 
 # =========================
@@ -165,25 +189,21 @@ def _esta_dentro_horario_comercial() -> bool:
     """
     Verifica se o horário atual (Brasil) está dentro do horário comercial configurado.
     
-    Lê as variáveis FILA_BUSINESS_HOURS_START e FILA_BUSINESS_HOURS_END do .env,
-    que devem estar em HORÁRIO DO BRASIL (não UTC).
+    Usa as constantes BUSINESS_HOURS_START/END definidas no topo do arquivo,
+    que são carregadas das variáveis FILA_BUSINESS_HOURS_* do .env.
     
     Returns:
         bool: True se estiver dentro do horário comercial
     """
     try:
-        # Lê configurações do .env (espera-se que estejam em horário BRASIL)
-        start_hour = int(os.getenv("FILA_BUSINESS_HOURS_START", "9"))
-        end_hour = int(os.getenv("FILA_BUSINESS_HOURS_END", "18"))
-        
         agora_br = _get_hora_brasil()
         hora_atual = agora_br.hour
         
-        # Verifica se está dentro do intervalo [start, end)
-        dentro = start_hour <= hora_atual < end_hour
+        # ✅ Usa as constantes do .env (já definidas no topo)
+        dentro = BUSINESS_HOURS_START <= hora_atual < BUSINESS_HOURS_END
         
         if not dentro:
-            log.debug(f"⏰ Fora do horário comercial (BR): {hora_atual}h não está em [{start_hour}h, {end_hour}h)")
+            log.debug(f"⏰ Fora do horário comercial (BR): {hora_atual}h não está em [{BUSINESS_HOURS_START}h, {BUSINESS_HOURS_END}h)")
         
         return dentro
         
@@ -608,6 +628,7 @@ def _processar_fila_worker():
     # 🕐 Log do horário Brasil para debug
     agora_br = _get_hora_brasil()
     log.info(f"🕐 Worker iniciado | Horário Brasil: {agora_br.strftime('%H:%M %d/%m')} | UTC: {datetime.now(timezone.utc).strftime('%H:%M %d/%m')}")
+    log.info(f"⚙️ Config: daily_limit={DAILY_LIMIT}, batch={BATCH_SEND_LIMIT}, delay=[{MIN_DELAY_SEG}s,{MAX_DELAY_SEG}s]")
 
     log.info("🧵 Worker DB-Queue iniciado.")
 
@@ -734,6 +755,8 @@ def _processar_fila_worker():
             # 🛡️ DELAY ALEATÓRIO PÓS-ENVIO (anti-spam com is_reply)
             if _anti_spam:
                 delay = _anti_spam.get_next_delay(is_reply=is_reply)
+                # Garante que delay esteja dentro dos limites configurados
+                delay = max(MIN_DELAY_SEG, min(MAX_DELAY_SEG, delay))
                 log.debug(f"😴 Delay aplicado: {delay:.1f}s (reply={is_reply})")
                 time.sleep(delay)
             else:
@@ -821,13 +844,14 @@ def get_queue_anti_spam_stats() -> dict:
             if conn:
                 # ✅ PyMySQL: cursor() já retorna DictCursor
                 cur = conn.cursor()
+                # ✅ CORREÇÃO: LIKE com %s e pattern pré-formatado
                 cur.execute("""
                     SELECT 
                         COUNT(CASE WHEN status='pendente' THEN 1 END) as pending,
                         COUNT(CASE WHEN status='processando' THEN 1 END) as processing,
                         COUNT(CASE WHEN status='enviado' THEN 1 END) as sent,
                         COUNT(CASE WHEN status='falha' THEN 1 END) as failed,
-                        COUNT(CASE WHEN status='falha' AND last_error LIKE %%%s%% THEN 1 END) as consent_blocked
+                        COUNT(CASE WHEN status='falha' AND last_error LIKE %s THEN 1 END) as consent_blocked
                     FROM fila_envios
                     WHERE DATE(created_at) >= CURDATE()
                 """, ('%consentimento%',))
