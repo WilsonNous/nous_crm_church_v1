@@ -6,6 +6,7 @@
 # Suporta is_reply para respostas conversacionais
 # Otimizado para recuperação de reputação WhatsApp
 # ✅ Timezone-aware: respeita horário do Brasil (BRT/UTC-3)
+# ✅ CORREÇÃO: LIKE com %%%s%% para evitar conflito PyMySQL
 # ==============================================
 
 import os
@@ -221,19 +222,22 @@ def _pode_enviar_proativo(numero: str) -> bool:
             cur = conn.cursor()
             
             # 🔍 Verifica bloqueios/denúncias recentes (30 dias)
+            # ✅ CORREÇÃO CRÍTICA: Usar %%%s%% para escapar % no PyMySQL
+            # Isso resulta em LIKE '%pare%' após substituição do %s
             cur.execute("""
                 SELECT COUNT(*) as bloqueios 
                 FROM conversas 
                 WHERE telefone = %s 
                 AND (
                     tipo = 'bloqueado' 
-                    OR mensagem LIKE '%pare%' 
-                    OR mensagem LIKE '%bloque%'
-                    OR mensagem LIKE '%spam%'
-                    OR mensagem LIKE '%denuncia%'
+                    OR mensagem LIKE %%%s%% 
+                    OR mensagem LIKE %%%s%%
+                    OR mensagem LIKE %%%s%%
+                    OR mensagem LIKE %%%s%%
                 )
                 AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-            """, (numero,))
+            """, (numero, 'pare', 'bloque', 'spam', 'denuncia'))
+            
             resultado = cur.fetchone()
             if resultado and resultado.get('bloqueios', 0) > 0:
                 log.info(f"🚫 Bloqueado/denunciado recentemente: {numero}")
@@ -247,6 +251,7 @@ def _pode_enviar_proativo(numero: str) -> bool:
                 AND tipo = 'recebida'
                 AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
             """, (numero,))
+            
             resultado = cur.fetchone()
             interacoes = resultado.get('interacoes', 0) if resultado else 0
             
@@ -821,10 +826,10 @@ def get_queue_anti_spam_stats() -> dict:
                         COUNT(CASE WHEN status='processando' THEN 1 END) as processing,
                         COUNT(CASE WHEN status='enviado' THEN 1 END) as sent,
                         COUNT(CASE WHEN status='falha' THEN 1 END) as failed,
-                        COUNT(CASE WHEN status='falha' AND last_error LIKE '%consentimento%' THEN 1 END) as consent_blocked
+                        COUNT(CASE WHEN status='falha' AND last_error LIKE %%%s%% THEN 1 END) as consent_blocked
                     FROM fila_envios
                     WHERE DATE(created_at) >= CURDATE()
-                """)
+                """, ('%consentimento%',))
                 row = cur.fetchone() or {}
                 stats["queue_today"] = {
                     "pending": row.get("pending", 0),
