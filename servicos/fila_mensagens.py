@@ -6,7 +6,7 @@
 # Suporta is_reply para respostas conversacionais
 # Otimizado para recuperação de reputação WhatsApp
 # ✅ Timezone-aware: respeita horário do Brasil (BRT/UTC-3)
-# ✅ CORREÇÃO: LIKE com patterns pré-formatados no Python
+# ✅ CORREÇÃO: JOIN com visitantes para buscar telefone em conversas
 # ✅ CONFIG: Variáveis mapeadas do .env (Render v4)
 # ==============================================
 
@@ -223,7 +223,7 @@ def _pode_enviar_proativo(numero: str) -> bool:
     - ✅ Respeita horário comercial do Brasil
     
     Args:
-        numero: Número normalizado (sem 55)
+        numero: Número normalizado (sem 55) - formato: 48999999999
     
     Returns:
         bool: True se pode enviar mensagem proativa
@@ -242,20 +242,22 @@ def _pode_enviar_proativo(numero: str) -> bool:
             cur = conn.cursor()
             
             # 🔍 Verifica bloqueios/denúncias recentes (30 dias)
-            # ✅ CORREÇÃO: Usar 'numero' (não 'telefone') como nome da coluna na tabela conversas
+            # ✅ CORREÇÃO DEFINITIVA: A tabela conversas NÃO tem coluna telefone/numero
+            # Ela usa visitante_id (FK) → precisamos JOIN com visitantes para buscar por telefone
             patterns = ['%pare%', '%bloque%', '%spam%', '%denuncia%']
             cur.execute("""
                 SELECT COUNT(*) as bloqueios 
-                FROM conversas 
-                WHERE numero = %s 
+                FROM conversas c
+                INNER JOIN visitantes v ON c.visitante_id = v.id
+                WHERE v.telefone = %s 
                 AND (
-                    tipo = 'bloqueado' 
-                    OR mensagem LIKE %s 
-                    OR mensagem LIKE %s
-                    OR mensagem LIKE %s
-                    OR mensagem LIKE %s
+                    c.tipo = 'bloqueado' 
+                    OR c.mensagem LIKE %s 
+                    OR c.mensagem LIKE %s
+                    OR c.mensagem LIKE %s
+                    OR c.mensagem LIKE %s
                 )
-                AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                AND c.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             """, (numero, *patterns))
             
             resultado = cur.fetchone()
@@ -264,13 +266,14 @@ def _pode_enviar_proativo(numero: str) -> bool:
                 return False
             
             # 🔍 Verifica engajamento recente (7 dias)
-            # ✅ CORREÇÃO: Usar 'numero' (não 'telefone') como nome da coluna
+            # ✅ CORREÇÃO: Usar JOIN com visitantes para buscar por telefone
             cur.execute("""
                 SELECT COUNT(*) as interacoes 
-                FROM conversas 
-                WHERE numero = %s 
-                AND tipo = 'recebida'
-                AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                FROM conversas c
+                INNER JOIN visitantes v ON c.visitante_id = v.id
+                WHERE v.telefone = %s 
+                AND c.tipo = 'recebida'
+                AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
             """, (numero,))
             
             resultado = cur.fetchone()
