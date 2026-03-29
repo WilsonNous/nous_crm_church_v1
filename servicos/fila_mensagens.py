@@ -222,21 +222,22 @@ def _pode_enviar_proativo(numero: str) -> bool:
             cur = conn.cursor()
             
             # 🔍 Verifica bloqueios/denúncias recentes (30 dias)
-            # ✅ CORREÇÃO CRÍTICA: Usar %%%s%% para escapar % no PyMySQL
-            # Isso resulta em LIKE '%pare%' após substituição do %s
+            # ✅ CORREÇÃO: Pré-formatar wildcards no Python, não na query
+            # Usa %s simples com valores já contendo %pare%, %bloque%, etc.
+            patterns = ['%pare%', '%bloque%', '%spam%', '%denuncia%']
             cur.execute("""
                 SELECT COUNT(*) as bloqueios 
                 FROM conversas 
                 WHERE telefone = %s 
                 AND (
                     tipo = 'bloqueado' 
-                    OR mensagem LIKE %%%s%% 
-                    OR mensagem LIKE %%%s%%
-                    OR mensagem LIKE %%%s%%
-                    OR mensagem LIKE %%%s%%
+                    OR mensagem LIKE %s 
+                    OR mensagem LIKE %s
+                    OR mensagem LIKE %s
+                    OR mensagem LIKE %s
                 )
                 AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-            """, (numero, 'pare', 'bloque', 'spam', 'denuncia'))
+            """, (numero, *patterns))
             
             resultado = cur.fetchone()
             if resultado and resultado.get('bloqueios', 0) > 0:
