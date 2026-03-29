@@ -435,7 +435,7 @@
   </main>
 
   <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.3</p>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.4</p>
   </footer>
 
   <script>
@@ -570,15 +570,29 @@
       }
     }
 
-    // Atualiza status do WhatsApp (simulado - em produção, buscar de endpoint)
-    function updateWhatsAppStatus(isConnected) {
-      const statusEl = document.getElementById('whatsappStatus');
-      const textEl = document.getElementById('whatsappStatusText');
-      
-      if (isConnected) {
-        statusEl.className = 'whatsapp-status connected';
-        textEl.textContent = '🟢 Conectado';
-      } else {
+    // Atualiza status do WhatsApp (busca do endpoint real)
+    async function updateWhatsAppStatusFromAPI() {
+      try {
+        const timestamp = Date.now();
+        const response = await fetch(`${CONFIG.API_BASE}/whatsapp/status?t=${timestamp}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        const statusEl = document.getElementById('whatsappStatus');
+        const textEl = document.getElementById('whatsappStatusText');
+        
+        if (data.connected) {
+          statusEl.className = 'whatsapp-status connected';
+          textEl.textContent = `🟢 Conectado ${data.phone ? `(${data.phone})` : ''}`;
+        } else {
+          statusEl.className = 'whatsapp-status disconnected';
+          textEl.textContent = `🔌 ${data.message || 'Desconectado'}`;
+        }
+      } catch (err) {
+        console.warn('⚠️ Não foi possível carregar status do WhatsApp:', err);
+        // Fallback: assume desconectado
+        const statusEl = document.getElementById('whatsappStatus');
+        const textEl = document.getElementById('whatsappStatusText');
         statusEl.className = 'whatsapp-status disconnected';
         textEl.textContent = '🔌 Desconectado';
       }
@@ -648,10 +662,8 @@
         // Mostra alerta de limite se necessário
         showLimitAlertIfNeeded(dailyUsed, dailyLimit);
         
-        // Atualiza status do WhatsApp (simulado - em produção, buscar de endpoint real)
-        // Por enquanto, assume conectado se anti_spam.can_send_now for true
-        const isConnected = antiSpamStats?.anti_spam?.can_send_now !== false && dailyUsed < dailyLimit;
-        updateWhatsAppStatus(isConnected);
+        // Atualiza status do WhatsApp (busca do endpoint real)
+        await updateWhatsAppStatusFromAPI();
         
         // Atualiza gráfico
         document.getElementById('chartTotal').textContent = `Total: ${total}`;
@@ -693,7 +705,11 @@
         document.getElementById('metricDailyLimit').textContent = `0/${currentConfig.dailyLimit}`;
         document.getElementById('progressDaily').style.width = '0%';
         document.getElementById('dailyRemaining').textContent = `${currentConfig.dailyLimit} restantes`;
-        updateWhatsAppStatus(false); // Assume desconectado em caso de erro
+        // Assume desconectado em caso de erro
+        const statusEl = document.getElementById('whatsappStatus');
+        const textEl = document.getElementById('whatsappStatusText');
+        statusEl.className = 'whatsapp-status disconnected';
+        textEl.textContent = '🔌 Desconectado';
       }
     }
 
@@ -726,7 +742,8 @@
         }
         
         tbody.innerHTML = recentSends.slice(0, CONFIG.MAX_RECENT_SENDS).map(send => {
-          const statusClass = {
+          // ✅ Usa status_class do backend se disponível, senão mapeia manualmente
+          const statusClass = send.status_class || {
             'enviado': 'sent',
             'pendente': 'pending', 
             'falha': 'failed',
@@ -735,7 +752,8 @@
             'limit_reached': 'limit-reached'
           }[send.status] || 'pending';
           
-          const statusLabel = {
+          // ✅ Usa status_label do backend se disponível, senão mapeia manualmente
+          const statusLabel = send.status_label || {
             'enviado': '✅ Entregue',
             'pendente': '⏳ Pendente',
             'falha': '❌ Falha',
