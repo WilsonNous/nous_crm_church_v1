@@ -6,51 +6,551 @@
   <title>💬 Enviar WhatsApp | CRM Church</title>
   <link rel="stylesheet" href="/static/main.css" />
   <script src="/static/script.js" defer></script>
+  <style>
+    /* 📊 Estilos do Painel de Métricas */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+    
+    .metric-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid var(--primary);
+    }
+    
+    .metric-card.success { border-left-color: #22c55e; }
+    .metric-card.warning { border-left-color: #f59e0b; }
+    .metric-card.danger { border-left-color: #ef4444; }
+    .metric-card.info { border-left-color: #3b82f6; }
+    
+    .metric-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 4px 0;
+    }
+    
+    .metric-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .progress-bar {
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      margin: 8px 0;
+      overflow: hidden;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    
+    .progress-fill.warning { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .progress-fill.danger { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    
+    .status-chart {
+      display: flex;
+      height: 40px;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 12px 0;
+      background: #f3f4f6;
+    }
+    
+    .status-segment {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: width 0.3s ease;
+    }
+    
+    .status-segment.sent { background: #22c55e; }
+    .status-segment.pending { background: #f59e0b; }
+    .status-segment.failed { background: #ef4444; }
+    .status-segment.blocked { background: #6b7280; }
+    
+    .recent-sends {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .recent-sends table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    
+    .recent-sends th {
+      text-align: left;
+      padding: 8px 12px;
+      background: #f9fafb;
+      font-weight: 600;
+      color: var(--muted);
+      border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .recent-sends td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .status-badge.sent { background: #dcfce7; color: #166534; }
+    .status-badge.pending { background: #fef3c7; color: #92400e; }
+    .status-badge.failed { background: #fee2e2; color: #991b1b; }
+    .status-badge.blocked { background: #f3f4f6; color: #374151; }
+    
+    .refresh-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    
+    .refresh-btn:hover { background: var(--primary-dark); }
+    .refresh-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    
+    .auto-refresh {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-left: auto;
+    }
+    
+    .auto-refresh input { accent-color: var(--primary); }
+    
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    
+    @media (max-width: 768px) {
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .header-actions { flex-direction: column; align-items: stretch; }
+      .auto-refresh { margin-left: 0; justify-content: center; }
+    }
+  </style>
 </head>
 <body>
   <header>
     <img src="/static/logo_maisdecristo_b2.png" alt="Logo Igreja Mais de Cristo" id="logo">
-    <h1>Envio de Mensagens (WhatsApp)</h1>
+    <h1>💬 Envio de Mensagens (WhatsApp)</h1>
   </header>
 
   <main>
-    <p>Esta tela envia mensagens de boas-vindas para visitantes sem fase definida (fase nula).</p>
+    <p>Esta tela envia mensagens de boas-vindas para visitantes sem fase definida (fase nula) e monitora o status das entregas.</p>
 
-    <div style="margin: 16px 0;">
+    <!-- 🔘 Ações -->
+    <div class="header-actions">
       <button class="btn-secondary" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
-      <button class="btn-success" id="btnStartSend">Iniciar envio</button>
+      <button class="btn-success" id="btnStartSend">🚀 Iniciar envio</button>
+      <button class="refresh-btn" id="btnRefresh" onclick="loadMetrics()">
+        🔄 Atualizar
+      </button>
+      <label class="auto-refresh">
+        <input type="checkbox" id="chkAutoRefresh" checked />
+        Auto-atualizar (30s)
+      </label>
     </div>
 
+    <!-- 📊 Painel de Métricas -->
+    <section id="metricsPanel" aria-label="Métricas de Envio">
+      <h2>📈 Métricas em Tempo Real</h2>
+      
+      <div class="metrics-grid">
+        <!-- Limite Diário -->
+        <div class="metric-card info">
+          <div class="metric-label">Limite Diário</div>
+          <div class="metric-value" id="metricDailyLimit">0/20</div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressDaily" style="width: 0%"></div>
+          </div>
+          <small id="dailyRemaining" style="color:var(--muted)">20 restantes</small>
+        </div>
+        
+        <!-- Enviados com Sucesso -->
+        <div class="metric-card success">
+          <div class="metric-label">✅ Entregues</div>
+          <div class="metric-value" id="metricSent">0</div>
+          <small style="color:#166534">Hoje</small>
+        </div>
+        
+        <!-- Pendentes -->
+        <div class="metric-card warning">
+          <div class="metric-label">⏳ Pendentes</div>
+          <div class="metric-value" id="metricPending">0</div>
+          <small style="color:#92400e">Na fila</small>
+        </div>
+        
+        <!-- Falhas -->
+        <div class="metric-card danger">
+          <div class="metric-label">❌ Falhas</div>
+          <div class="metric-value" id="metricFailed">0</div>
+          <small style="color:#991b1b">Hoje</small>
+        </div>
+        
+        <!-- Bloqueados por Consentimento -->
+        <div class="metric-card">
+          <div class="metric-label">🚫 Bloqueados</div>
+          <div class="metric-value" id="metricBlocked">0</div>
+          <small style="color:var(--muted)">Sem consentimento</small>
+        </div>
+        
+        <!-- Taxa de Entrega -->
+        <div class="metric-card success">
+          <div class="metric-label">📊 Taxa de Entrega</div>
+          <div class="metric-value" id="metricDeliveryRate">0%</div>
+          <small id="deliveryStatus" style="color:#166534">Saudável</small>
+        </div>
+      </div>
+      
+      <!-- Gráfico de Status -->
+      <div style="background:#fff; border-radius:12px; padding:16px; margin:16px 0; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <strong>Distribuição de Status (Hoje)</strong>
+          <small style="color:var(--muted)" id="chartTotal">Total: 0</small>
+        </div>
+        <div class="status-chart" id="statusChart">
+          <div class="status-segment sent" id="chartSent" style="width:0%">0%</div>
+          <div class="status-segment pending" id="chartPending" style="width:0%">0%</div>
+          <div class="status-segment failed" id="chartFailed" style="width:0%">0%</div>
+          <div class="status-segment blocked" id="chartBlocked" style="width:0%">0%</div>
+        </div>
+        <div style="display:flex; gap:16px; margin-top:8px; font-size:0.8rem;">
+          <span><span style="display:inline-block;width:12px;height:12px;background:#22c55e;border-radius:2px;margin-right:4px;"></span>Entregue</span>
+          <span><span style="display:inline-block;width:12px;height:12px;background:#f59e0b;border-radius:2px;margin-right:4px;"></span>Pendente</span>
+          <span><span style="display:inline-block;width:12px;height:12px;background:#ef4444;border-radius:2px;margin-right:4px;"></span>Falha</span>
+          <span><span style="display:inline-block;width:12px;height:12px;background:#6b7280;border-radius:2px;margin-right:4px;"></span>Bloqueado</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 📋 Últimos Envios -->
+    <section class="recent-sends">
+      <h2>🕐 Últimos Envios</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Horário</th>
+            <th>Destinatário</th>
+            <th>Status</th>
+            <th>Mensagem</th>
+          </tr>
+        </thead>
+        <tbody id="recentSendsBody">
+          <tr><td colspan="4" style="text-align:center; color:var(--muted); padding:20px;">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 📝 Log de Envio -->
     <section id="whatsappLog" aria-label="Log de Envio de WhatsApp">
-      <h2>Log de Envio</h2>
-      <div id="logContainer" style="max-height:320px; overflow:auto; background:#fff; border-radius:8px; padding:12px;"></div>
+      <h2>📋 Log Detalhado</h2>
+      <div id="logContainer" style="max-height:320px; overflow:auto; background:#fff; border-radius:8px; padding:12px; font-family:monospace; font-size:0.85rem;"></div>
     </section>
   </main>
 
   <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.1</p>
   </footer>
 
   <script>
-    // Bloqueia acesso sem login
-    document.addEventListener('DOMContentLoaded', () => {
+    // Configurações
+    const CONFIG = {
+      AUTO_REFRESH_INTERVAL: 30000, // 30 segundos
+      MAX_RECENT_SENDS: 10,
+      API_BASE: '/api'
+    };
+
+    // Estado global
+    let autoRefreshTimer = null;
+    let isSending = false;
+
+    // Inicialização
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Verifica autenticação
       const token = localStorage.getItem('jwt_token');
       if (!token) {
         window.location.href = '/app/login';
         return;
       }
 
-      // Botão para disparar o envio usando as funções já existentes no script.js
-      document.getElementById('btnStartSend')?.addEventListener('click', () => {
-        if (typeof fetchVisitorsAndSendMessagesManual === 'function') {
-          const ok = confirm('Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?');
-          if (ok) fetchVisitorsAndSendMessagesManual();
-        } else {
-          alert('Função de envio não encontrada. Verifique /static/script.js');
+      // Botão de envio
+      document.getElementById('btnStartSend')?.addEventListener('click', async () => {
+        if (isSending) return;
+        
+        const ok = confirm('Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?\n\n⚠️ Isso consumirá parte do seu limite diário de 20 envios.');
+        if (!ok) return;
+        
+        isSending = true;
+        document.getElementById('btnStartSend').disabled = true;
+        document.getElementById('btnStartSend').textContent = '🔄 Enviando...';
+        
+        try {
+          if (typeof fetchVisitorsAndSendMessagesManual === 'function') {
+            await fetchVisitorsAndSendMessagesManual();
+            logMessage('✅ Envio iniciado com sucesso!', 'success');
+          } else {
+            throw new Error('Função de envio não encontrada');
+          }
+        } catch (err) {
+          logMessage(`❌ Erro ao iniciar envio: ${err.message}`, 'error');
+        } finally {
+          isSending = false;
+          document.getElementById('btnStartSend').disabled = false;
+          document.getElementById('btnStartSend').textContent = '🚀 Iniciar envio';
+          // Atualiza métricas após envio
+          setTimeout(loadMetrics, 2000);
         }
       });
+
+      // Auto-refresh toggle
+      document.getElementById('chkAutoRefresh')?.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          startAutoRefresh();
+        } else {
+          stopAutoRefresh();
+        }
+      });
+
+      // Carrega métricas iniciais
+      await loadMetrics();
+      
+      // Inicia auto-refresh se habilitado
+      if (document.getElementById('chkAutoRefresh')?.checked) {
+        startAutoRefresh();
+      }
+    });
+
+    // Carrega todas as métricas da API
+    async function loadMetrics() {
+      try {
+        const [queueStats, antiSpamStats] = await Promise.all([
+          fetch(`${CONFIG.API_BASE}/monitor-status`).then(r => r.json()),
+          fetch(`${CONFIG.API_BASE}/ia/stats`).catch(() => ({}))
+        ]);
+
+        // Extrai dados da fila
+        const queue = queueStats.queue_today || {};
+        const sent = queue.sent || 0;
+        const pending = queue.pending || 0;
+        const failed = queue.failed || 0;
+        const blocked = queue.consent_blocked || 0;
+        const total = sent + pending + failed + blocked;
+        
+        // Limite diário (do anti-spam ou fallback)
+        const dailyLimit = antiSpamStats?.anti_spam?.daily_limit || 20;
+        const dailyUsed = antiSpamStats?.anti_spam?.sent || sent;
+        const dailyRemaining = Math.max(0, dailyLimit - dailyUsed);
+        const dailyPercent = Math.min(100, (dailyUsed / dailyLimit) * 100);
+        
+        // Taxa de entrega
+        const delivered = sent;
+        const attempted = sent + failed;
+        const deliveryRate = attempted > 0 ? Math.round((delivered / attempted) * 100) : 100;
+        
+        // Atualiza cards
+        document.getElementById('metricDailyLimit').textContent = `${dailyUsed}/${dailyLimit}`;
+        document.getElementById('progressDaily').style.width = `${dailyPercent}%`;
+        document.getElementById('progressDaily').className = `progress-fill ${dailyPercent >= 90 ? 'danger' : dailyPercent >= 70 ? 'warning' : ''}`;
+        document.getElementById('dailyRemaining').textContent = `${dailyRemaining} restantes`;
+        
+        document.getElementById('metricSent').textContent = sent;
+        document.getElementById('metricPending').textContent = pending;
+        document.getElementById('metricFailed').textContent = failed;
+        document.getElementById('metricBlocked').textContent = blocked;
+        
+        document.getElementById('metricDeliveryRate').textContent = `${deliveryRate}%`;
+        const deliveryStatus = document.getElementById('deliveryStatus');
+        if (deliveryRate >= 95) {
+          deliveryStatus.textContent = '🟢 Saudável';
+          deliveryStatus.style.color = '#166534';
+        } else if (deliveryRate >= 80) {
+          deliveryStatus.textContent = '🟡 Atenção';
+          deliveryStatus.style.color = '#92400e';
+        } else {
+          deliveryStatus.textContent = '🔴 Crítico';
+          deliveryStatus.style.color = '#991b1b';
+        }
+        
+        // Atualiza gráfico
+        document.getElementById('chartTotal').textContent = `Total: ${total}`;
+        if (total > 0) {
+          const sentPct = Math.round((sent / total) * 100);
+          const pendingPct = Math.round((pending / total) * 100);
+          const failedPct = Math.round((failed / total) * 100);
+          const blockedPct = Math.round((blocked / total) * 100);
+          
+          document.getElementById('chartSent').style.width = `${sentPct}%`;
+          document.getElementById('chartSent').textContent = sentPct > 5 ? `${sentPct}%` : '';
+          
+          document.getElementById('chartPending').style.width = `${pendingPct}%`;
+          document.getElementById('chartPending').textContent = pendingPct > 5 ? `${pendingPct}%` : '';
+          
+          document.getElementById('chartFailed').style.width = `${failedPct}%`;
+          document.getElementById('chartFailed').textContent = failedPct > 5 ? `${failedPct}%` : '';
+          
+          document.getElementById('chartBlocked').style.width = `${blockedPct}%`;
+          document.getElementById('chartBlocked').textContent = blockedPct > 5 ? `${blockedPct}%` : '';
+        } else {
+          // Reset gráfico se sem dados
+          ['sent','pending','failed','blocked'].forEach(key => {
+            document.getElementById(`chart${key.charAt(0).toUpperCase()+key.slice(1)}`).style.width = '0%';
+            document.getElementById(`chart${key.charAt(0).toUpperCase()+key.slice(1)}`).textContent = '';
+          });
+        }
+        
+        // Carrega últimos envios
+        await loadRecentSends();
+        
+        logMessage('📊 Métricas atualizadas', 'info');
+        
+      } catch (err) {
+        console.error('Erro ao carregar métricas:', err);
+        logMessage(`⚠️ Não foi possível atualizar métricas: ${err.message}`, 'warning');
+      }
+    }
+
+    // Carrega tabela de últimos envios
+    async function loadRecentSends() {
+      try {
+        const response = await fetch(`${CONFIG.API_BASE}/monitor-status`);
+        const data = await response.json();
+        
+        // Nota: Esta é uma simulação - em produção, crie um endpoint /api/fila/recentes
+        // que retorne os últimos registros de fila_envios com detalhes
+        const recentSends = data.recent_sends || [];
+        
+        const tbody = document.getElementById('recentSendsBody');
+        
+        if (recentSends.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:20px;">Nenhum envio recente</td></tr>';
+          return;
+        }
+        
+        tbody.innerHTML = recentSends.slice(0, CONFIG.MAX_RECENT_SENDS).map(send => {
+          const statusClass = {
+            'enviado': 'sent',
+            'pendente': 'pending', 
+            'falha': 'failed',
+            'bloqueado': 'blocked'
+          }[send.status] || 'pending';
+          
+          const statusLabel = {
+            'enviado': '✅ Entregue',
+            'pendente': '⏳ Pendente',
+            'falha': '❌ Falha',
+            'bloqueado': '🚫 Bloqueado'
+          }[send.status] || send.status;
+          
+          const time = new Date(send.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+          const phone = send.numero?.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3') || send.numero;
+          const msgPreview = (send.mensagem || '').substring(0, 40) + (send.mensagem?.length > 40 ? '...' : '');
+          
+          return `
+            <tr>
+              <td>${time}</td>
+              <td>${phone || '–'}</td>
+              <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+              <td title="${send.mensagem || ''}">${msgPreview || '–'}</td>
+            </tr>
+          `;
+        }).join('');
+        
+      } catch (err) {
+        console.error('Erro ao carregar envios recentes:', err);
+        document.getElementById('recentSendsBody').innerHTML = 
+          '<tr><td colspan="4" style="text-align:center; color:#ef4444; padding:20px;">Erro ao carregar dados</td></tr>';
+      }
+    }
+
+    // Log de mensagens na interface
+    function logMessage(text, type = 'info') {
+      const container = document.getElementById('logContainer');
+      const timestamp = new Date().toLocaleTimeString('pt-BR');
+      const colors = {
+        success: '#166534',
+        error: '#991b1b', 
+        warning: '#92400e',
+        info: '#1f2937'
+      };
+      
+      const entry = document.createElement('div');
+      entry.style.padding = '6px 0';
+      entry.style.borderBottom = '1px solid #f3f4f6';
+      entry.style.color = colors[type] || colors.info;
+      entry.innerHTML = `<small>[${timestamp}]</small> ${text}`;
+      
+      container.insertBefore(entry, container.firstChild);
+      
+      // Mantém apenas últimas 50 linhas
+      while (container.children.length > 50) {
+        container.removeChild(container.lastChild);
+      }
+    }
+
+    // Auto-refresh
+    function startAutoRefresh() {
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(() => {
+        if (!document.hidden) { // Só atualiza se aba estiver visível
+          loadMetrics();
+        }
+      }, CONFIG.AUTO_REFRESH_INTERVAL);
+      logMessage('🔄 Auto-refresh ativado (30s)', 'info');
+    }
+
+    function stopAutoRefresh() {
+      if (autoRefreshTimer) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+        logMessage('⏸️ Auto-refresh desativado', 'info');
+      }
+    }
+
+    // Limpa timer ao sair da página
+    window.addEventListener('beforeunload', () => {
+      stopAutoRefresh();
     });
   </script>
 </body>
 </html>
-
