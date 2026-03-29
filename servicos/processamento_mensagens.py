@@ -343,4 +343,151 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
     if detectar_intencao_batismo_membro(texto_normalizado):
         resposta = (
-            "*Que bom que você deseja caminhar conosco!*
+            "*Que bom que você deseja caminhar conosco!* 🙏\n\n"
+            "Para se tornar membro da Mais de Cristo Canasvieiras:\n\n"
+            "1️⃣ *Batismo nas águas* (se ainda não foi batizado)\n"
+            "2️⃣ *Curso de Membros* (conheça nossa visão e valores)\n"
+            "3️⃣ *Entrevista pastoral* (converse com nossos líderes)\n\n"
+            "Para iniciar seu processo, responda:\n"
+            "• Digite *1* se já foi batizado nas águas\n"
+            "• Digite *2* se ainda não foi batizado\n\n"
+            "Ou fale com nossa secretaria: *(48) 99828-4104*"
+        )
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": estado_atual.name
+        }
+
+    # 🎯 PRIORIDADE 6: Localização / Endereço da igreja
+    def detectar_intencao_localizacao(texto: str) -> bool:
+        """
+        Detecta perguntas sobre endereço ou localização da igreja.
+        """
+        texto = texto.lower().strip()
+        
+        padroes = [
+            r"onde fica a igreja",
+            r"endereco da igreja",
+            r"localização da igreja",
+            r"como chegar na igreja",
+            r"rua da igreja",
+            r"bairro da igreja",
+            r"canasvieiras igreja",
+            r"igreja em canasvieiras",
+            r"mapa da igreja",
+            r"google maps igreja",
+        ]
+        
+        return any(re.search(p, texto) for p in padroes)
+
+    if detectar_intencao_localizacao(texto_normalizado):
+        resposta = (
+            "*📍 Nossa Localização:*\n\n"
+            "Rua das Flores, 123\n"
+            "Canasvieiras - Florianópolis/SC\n\n"
+            "*🗺️ Como chegar:*\n"
+            "• Google Maps: [link aqui]\n"
+            "• Ônibus: Linhas 123, 456 (ponto em frente)\n"
+            "• Estacionamento disponível no local\n\n"
+            "Estamos te esperando! 🙏"
+        )
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": estado_atual.name
+        }
+
+    # 🎯 PRIORIDADE 7: Opções do menu numérico (1-6)
+    def detectar_opcao_menu(texto: str) -> str | None:
+        """
+        Detecta se o visitante digitou uma opção do menu (1, 2, 3, 4, 5, 6).
+        Retorna a opção detectada ou None.
+        """
+        texto = texto.strip()
+        
+        # Opções exatas
+        if texto in ["1", "2", "3", "4", "5", "6"]:
+            return texto
+        
+        # Variações com pontuação ou emojis
+        if texto in ["1.", "2.", "3.", "4.", "5.", "6.", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣"]:
+            return texto[0]  # Retorna apenas o número
+        
+        # Texto descritivo das opções
+        opcoes = {
+            "1": [r"ja fiz batismo", r"já fiz batismo", r"batizado", r"quero ser membro e ja fui batizado"],
+            "2": [r"nao fiz batismo", r"não fiz batismo", r"ainda nao fui batizado", r"ainda não fui batizado", r"quero ser membro mas nao sou batizado"],
+            "3": [r"pedido de oração", r"pedido de oracao", r"quero oração", r"quero oracao", r"orar por mim"],
+            "4": [r"horarios cultos", r"horários cultos", r"quando tem culto", r"programação igreja"],
+            "5": [r"grupo whatsapp", r"entrar grupo", r"gc", r"grupo de comunhão"],
+            "6": [r"outro assunto", r"outro", r"nenhuma das opções", r"não é isso"],
+        }
+        
+        for opcao, padroes in opcoes.items():
+            if any(re.search(p, texto) for p in padroes):
+                return opcao
+        
+        return None
+
+    opcao_menu = detectar_opcao_menu(texto_normalizado)
+    if opcao_menu:
+        # Redireciona para o fluxo normal de transições
+        proximo_estado = obter_proximo_estado(estado_atual, opcao_menu)
+        if proximo_estado:
+            visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+            resposta = obter_mensagem_estado(proximo_estado, visitor_name)
+            atualizar_status(numero_normalizado, proximo_estado.value, origem=origem)
+            enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+            salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+            return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
+
+    # ==========================================================
+    # 🔁 Fluxo normal de transições (menu numérico via estado)
+    # ==========================================================
+    proximo_estado = obter_proximo_estado(estado_atual, texto_normalizado)
+    if proximo_estado:
+        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+        resposta = obter_mensagem_estado(proximo_estado, visitor_name)
+        atualizar_status(numero_normalizado, proximo_estado.value, origem=origem)
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+        return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
+
+    # ==========================================================
+    # 🤖 IA como camada inteligente (ANTES do fallback genérico)
+    # ==========================================================
+    try:
+        resposta_ia, confianca = ia_integracao.responder_pergunta(pergunta_usuario=texto_recebido)
+        if resposta_ia and confianca > 0.3:  # Threshold um pouco mais alto para evitar respostas fracas
+            enviar_mensagem_para_fila(numero_normalizado, resposta_ia, meta=_criar_meta())
+            salvar_conversa(numero_normalizado, resposta_ia, tipo="enviada", sid=message_sid, origem=origem)
+            atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value, origem=origem)
+            return {"resposta": resposta_ia, "estado_atual": estado_atual.name, "proximo_estado": EstadoVisitante.INICIO.name}
+    except Exception as e:
+        logging.error(f"❌ Erro IA: {e}")
+
+    # ==========================================================
+    # ❌ Fallback inteligente e conversacional
+    # ==========================================================
+    visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
+    
+    # Resposta mais útil que guia o usuário
+    resposta = (
+        f"Oi, {visitor_name}! 🙏 Ainda não tenho uma resposta pronta para isso, "
+        f"mas quero te ajudar!\n\n"
+        f"*Você pode:*\n"
+        f"• Digitar *1* a *6* para escolher uma opção do menu\n"
+        f"• Perguntar sobre *horários de culto*, *batismo*, *grupos* ou *nossos pastores*\n"
+        f"• Ou falar diretamente com nossa secretaria: *(48) 99828-4104*\n\n"
+        f"Como posso te ajudar hoje?"
+    )
+    
+    enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+    salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+
+    return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": estado_atual.name}
