@@ -30,7 +30,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # Normalização
     numero_normalizado = numero.lstrip("55")  # 🔧 Corrige: banco só guarda número nacional
     texto_normalizado = normalizar_texto(texto_recebido)
-
+    
     # Salva mensagem recebida
     salvar_conversa(numero_normalizado, texto_recebido, tipo="recebida", sid=message_sid, origem=origem)
 
@@ -109,11 +109,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         return processar_outro(numero_normalizado, visitor_name, texto_recebido, message_sid, origem)
 
-    # ========== Fluxo normal de transições ==========
-    proximo_estado = obter_proximo_estado(estado_atual, texto_normalizado)
-
     # ==========================================================
-    # 🔍 DETECÇÕES ESPECÍFICAS (ORDEM IMPORTANTE!)
+    # 🔍 DETECÇÕES INTELIGENTES (ORDEM ESTRATÉGICA!)
     # ==========================================================
     
     # 🎯 PRIORIDADE 1: Falar com pastores / secretaria / agendar visita
@@ -121,29 +118,45 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     def detectar_intencao_falar_pastores(texto: str) -> bool:
         """
         Detecta se o visitante quer entrar em contato direto com os pastores ou secretaria.
+        ✅ Regex flexível para aceitar artigos e variações naturais.
         """
         texto = texto.lower().strip()
         
         padroes = [
-            r"falar (com|para) (os )?pastor(es)?",
-            r"falar (com|para) (a )?secretaria",
-            r"contato (com|dos )?pastor(es)?",
-            r"contato (com|da )?secretaria",
-            r"ligar (para|pros )?pastor(es)?",
-            r"ligar (para|pra )?secretaria",
-            r"whatsapp (dos )?pastor(es)?",
-            r"whatsapp (da )?secretaria",
-            r"agenda (com|dos )?pastor(es)?",
-            r"agendar (com|uma visita com )?pastor",
-            r"marcar (com|uma visita com )?pastor",
+            # Contato direto com pastores
+            r"falar (com|para) (o |a |os |as )?pastor(es)?",
+            r"contato (com|dos|do|da) (o |a |os |as )?pastor(es)?",
+            r"ligar (para|pros|pra) (o |a |os |as )?pastor(es)?",
+            r"whatsapp (dos|do|da) (o |a |os |as )?pastor(es)?",
+            r"numero (dos|do|da) (o |a |os |as )?pastor(es)?",
+            r"telefone (dos|do|da) (o |a |os |as )?pastor(es)?",
+            
+            # Agenda/visita pastoral (CORRIGIDO: aceita artigos entre palavras)
+            r"agenda (com|dos|do|da) (o |a |os |as )?pastor(es)?",
+            r"agendar (com|uma visita com) (o |a |os |as )?pastor",
+            r"marcar (com|uma visita com) (o |a |os |as )?pastor",
+            r"marcar.*agenda.*pastor",  # Flexível: "quero marcar uma agenda com os pastores"
+            r"quero.*falar.*pastor",
+            r"preciso.*contato.*pastor",
+            
+            # Visita pastoral
             r"visita pastoral",
+            r"visita (dos|do|da) (o |a |os |as )?pastor(es)?",
+            r"receber visita pastoral",
             r"visita dos pastores",
-            r"como falo com os pastores",
-            r"como entro em contato com os pastores",
-            r"numero (dos )?pastor(es)?",
-            r"telefone (dos )?pastor(es)?",
+            
+            # Perguntas diretas
+            r"como falo com (os |as )?pastor(es)?",
+            r"como entro em contato com (os |as )?pastor(es)?",
+            r"como agendar com (os |as )?pastor(es)?",
+            
+            # Secretaria / Wilson
             r"secretario wilson",
             r"wilson martins",
+            r"falar com a secretaria",
+            r"contato da secretaria",
+            r"ligar para a secretaria",
+            r"whatsapp da secretaria",
         ]
         
         return any(re.search(p, texto) for p in padroes)
@@ -168,6 +181,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     def detectar_intencao_horarios_cultos(texto: str) -> bool:
         """
         Detecta perguntas sobre horários de cultos e programação da igreja.
+        ✅ Aceita variações naturais e perguntas indiretas.
         """
         texto = texto.lower().strip()
         
@@ -182,6 +196,12 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"que horas (é|e) (o )?culto",
             r"que dia (temos|são|sao) cultos?",
             r"agenda (da )?igreja",
+            r"calendario (da )?igreja",
+            r"eventos (da )?igreja",
+            r"o que tem hoje na igreja",
+            r"o que vai ter hoje",
+            r"tem culto hoje",
+            r"vai ter culto",
         ]
         
         return any(re.search(p, texto) for p in padroes)
@@ -232,6 +252,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"whatsapp",          # Já tratado acima
             r"agenda",            # Já tratado acima
             r"visita",            # Já tratado acima
+            r"marcar",            # Já tratado acima
+            r"ligar",             # Já tratado acima
             r"teste",
             r"não precisa responder",
             r"mensagem de teste",
@@ -270,6 +292,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"grupos? da igreja",
             r"como entro no grupo",
             r"link (do )?grupo",
+            r"quero estar no grupo",
+            r"me add no grupo",
+            r"grupo do whatsapp",
         ]
         
         return any(re.search(p, texto) for p in padroes)
@@ -291,37 +316,31 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # ==========================================================
-    # 🔁 Fluxo normal de transições (menu numérico)
-    # ==========================================================
-    if proximo_estado:
-        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
-        resposta = obter_mensagem_estado(proximo_estado, visitor_name)
-        atualizar_status(numero_normalizado, proximo_estado.value, origem=origem)
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
-        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
-        return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
+    # 🎯 PRIORIDADE 5: Batismo / Tornar-se membro
+    def detectar_intencao_batismo_membro(texto: str) -> bool:
+        """
+        Detecta interesse em batismo ou tornar-se membro.
+        """
+        texto = texto.lower().strip()
+        
+        padroes = [
+            r"batismo",
+            r"batizar",
+            r"mergulho",
+            r"imersão",
+            r"tornar membro",
+            r"virar membro",
+            r"ser membro",
+            r"membership",
+            r"como me tornar membro",
+            r"quero ser membro",
+            r"membro da igreja",
+            r"o que preciso para ser membro",
+            r"requisitos para membro",
+        ]
+        
+        return any(re.search(p, texto) for p in padroes)
 
-    # ==========================================================
-    # 🤖 Fallback para IA (conhecimento treinado)
-    # ==========================================================
-    try:
-        resposta_ia, confianca = ia_integracao.responder_pergunta(pergunta_usuario=texto_recebido)
-        if resposta_ia and confianca > 0.2:
-            enviar_mensagem_para_fila(numero_normalizado, resposta_ia, meta=_criar_meta())
-            salvar_conversa(numero_normalizado, resposta_ia, tipo="enviada", sid=message_sid, origem=origem)
-            atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value, origem=origem)
-            return {"resposta": resposta_ia, "estado_atual": estado_atual.name, "proximo_estado": EstadoVisitante.INICIO.name}
-    except Exception as e:
-        logging.error(f"❌ Erro IA: {e}")
-
-    # ==========================================================
-    # ❌ Se nada funcionou: resposta padrão
-    # ==========================================================
-    visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
-    resposta = f"Desculpe, {visitor_name}, não entendi sua resposta. Por favor, escolha uma das opções do menu:\n\n1️⃣ Já fiz batismo nas águas e quero me tornar membro\n2️⃣ Ainda não fiz batismo nas águas e quero me tornar membro\n3️⃣ Gostaria de receber orações\n4️⃣ Quero saber os horários dos cultos\n5️⃣ Entrar no grupo do WhatsApp\n6️⃣ Outro assunto"
-    
-    enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
-    salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
-
-    return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": estado_atual.name}
+    if detectar_intencao_batismo_membro(texto_normalizado):
+        resposta = (
+            "*Que bom que você deseja caminhar conosco!*
