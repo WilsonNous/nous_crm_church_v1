@@ -1,10 +1,11 @@
 # ==============================================
-# servicos/fila_mensagens.py  (VERSÃO DB QUEUE + ANTI-SPAM + IS_REPLY + RECUPERAÇÃO)
+# servicos/fila_mensagens.py  (VERSÃO DB QUEUE + ANTI-SPAM + IS_REPLY + RECUPERAÇÃO + TZ-BR)
 # ==============================================
 # 📨 Fila unificada de envio de mensagens Z-API
 # Persistida no MySQL + Proteções anti-spam
 # Suporta is_reply para respostas conversacionais
 # Otimizado para recuperação de reputação WhatsApp
+# ✅ Timezone-aware: respeita horário do Brasil (BRT/UTC-3)
 # ==============================================
 
 import os
@@ -15,7 +16,7 @@ import logging
 import hashlib
 import random
 from contextlib import closing
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Tuple, Optional, Callable, Dict, List
 
 import database
@@ -36,6 +37,9 @@ POLL_SECONDS = float(os.getenv("FILA_POLL_SECONDS", "1"))
 BATCH_SIZE = int(os.getenv("FILA_BATCH_SIZE", "20"))
 
 MAX_ATTEMPTS = 1 + RETRY_MAX
+
+# 🕐 Timezone Brasil (UTC-3) para cálculos de horário comercial
+TZ_BRASIL = timezone(timedelta(hours=-3))
 
 # =========================
 # Tipos
@@ -148,6 +152,45 @@ def _should_retry(err_text: str, status_code: int = 0, attempt: int = 1) -> bool
     return False
 
 
+def _get_hora_brasil() -> datetime:
+    """
+    Retorna o horário atual no fuso do Brasil (BRT/UTC-3).
+    Útil para verificar horário comercial correto.
+    """
+    return datetime.now(TZ_BRASIL)
+
+
+def _esta_dentro_horario_comercial() -> bool:
+    """
+    Verifica se o horário atual (Brasil) está dentro do horário comercial configurado.
+    
+    Lê as variáveis FILA_BUSINESS_HOURS_START e FILA_BUSINESS_HOURS_END do .env,
+    que devem estar em HORÁRIO DO BRASIL (não UTC).
+    
+    Returns:
+        bool: True se estiver dentro do horário comercial
+    """
+    try:
+        # Lê configurações do .env (espera-se que estejam em horário BRASIL)
+        start_hour = int(os.getenv("FILA_BUSINESS_HOURS_START", "9"))
+        end_hour = int(os.getenv("FILA_BUSINESS_HOURS_END", "18"))
+        
+        agora_br = _get_hora_brasil()
+        hora_atual = agora_br.hour
+        
+        # Verifica se está dentro do intervalo [start, end)
+        dentro = start_hour <= hora_atual < end_hour
+        
+        if not dentro:
+            log.debug(f"⏰ Fora do horário comercial (BR): {hora_atual}h não está em [{start_hour}h, {end_hour}h)")
+        
+        return dentro
+        
+    except Exception as e:
+        log.error(f"❌ Erro ao verificar horário comercial: {e}")
+        return True  # Fail-safe: permite envio se houver erro na verificação
+
+
 def _pode_enviar_proativo(numero: str) -> bool:
     """
     Verifica se podemos enviar mensagem proativa para este número.
@@ -156,6 +199,7 @@ def _pode_enviar_proativo(numero: str) -> bool:
     - ✅ Pode enviar se: interagiu nos últimos 7 dias OU é resposta a mensagem
     - ❌ Não enviar se: bloqueou/denunciou nos últimos 30 dias
     - ❌ Não enviar se: número inválido ou sem histórico
+    - ✅ Respeita horário comercial do Brasil
     
     Args:
         numero: Número normalizado (sem 55)
@@ -164,6 +208,11 @@ def _pode_enviar_proativo(numero: str) -> bool:
         bool: True se pode enviar mensagem proativa
     """
     try:
+        # 🔍 Primeiro: verifica horário comercial (Brasil)
+        if not _esta_dentro_horario_comercial():
+            log.info(f"⏰ Fora do horário comercial (BR) → não enviando proativo para {numero}")
+            return False
+        
         with closing(get_db_connection()) as conn:
             if not conn:
                 log.warning("⚠️ Sem conexão DB para validar consentimento")
@@ -549,6 +598,10 @@ def _processar_fila_worker():
     # 🛡️ Inicializa controller anti-spam
     _anti_spam = AntiSpamController(os.getenv("ZAPI_INSTANCE"))
     log.info(f"🛡️ AntiSpamController inicializado para instância: {_anti_spam.instance_id}")
+    
+    # 🕐 Log do horário Brasil para debug
+    agora_br = _get_hora_brasil()
+    log.info(f"🕐 Worker iniciado | Horário Brasil: {agora_br.strftime('%H:%M %d/%m')} | UTC: {datetime.now(timezone.utc).strftime('%H:%M %d/%m')}")
 
     log.info("🧵 Worker DB-Queue iniciado.")
 
