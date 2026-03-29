@@ -1,10 +1,10 @@
 # ==============================================
-# servicos/fila_mensagens.py  (VERSÃO DB QUEUE + ANTI-SPAM + IS_REPLY)
+# servicos/fila_mensagens.py  (VERSÃO DB QUEUE + ANTI-SPAM + IS_REPLY + RECUPERAÇÃO)
 # ==============================================
 # 📨 Fila unificada de envio de mensagens Z-API
 # Persistida no MySQL + Proteções anti-spam
 # Suporta is_reply para respostas conversacionais
-# Usada pelo bot e pelas campanhas (envio sequencial)
+# Otimizado para recuperação de reputação WhatsApp
 # ==============================================
 
 import os
@@ -12,8 +12,10 @@ import time
 import json
 import threading
 import logging
+import hashlib
+import random
 from contextlib import closing
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Tuple, Optional, Callable, Dict, List
 
 import database
@@ -97,22 +99,189 @@ def _parse_result(res: Any) -> Tuple[bool, str, int]:
     return ok, "" if ok else f"retorno_tipo_inesperado={type(res)}", 0
 
 
-def _should_retry(err_text: str, status_code: int = 0) -> bool:
-    """Define se vale tentar novamente."""
+def _should_retry(err_text: str, status_code: int = 0, attempt: int = 1) -> bool:
+    """
+    Define se vale tentar novamente com backoff exponencial.
+    
+    Args:
+        err_text: Texto do erro retornado
+        status_code: Código HTTP da resposta
+        attempt: Número da tentativa atual (1-based)
+    
+    Returns:
+        bool: True se deve tentar novamente
+    """
     t = (err_text or "").lower()
+    
+    # ❌ Nunca retry em erros permanentes (não adianta insistir)
     if any(x in t for x in [
         "must subscribe to this instance again", "subscribe to this instance again",
         "unauthorized", "invalid phone", "telefone inválido", "número inválido",
-        "token inválido", "expired",
+        "token inválido", "expired", "account restricted", "ban",
     ]):
+        log.debug(f"⛔ Não retry: erro permanente | err={err_text[:50]}")
         return False
+    
+    # ⚠️ Erros de servidor (429, 5xx): retry limitado com backoff
     if status_code in (429, 500, 502, 503, 504):
-        return True
-    return any(x in t for x in [
-        "timeout", "timed out", "too many requests", "temporarily", "try again",
-        "server error", "bad gateway", "service unavailable", "gateway timeout",
-        "rate limit", "connection reset", "connection aborted", "read timed out",
-    ])
+        # Backoff exponencial: permite até 2 retries, mas espera mais a cada tentativa
+        max_retry = 2 if status_code != 429 else 1  # Rate limit (429) → só 1 retry
+        if attempt <= max_retry:
+            log.debug(f"🔄 Retry permitido (attempt {attempt}/{max_retry}) | status={status_code}")
+            return True
+        log.debug(f"⛔ Limite de retry atingido | attempt={attempt} | status={status_code}")
+        return False
+    
+    # ⚠️ Timeouts/conexão: retry apenas na primeira tentativa (fail-fast)
+    if any(x in t for x in [
+        "timeout", "timed out", "connection reset", "connection aborted", 
+        "read timed out", "connection refused", "network unreachable"
+    ]):
+        if attempt == 1:
+            log.debug(f"🔄 Retry permitido para erro de conexão (attempt 1) | err={err_text[:40]}")
+            return True
+        log.debug(f"⛔ Não retry para erro de conexão | attempt={attempt}")
+        return False
+    
+    # ❌ Demais erros: não retry por padrão (fail-safe para reputação)
+    log.debug(f"⛔ Não retry: erro não classificável | err={err_text[:50]}")
+    return False
+
+
+def _pode_enviar_proativo(numero: str) -> bool:
+    """
+    Verifica se podemos enviar mensagem proativa para este número.
+    
+    Regras de consentimento (para proteger reputação WhatsApp):
+    - ✅ Pode enviar se: interagiu nos últimos 7 dias OU é resposta a mensagem
+    - ❌ Não enviar se: bloqueou/denunciou nos últimos 30 dias
+    - ❌ Não enviar se: número inválido ou sem histórico
+    
+    Args:
+        numero: Número normalizado (sem 55)
+    
+    Returns:
+        bool: True se pode enviar mensagem proativa
+    """
+    try:
+        with closing(get_db_connection()) as conn:
+            if not conn:
+                log.warning("⚠️ Sem conexão DB para validar consentimento")
+                return False
+            
+            cur = conn.cursor()
+            
+            # 🔍 Verifica bloqueios/denúncias recentes (30 dias)
+            cur.execute("""
+                SELECT COUNT(*) as bloqueios 
+                FROM conversas 
+                WHERE telefone = %s 
+                AND (
+                    tipo = 'bloqueado' 
+                    OR mensagem LIKE '%pare%' 
+                    OR mensagem LIKE '%bloque%'
+                    OR mensagem LIKE '%spam%'
+                    OR mensagem LIKE '%denuncia%'
+                )
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            """, (numero,))
+            resultado = cur.fetchone()
+            if resultado and resultado.get('bloqueios', 0) > 0:
+                log.info(f"🚫 Bloqueado/denunciado recentemente: {numero}")
+                return False
+            
+            # 🔍 Verifica engajamento recente (7 dias)
+            cur.execute("""
+                SELECT COUNT(*) as interacoes 
+                FROM conversas 
+                WHERE telefone = %s 
+                AND tipo = 'recebida'
+                AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            """, (numero,))
+            resultado = cur.fetchone()
+            interacoes = resultado.get('interacoes', 0) if resultado else 0
+            
+            # ✅ Pode enviar se interagiu recentemente
+            if interacoes > 0:
+                log.debug(f"✅ Consentimento válido: {interacoes} interações recentes para {numero}")
+                return True
+            
+            # ⚠️ Falha segura: se não temos histórico claro, não enviamos proativo
+            log.info(f"⚠️ Sem engajamento recente para {numero} → não enviando proativo")
+            return False
+            
+    except Exception as e:
+        log.error(f"❌ Erro ao validar consentimento para {numero}: {e}")
+        return False  # Fail-safe: não enviar em caso de dúvida
+
+
+def _variar_mensagem(mensagem_base: str, numero: str) -> str:
+    """
+    Adiciona variações sutis para evitar padrões detectáveis pelo WhatsApp.
+    
+    Estratégia:
+    - Usa hash do número para variação CONSISTENTE (mesmo número = mesma variação)
+    - Varia apenas saudações iniciais e pontuação final
+    - Mantém o conteúdo principal intacto para clareza
+    
+    Args:
+        mensagem_base: Texto original da mensagem
+        numero: Número do destinatário (para seed consistente)
+    
+    Returns:
+        str: Mensagem com variação sutil aplicada
+    """
+    try:
+        # Seed consistente baseada no número (hash MD5 → int)
+        seed = int(hashlib.md5(numero.encode()).hexdigest()[:8], 16)
+        random.seed(seed)
+        
+        # Variações permitidas (saudações e encerramentos)
+        variacoes = {
+            "A Paz de Cristo": [
+                "A Paz de Cristo", 
+                "Graça e Paz", 
+                "Paz do Senhor", 
+                "A Paz de Cristo! 🙏"
+            ],
+            "Olá": [
+                "Olá", 
+                "Oi", 
+                "Olá!", 
+                "Olá, tudo bem?"
+            ],
+            "Tudo bem com você?": [
+                "Tudo bem com você?", 
+                "Como você está?", 
+                "Tudo em paz por aí?",
+                "Espero que esteja bem!"
+            ],
+            "🙏": [
+                "🙏", 
+                "🙏✨", 
+                "",  # às vezes sem emoji
+                "🙌"
+            ],
+        }
+        
+        resultado = mensagem_base
+        
+        # Aplica variações de forma consistente
+        for original, opcoes in variacoes.items():
+            if original in resultado:
+                escolha = random.choice(opcoes)
+                # Evita duplicar emojis ou pontuação
+                if escolha and original:
+                    resultado = resultado.replace(original, escolha, 1)
+                break  # Apenas uma variação por mensagem para sutileza
+        
+        # Reset seed para não afetar outros usos do random
+        random.seed()
+        return resultado
+        
+    except Exception as e:
+        log.error(f"❌ Erro ao variar mensagem: {e}")
+        return mensagem_base  # Fallback: retorna original se der erro
 
 
 def _safe_call(cb: CallbackFn, payload: Dict[str, Any]) -> None:
@@ -204,7 +373,10 @@ def _db_mark_fail_or_retry(envio_id: int, next_attempt_count: int, status_code: 
             if not conn:
                 return "falha"
             cur = conn.cursor()
-            allow_retry = (next_attempt_count < MAX_ATTEMPTS) and _should_retry(err, int(status_code or 0))
+            # ✅ PASSA O NÚMERO DA TENTATIVA PARA _should_retry (backoff exponencial)
+            allow_retry = (next_attempt_count < MAX_ATTEMPTS) and _should_retry(
+                err, int(status_code or 0), attempt=next_attempt_count
+            )
             novo_status = "pendente" if allow_retry else "falha"
             cur.execute("""
                 UPDATE fila_envios
@@ -414,6 +586,18 @@ def _processar_fila_worker():
                 log.warning(f"⚠️ envio_id={envio_id} número inválido. status={novo_status}")
                 continue
 
+            # 🛡️ VERIFICAÇÃO DE CONSENTIMENTO para envios proativos
+            # (respostas conversacionais is_reply=True não precisam desta verificação)
+            is_reply = meta.get("is_reply", False)
+            tipo_envio = meta.get("tipo", "bot")
+            
+            if not is_reply and tipo_envio in ("manual", "campanha", "proativo"):
+                if not _pode_enviar_proativo(numero):
+                    log.info(f"🚫 Consentimento não validado para proativo | envio_id={envio_id} | {numero}")
+                    # Marca como falha suave (não conta como erro de reputação)
+                    _db_mark_fail_or_retry(envio_id, tentativas_atual + 1, 0, "consentimento_nao_validado")
+                    continue
+
             # 🛡️ VERIFICAÇÃO ANTI-SPAM ANTES DO ENVIO (com is_reply)
             pode_enviar, motivo = _check_anti_spam_and_sleep(envio_id, numero, meta)
             if not pode_enviar:
@@ -427,9 +611,16 @@ def _processar_fila_worker():
             last_code = 0
             last_res: Any = None
 
+            # ✨ APLICA VARIAÇÃO SUTIL na mensagem (apenas para proativos)
+            mensagem_para_envio = mensagem
+            if not is_reply and tipo_envio in ("manual", "campanha", "proativo"):
+                mensagem_para_envio = _variar_mensagem(mensagem, numero)
+                if mensagem_para_envio != mensagem:
+                    log.debug(f"✨ Mensagem variada para {numero}: '{mensagem[:30]}...' → '{mensagem_para_envio[:30]}...'")
+
             # 📤 ENVIO DA MENSAGEM
             try:
-                last_res = enviar_mensagem(numero_envio, mensagem, imagem_url)
+                last_res = enviar_mensagem(numero_envio, mensagem_para_envio, imagem_url)
                 ok, last_err, last_code = _parse_result(last_res)
             except Exception as e:
                 ok = False
@@ -439,10 +630,9 @@ def _processar_fila_worker():
 
             # 🛡️ REGISTRA RESULTADO NO CONTROLLER ANTI-SPAM (com is_reply)
             if _anti_spam:
-                is_reply = meta.get("is_reply", False)
                 _anti_spam.register_send(ok, is_reply=is_reply)
 
-            msg_preview = (mensagem or "").replace("\n", " ")[:60]
+            msg_preview = (mensagem_para_envio or "").replace("\n", " ")[:60]
             err_preview = (last_err or "").replace("\n", " ")[:180]
 
             payload = {
@@ -451,7 +641,7 @@ def _processar_fila_worker():
                 "numero_envio": numero_envio,
                 "status_code": last_code,
                 "erro": last_err,
-                "mensagem": mensagem,
+                "mensagem": mensagem_para_envio,
                 "imagem_url": imagem_url,
                 "res": last_res,
                 "meta": meta,
@@ -463,11 +653,17 @@ def _processar_fila_worker():
 
             if ok:
                 _db_mark_success(envio_id, last_code)
-                _pos_envio_sucesso(meta, mensagem, numero_envio)
+                _pos_envio_sucesso(meta, mensagem_para_envio, numero_envio)
                 log.info(f"✅ Fila(DB) → {numero_envio} | {msg_preview}... | code={last_code} | envio_id={envio_id}")
                 _safe_call(on_success, payload)
             else:
-                novo_status = _db_mark_fail_or_retry(envio_id, tentativas_atual + 1, last_code, last_err)
+                # ✅ PASSA O NÚMERO DA TENTATIVA PARA BACKOFF EXPONENCIAL
+                novo_status = _db_mark_fail_or_retry(
+                    envio_id, 
+                    tentativas_atual + 1, 
+                    last_code, 
+                    last_err
+                )
                 if novo_status == "pendente":
                     log.warning(f"🔁 Retry agendado → envio_id={envio_id} | {numero_envio} | code={last_code} | err={err_preview}")
                     time.sleep(RETRY_SLEEP_SEG)
@@ -478,7 +674,6 @@ def _processar_fila_worker():
 
             # 🛡️ DELAY ALEATÓRIO PÓS-ENVIO (anti-spam com is_reply)
             if _anti_spam:
-                is_reply = meta.get("is_reply", False)
                 delay = _anti_spam.get_next_delay(is_reply=is_reply)
                 log.debug(f"😴 Delay aplicado: {delay:.1f}s (reply={is_reply})")
                 time.sleep(delay)
@@ -572,11 +767,19 @@ def get_queue_anti_spam_stats() -> dict:
                         COUNT(CASE WHEN status='pendente' THEN 1 END) as pending,
                         COUNT(CASE WHEN status='processando' THEN 1 END) as processing,
                         COUNT(CASE WHEN status='enviado' THEN 1 END) as sent,
-                        COUNT(CASE WHEN status='falha' THEN 1 END) as failed
+                        COUNT(CASE WHEN status='falha' THEN 1 END) as failed,
+                        COUNT(CASE WHEN status='falha' AND last_error LIKE '%consentimento%' THEN 1 END) as consent_blocked
                     FROM fila_envios
                     WHERE DATE(created_at) >= CURDATE()
                 """)
-                stats["queue_today"] = cur.fetchone() or {}
+                row = cur.fetchone() or {}
+                stats["queue_today"] = {
+                    "pending": row.get("pending", 0),
+                    "processing": row.get("processing", 0),
+                    "sent": row.get("sent", 0),
+                    "failed": row.get("failed", 0),
+                    "consent_blocked": row.get("consent_blocked", 0),
+                }
     except Exception as e:
         log.error(f"❌ Erro ao buscar stats da fila: {e}")
     
