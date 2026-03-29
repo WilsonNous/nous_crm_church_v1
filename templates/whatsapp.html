@@ -163,6 +163,17 @@
       flex-wrap: wrap;
     }
     
+    .config-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: #f3f4f6;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    
     @media (max-width: 768px) {
       .metrics-grid { grid-template-columns: repeat(2, 1fr); }
       .header-actions { flex-direction: column; align-items: stretch; }
@@ -178,6 +189,14 @@
 
   <main>
     <p>Esta tela envia mensagens de boas-vindas para visitantes sem fase definida (fase nula) e monitora o status das entregas.</p>
+    
+    <!-- ⚙️ Badge de Configuração Ativa -->
+    <div style="margin: 8px 0; display: flex; gap: 8px; flex-wrap: wrap;">
+      <span class="config-badge">📊 Limite: <strong id="configDailyLimit">10</strong>/dia</span>
+      <span class="config-badge">⏰ Horário: <strong id="configBusinessHours">08h-19h</strong> BRT</span>
+      <span class="config-badge">📦 Batch: <strong id="configBatchLimit">2</strong> msgs</span>
+      <span class="config-badge">⏱️ Delay: <strong id="configDelay">25-45s</strong></span>
+    </div>
 
     <!-- 🔘 Ações -->
     <div class="header-actions">
@@ -200,11 +219,11 @@
         <!-- Limite Diário -->
         <div class="metric-card info">
           <div class="metric-label">Limite Diário</div>
-          <div class="metric-value" id="metricDailyLimit">0/20</div>
+          <div class="metric-value" id="metricDailyLimit">0/10</div>
           <div class="progress-bar">
             <div class="progress-fill" id="progressDaily" style="width: 0%"></div>
           </div>
-          <small id="dailyRemaining" style="color:var(--muted)">20 restantes</small>
+          <small id="dailyRemaining" style="color:var(--muted)">10 restantes</small>
         </div>
         
         <!-- Enviados com Sucesso -->
@@ -290,20 +309,28 @@
   </main>
 
   <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.1</p>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.2</p>
   </footer>
 
   <script>
-    // Configurações
+    // Configurações - Valores padrão (serão sobrescritos pela API)
     const CONFIG = {
       AUTO_REFRESH_INTERVAL: 30000, // 30 segundos
       MAX_RECENT_SENDS: 10,
-      API_BASE: '/api'
+      API_BASE: '/api',
+      // Valores padrão do .env v4 (fallback se API falhar)
+      DEFAULTS: {
+        dailyLimit: 10,
+        businessHours: { start: 8, end: 19 },
+        batchLimit: 2,
+        delay: { min: 25, max: 45 }
+      }
     };
 
     // Estado global
     let autoRefreshTimer = null;
     let isSending = false;
+    let currentConfig = { ...CONFIG.DEFAULTS }; // Config atual carregada da API
 
     // Inicialização
     document.addEventListener('DOMContentLoaded', async () => {
@@ -314,11 +341,17 @@
         return;
       }
 
+      // Carrega configurações da API primeiro
+      await loadConfigFromAPI();
+      
+      // Atualiza badges de configuração na UI
+      updateConfigBadges();
+
       // Botão de envio
       document.getElementById('btnStartSend')?.addEventListener('click', async () => {
         if (isSending) return;
         
-        const ok = confirm('Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?\n\n⚠️ Isso consumirá parte do seu limite diário de 20 envios.');
+        const ok = confirm(`Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?\n\n⚠️ Isso consumirá parte do seu limite diário de ${currentConfig.dailyLimit} envios.`);
         if (!ok) return;
         
         isSending = true;
@@ -361,6 +394,37 @@
       }
     });
 
+    // Carrega configurações da API (/api/ia/stats)
+    async function loadConfigFromAPI() {
+      try {
+        const response = await fetch(`${CONFIG.API_BASE}/ia/stats`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const data = await response.json();
+        
+        // Atualiza config atual com valores da API
+        if (data?.anti_spam) {
+          currentConfig.dailyLimit = data.anti_spam.daily_limit || CONFIG.DEFAULTS.dailyLimit;
+        }
+        // Nota: business hours, batch e delay vêm do backend via fila_mensagens.py
+        // Se quiser expor mais config, adicione ao endpoint /api/ia/stats
+        
+      } catch (err) {
+        console.warn('⚠️ Não foi possível carregar config da API, usando defaults:', err);
+        currentConfig = { ...CONFIG.DEFAULTS };
+      }
+    }
+
+    // Atualiza badges de configuração na UI
+    function updateConfigBadges() {
+      document.getElementById('configDailyLimit').textContent = currentConfig.dailyLimit;
+      document.getElementById('configBusinessHours').textContent = 
+        `${String(currentConfig.businessHours.start).padStart(2, '0')}h-${String(currentConfig.businessHours.end).padStart(2, '0')}h`;
+      document.getElementById('configBatchLimit').textContent = currentConfig.batchLimit;
+      document.getElementById('configDelay').textContent = 
+        `${currentConfig.delay.min}-${currentConfig.delay.max}s`;
+    }
+
     // Carrega todas as métricas da API
     async function loadMetrics() {
       try {
@@ -378,7 +442,7 @@
         const total = sent + pending + failed + blocked;
         
         // Limite diário (do anti-spam ou fallback)
-        const dailyLimit = antiSpamStats?.anti_spam?.daily_limit || 20;
+        const dailyLimit = antiSpamStats?.anti_spam?.daily_limit || currentConfig.dailyLimit;
         const dailyUsed = antiSpamStats?.anti_spam?.sent || sent;
         const dailyRemaining = Math.max(0, dailyLimit - dailyUsed);
         const dailyPercent = Math.min(100, (dailyUsed / dailyLimit) * 100);
