@@ -22,12 +22,32 @@
       text-align: center;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       border-left: 4px solid var(--primary);
+      position: relative;
     }
     
     .metric-card.success { border-left-color: #22c55e; }
     .metric-card.warning { border-left-color: #f59e0b; }
     .metric-card.danger { border-left-color: #ef4444; }
     .metric-card.info { border-left-color: #3b82f6; }
+    
+    /* Badge de alerta no card */
+    .metric-card .alert-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #ef4444;
+      color: white;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
     
     .metric-value {
       font-size: 1.8rem;
@@ -126,6 +146,7 @@
     .status-badge.pending { background: #fef3c7; color: #92400e; }
     .status-badge.failed { background: #fee2e2; color: #991b1b; }
     .status-badge.blocked { background: #f3f4f6; color: #374151; }
+    .status-badge.limit-reached { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
     
     .refresh-btn {
       background: var(--primary);
@@ -174,10 +195,95 @@
       color: var(--muted);
     }
     
+    /* 🚨 Badge de Status do WhatsApp */
+    .whatsapp-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-left: auto;
+    }
+    
+    .whatsapp-status.connected {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    
+    .whatsapp-status.disconnected {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+      animation: pulse 2s infinite;
+    }
+    
+    .whatsapp-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    
+    /* 🚨 Alerta de Limite Atingido */
+    .limit-alert {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-left: 4px solid #ef4444;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .limit-alert.hidden { display: none; }
+    
+    .limit-alert-icon {
+      font-size: 1.5rem;
+    }
+    
+    .limit-alert-text {
+      flex: 1;
+    }
+    
+    .limit-alert-text strong {
+      color: #991b1b;
+    }
+    
+    .limit-alert-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    
+    .btn-sm.primary {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .btn-sm.secondary {
+      background: #f3f4f6;
+      color: var(--text);
+    }
+    
     @media (max-width: 768px) {
       .metrics-grid { grid-template-columns: repeat(2, 1fr); }
       .header-actions { flex-direction: column; align-items: stretch; }
-      .auto-refresh { margin-left: 0; justify-content: center; }
+      .auto-refresh, .whatsapp-status { margin-left: 0; justify-content: center; }
+      .limit-alert { flex-direction: column; text-align: center; }
+      .limit-alert-actions { justify-content: center; }
     }
   </style>
 </head>
@@ -190,25 +296,45 @@
   <main>
     <p>Esta tela envia mensagens de boas-vindas para visitantes sem fase definida (fase nula) e monitora o status das entregas.</p>
     
-    <!-- ⚙️ Badge de Configuração Ativa -->
-    <div style="margin: 8px 0; display: flex; gap: 8px; flex-wrap: wrap;">
+    <!-- ⚙️ Badge de Configuração + Status WhatsApp -->
+    <div style="margin: 8px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
       <span class="config-badge">📊 Limite: <strong id="configDailyLimit">10</strong>/dia</span>
       <span class="config-badge">⏰ Horário: <strong id="configBusinessHours">08h-19h</strong> BRT</span>
       <span class="config-badge">📦 Batch: <strong id="configBatchLimit">2</strong> msgs</span>
       <span class="config-badge">⏱️ Delay: <strong id="configDelay">25-45s</strong></span>
+      
+      <!-- 🟢/🔴 Status do WhatsApp -->
+      <span class="whatsapp-status disconnected" id="whatsappStatus">
+        <span class="dot"></span>
+        <span id="whatsappStatusText">🔌 Desconectado</span>
+      </span>
     </div>
 
     <!-- 🔘 Ações -->
     <div class="header-actions">
       <button class="btn-secondary" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
       <button class="btn-success" id="btnStartSend">🚀 Iniciar envio</button>
-      <button class="refresh-btn" id="btnRefresh" onclick="loadMetrics()">
-        🔄 Atualizar
+      <button class="refresh-btn" id="btnRefresh" onclick="loadMetrics(true)">
+        🔄 Forçar Atualizar
       </button>
       <label class="auto-refresh">
         <input type="checkbox" id="chkAutoRefresh" checked />
         Auto-atualizar (30s)
       </label>
+    </div>
+
+    <!-- 🚨 Alerta de Limite Atingido (oculto por padrão) -->
+    <div class="limit-alert hidden" id="limitAlert">
+      <span class="limit-alert-icon">⚠️</span>
+      <div class="limit-alert-text">
+        <strong>Limite diário atingido!</strong><br>
+        Você já utilizou <strong id="limitAlertUsed">0</strong> de <strong id="limitAlertTotal">10</strong> envios permitidos hoje.
+        Novos envios serão re-agendados para amanhã ou enviados apenas como resposta a mensagens recebidas.
+      </div>
+      <div class="limit-alert-actions">
+        <button class="btn-sm secondary" onclick="hideLimitAlert()">Fechar</button>
+        <button class="btn-sm primary" onclick="window.location.href='/app/monitor-status'">Ver Dashboard</button>
+      </div>
     </div>
 
     <!-- 📊 Painel de Métricas -->
@@ -217,7 +343,7 @@
       
       <div class="metrics-grid">
         <!-- Limite Diário -->
-        <div class="metric-card info">
+        <div class="metric-card info" id="cardDailyLimit">
           <div class="metric-label">Limite Diário</div>
           <div class="metric-value" id="metricDailyLimit">0/10</div>
           <div class="progress-bar">
@@ -309,7 +435,7 @@
   </main>
 
   <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.2</p>
+    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.3</p>
   </footer>
 
   <script>
@@ -330,7 +456,8 @@
     // Estado global
     let autoRefreshTimer = null;
     let isSending = false;
-    let currentConfig = { ...CONFIG.DEFAULTS }; // Config atual carregada da API
+    let currentConfig = { ...CONFIG.DEFAULTS };
+    let lastMetricsFetch = 0;
 
     // Inicialização
     document.addEventListener('DOMContentLoaded', async () => {
@@ -351,7 +478,8 @@
       document.getElementById('btnStartSend')?.addEventListener('click', async () => {
         if (isSending) return;
         
-        const ok = confirm(`Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?\n\n⚠️ Isso consumirá parte do seu limite diário de ${currentConfig.dailyLimit} envios.`);
+        const dailyLimit = currentConfig.dailyLimit;
+        const ok = confirm(`Deseja enviar mensagens de boas-vindas via WhatsApp (Z-API)?\n\n⚠️ Isso consumirá parte do seu limite diário de ${dailyLimit} envios.`);
         if (!ok) return;
         
         isSending = true;
@@ -371,8 +499,8 @@
           isSending = false;
           document.getElementById('btnStartSend').disabled = false;
           document.getElementById('btnStartSend').textContent = '🚀 Iniciar envio';
-          // Atualiza métricas após envio
-          setTimeout(loadMetrics, 2000);
+          // Atualiza métricas após envio (força refresh)
+          setTimeout(() => loadMetrics(true), 2000);
         }
       });
 
@@ -385,8 +513,8 @@
         }
       });
 
-      // Carrega métricas iniciais
-      await loadMetrics();
+      // Carrega métricas iniciais (força refresh na primeira carga)
+      await loadMetrics(true);
       
       // Inicia auto-refresh se habilitado
       if (document.getElementById('chkAutoRefresh')?.checked) {
@@ -397,7 +525,9 @@
     // Carrega configurações da API (/api/ia/stats)
     async function loadConfigFromAPI() {
       try {
-        const response = await fetch(`${CONFIG.API_BASE}/ia/stats`);
+        // Cache-busting: adiciona timestamp para evitar cache do browser
+        const timestamp = Date.now();
+        const response = await fetch(`${CONFIG.API_BASE}/ia/stats?t=${timestamp}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
@@ -406,8 +536,6 @@
         if (data?.anti_spam) {
           currentConfig.dailyLimit = data.anti_spam.daily_limit || CONFIG.DEFAULTS.dailyLimit;
         }
-        // Nota: business hours, batch e delay vêm do backend via fila_mensagens.py
-        // Se quiser expor mais config, adicione ao endpoint /api/ia/stats
         
       } catch (err) {
         console.warn('⚠️ Não foi possível carregar config da API, usando defaults:', err);
@@ -425,16 +553,57 @@
         `${currentConfig.delay.min}-${currentConfig.delay.max}s`;
     }
 
+    // Esconde alerta de limite
+    function hideLimitAlert() {
+      document.getElementById('limitAlert').classList.add('hidden');
+    }
+
+    // Mostra alerta de limite se necessário
+    function showLimitAlertIfNeeded(dailyUsed, dailyLimit) {
+      const alert = document.getElementById('limitAlert');
+      if (dailyUsed >= dailyLimit) {
+        document.getElementById('limitAlertUsed').textContent = dailyUsed;
+        document.getElementById('limitAlertTotal').textContent = dailyLimit;
+        alert.classList.remove('hidden');
+      } else {
+        alert.classList.add('hidden');
+      }
+    }
+
+    // Atualiza status do WhatsApp (simulado - em produção, buscar de endpoint)
+    function updateWhatsAppStatus(isConnected) {
+      const statusEl = document.getElementById('whatsappStatus');
+      const textEl = document.getElementById('whatsappStatusText');
+      
+      if (isConnected) {
+        statusEl.className = 'whatsapp-status connected';
+        textEl.textContent = '🟢 Conectado';
+      } else {
+        statusEl.className = 'whatsapp-status disconnected';
+        textEl.textContent = '🔌 Desconectado';
+      }
+    }
+
     // Carrega todas as métricas da API
-    async function loadMetrics() {
+    async function loadMetrics(forceRefresh = false) {
       try {
+        // Cache-busting: evita cache do browser com timestamp
+        const timestamp = forceRefresh ? Date.now() : '';
+        const qs = timestamp ? `?t=${timestamp}` : '';
+        
         const [queueStats, antiSpamStats] = await Promise.all([
-          fetch(`${CONFIG.API_BASE}/monitor-status`).then(r => r.json()),
-          fetch(`${CONFIG.API_BASE}/ia/stats`).catch(() => ({}))
+          fetch(`${CONFIG.API_BASE}/monitor-status${qs}`).then(r => {
+            if (!r.ok) throw new Error(`Monitor: ${r.status}`);
+            return r.json();
+          }),
+          fetch(`${CONFIG.API_BASE}/ia/stats${qs}`).then(r => {
+            if (!r.ok) throw new Error(`IA Stats: ${r.status}`);
+            return r.json();
+          }).catch(() => ({})) // Fallback silencioso para stats da IA
         ]);
 
         // Extrai dados da fila
-        const queue = queueStats.queue_today || {};
+        const queue = queueStats?.queue_today || {};
         const sent = queue.sent || 0;
         const pending = queue.pending || 0;
         const failed = queue.failed || 0;
@@ -476,6 +645,14 @@
           deliveryStatus.style.color = '#991b1b';
         }
         
+        // Mostra alerta de limite se necessário
+        showLimitAlertIfNeeded(dailyUsed, dailyLimit);
+        
+        // Atualiza status do WhatsApp (simulado - em produção, buscar de endpoint real)
+        // Por enquanto, assume conectado se anti_spam.can_send_now for true
+        const isConnected = antiSpamStats?.anti_spam?.can_send_now !== false && dailyUsed < dailyLimit;
+        updateWhatsAppStatus(isConnected);
+        
         // Atualiza gráfico
         document.getElementById('chartTotal').textContent = `Total: ${total}`;
         if (total > 0) {
@@ -503,30 +680,47 @@
           });
         }
         
-        // Carrega últimos envios
-        await loadRecentSends();
+        // Carrega últimos envios (com fallback se endpoint não existir)
+        await loadRecentSends(forceRefresh);
         
         logMessage('📊 Métricas atualizadas', 'info');
         
       } catch (err) {
         console.error('Erro ao carregar métricas:', err);
         logMessage(`⚠️ Não foi possível atualizar métricas: ${err.message}`, 'warning');
+        
+        // Fallback: atualiza UI com valores zerados para não travar
+        document.getElementById('metricDailyLimit').textContent = `0/${currentConfig.dailyLimit}`;
+        document.getElementById('progressDaily').style.width = '0%';
+        document.getElementById('dailyRemaining').textContent = `${currentConfig.dailyLimit} restantes`;
+        updateWhatsAppStatus(false); // Assume desconectado em caso de erro
       }
     }
 
     // Carrega tabela de últimos envios
-    async function loadRecentSends() {
+    async function loadRecentSends(forceRefresh = false) {
       try {
-        const response = await fetch(`${CONFIG.API_BASE}/monitor-status`);
-        const data = await response.json();
+        const timestamp = forceRefresh ? Date.now() : '';
+        const qs = timestamp ? `?t=${timestamp}` : '';
         
-        // Nota: Esta é uma simulação - em produção, crie um endpoint /api/fila/recentes
-        // que retorne os últimos registros de fila_envios com detalhes
-        const recentSends = data.recent_sends || [];
+        // Tenta buscar de endpoint dedicado primeiro
+        let recentSends = [];
+        try {
+          const response = await fetch(`${CONFIG.API_BASE}/fila/recentes${qs}`);
+          if (response.ok) {
+            const data = await response.json();
+            recentSends = data.data || data.recent_sends || [];
+          }
+        } catch (e) {
+          // Fallback: usa dados do monitor-status
+          const response = await fetch(`${CONFIG.API_BASE}/monitor-status${qs}`);
+          const data = await response.json();
+          recentSends = data.recent_sends || [];
+        }
         
         const tbody = document.getElementById('recentSendsBody');
         
-        if (recentSends.length === 0) {
+        if (!recentSends || recentSends.length === 0) {
           tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:20px;">Nenhum envio recente</td></tr>';
           return;
         }
@@ -536,26 +730,33 @@
             'enviado': 'sent',
             'pendente': 'pending', 
             'falha': 'failed',
-            'bloqueado': 'blocked'
+            'bloqueado': 'blocked',
+            'consentimento_nao_validado': 'blocked',
+            'limit_reached': 'limit-reached'
           }[send.status] || 'pending';
           
           const statusLabel = {
             'enviado': '✅ Entregue',
             'pendente': '⏳ Pendente',
             'falha': '❌ Falha',
-            'bloqueado': '🚫 Bloqueado'
+            'bloqueado': '🚫 Sem consentimento',
+            'consentimento_nao_validado': '🚫 Sem consentimento',
+            'limit_reached': '⚠️ Limite atingido'
           }[send.status] || send.status;
           
-          const time = new Date(send.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-          const phone = send.numero?.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3') || send.numero;
+          const time = send.created_at ? new Date(send.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : '–';
+          const phone = send.numero?.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3') || send.numero || '–';
           const msgPreview = (send.mensagem || '').substring(0, 40) + (send.mensagem?.length > 40 ? '...' : '');
           
+          // Adiciona tooltip com erro se houver
+          const errorTip = send.last_error ? ` title="Erro: ${send.last_error}"` : '';
+          
           return `
-            <tr>
+            <tr${errorTip}>
               <td>${time}</td>
-              <td>${phone || '–'}</td>
+              <td>${phone}</td>
               <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-              <td title="${send.mensagem || ''}">${msgPreview || '–'}</td>
+              <td title="${(send.mensagem || '').replace(/"/g, '&quot;')}">${msgPreview || '–'}</td>
             </tr>
           `;
         }).join('');
@@ -597,7 +798,7 @@
       if (autoRefreshTimer) clearInterval(autoRefreshTimer);
       autoRefreshTimer = setInterval(() => {
         if (!document.hidden) { // Só atualiza se aba estiver visível
-          loadMetrics();
+          loadMetrics(false); // Não força refresh no auto-refresh
         }
       }, CONFIG.AUTO_REFRESH_INTERVAL);
       logMessage('🔄 Auto-refresh ativado (30s)', 'info');
