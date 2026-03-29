@@ -1,6 +1,8 @@
 import logging
 from flask import request, jsonify, render_template, session, redirect, url_for
 from database import get_db_connection
+from servicos.anti_spam_controller import AntiSpamController
+import os
 
 def register(app):
     # ============================================================
@@ -129,3 +131,120 @@ def register(app):
                 cursor.close()
             if conn:
                 conn.close()
+
+    # ============================================================
+    # 🆕 NOVO: Stats da IA para Dashboard WhatsApp
+    # ============================================================
+    @app.route('/api/ia/stats', methods=['GET'])
+    def ia_stats():
+        """
+        Retorna estatísticas da IA + anti-spam para o painel de métricas.
+        Usado pelo frontend /app/whatsapp para exibir cards e gráficos.
+        """
+        try:
+            conn = get_db_connection()
+            if not conn:
+                raise Exception("get_db_connection() retornou None")
+            
+            cursor = conn.cursor()
+            
+            # 📊 Stats do knowledge_base
+            cursor.execute("SELECT COUNT(*) as total FROM knowledge_base")
+            kb_total = cursor.fetchone().get('total', 0)
+            
+            # 📊 Stats de training_pairs
+            cursor.execute("SELECT COUNT(*) as total FROM training_pairs")
+            train_total = cursor.fetchone().get('total', 0)
+            
+            # 📊 Stats de unknown_questions
+            cursor.execute("""
+                SELECT 
+                    COUNT(CASE WHEN status='pending' THEN 1 END) as pending,
+                    COUNT(CASE WHEN status='answered' THEN 1 END) as answered
+                FROM unknown_questions
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+            """)
+            unknown_stats = cursor.fetchone()
+            
+            # 📊 Stats da fila_envios (hoje)
+            cursor.execute("""
+                SELECT 
+                    COUNT(CASE WHEN status='enviado' THEN 1 END) as sent,
+                    COUNT(CASE WHEN status='falha' THEN 1 END) as failed,
+                    COUNT(CASE WHEN status='pendente' THEN 1 END) as pending
+                FROM fila_envios
+                WHERE DATE(created_at) = CURDATE()
+            """)
+            queue_stats = cursor.fetchone()
+            
+            cursor.close()
+            conn.close()
+            
+            # 🛡️ Stats do anti-spam controller
+            anti_spam = AntiSpamController(os.getenv("ZAPI_INSTANCE"))
+            anti_spam_stats = anti_spam.get_daily_stats()
+            
+            # Calcula taxa de entrega
+            sent = queue_stats.get('sent', 0)
+            failed = queue_stats.get('failed', 0)
+            attempted = sent + failed
+            delivery_rate = round((sent / max(attempted, 1)) * 100)
+            
+            return jsonify({
+                "status": "success",
+                "timestamp": None,  # Preenchido pelo frontend se necessário
+                
+                # 🧠 Stats da IA
+                "knowledge_base": {
+                    "total_questions": kb_total,
+                    "training_pairs": train_total
+                },
+                
+                # ❓ Perguntas não respondidas (últimos 7 dias)
+                "unknown_questions": {
+                    "pending_7d": unknown_stats.get('pending', 0),
+                    "answered_7d": unknown_stats.get('answered', 0)
+                },
+                
+                # 📦 Stats da fila (hoje)
+                "queue_today": {
+                    "sent": sent,
+                    "failed": failed,
+                    "pending": queue_stats.get('pending', 0),
+                    "delivery_rate": delivery_rate
+                },
+                
+                # 🛡️ Stats do anti-spam
+                "anti_spam": {
+                    "daily_limit": anti_spam_stats.get('daily_limit', 20),
+                    "sent": anti_spam_stats.get('sent', 0),
+                    "can_send_now": anti_spam_stats.get('can_send_now', True),
+                    "next_delay_sec": anti_spam_stats.get('next_delay_sec', 15),
+                    "batch_pause_sec": anti_spam_stats.get('batch_pause_sec', 300)
+                },
+                
+                # 🎯 Saúde geral (calculado)
+                "health": {
+                    "status": "healthy" if delivery_rate >= 95 and anti_spam_stats.get('sent', 0) < 20 else "warning",
+                    "message": "🟢 Saudável" if delivery_rate >= 95 else "🟡 Atenção" if delivery_rate >= 80 else "🔴 Crítico"
+                }
+                
+            }), 200
+            
+        except Exception as e:
+            logging.error(f"❌ Erro em /api/ia/stats: {e}", exc_info=True)
+            # Retorna estrutura mínima em caso de erro (fail-safe)
+            return jsonify({
+                "status": "error",
+                "message": str(e),
+                "anti_spam": {
+                    "daily_limit": 20,
+                    "sent": 0,
+                    "can_send_now": True,
+                    "next_delay_sec": 15
+                },
+                "knowledge_base": {"total_questions": 0, "training_pairs": 0},
+                "unknown_questions": {"pending_7d": 0, "answered_7d": 0},
+                "queue_today": {"sent": 0, "failed": 0, "pending": 0, "delivery_rate": 100},
+                "health": {"status": "unknown", "message": "⚪ Indisponível"}
+            }), 200  # Retorna 200 para não quebrar o frontend
