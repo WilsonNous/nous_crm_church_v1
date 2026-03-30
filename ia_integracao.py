@@ -1,4 +1,4 @@
-# ia_integracao.py - Integração real com banco de dados (CORRIGIDA + VALIDADA)
+# ia_integracao.py - Integração com banco de dados (OTIMIZADA COM FULLTEXT)
 import logging
 import re
 import unicodedata
@@ -66,6 +66,7 @@ class IAIntegracao:
     def _responder_sem_cache(self, pergunta_normalizada: str) -> tuple[str, float]:
         """
         Lógica real de busca no banco (sem cache).
+        ✅ ESTRATÉGIA: FULLTEXT MATCH (principal) → LIKE (fallback) → Categoria (último recurso)
         Retorna (resposta, confidence).
         """
         try:
@@ -75,17 +76,70 @@ class IAIntegracao:
                 
                 cursor = conn.cursor()
                 
-                # 🔍 ESTRATÉGIA 1: Match por tokens (AND lógico)
-                tokens = pergunta_normalizada.split()
+                # 🔍 ESTRATÉGIA 1: FULLTEXT MATCH (mais rápido e relevante)
+                # Usa índice FULLTEXT criado: ALTER TABLE knowledge_base ADD FULLTEXT INDEX ft_question_answer (question, answer)
+                try:
+                    # Prepara termo para FULLTEXT (remove aspas e caracteres especiais)
+                    search_term = re.sub(r'[^\w\s]', '', pergunta_normalizada).strip()
+                    
+                    if len(search_term) >= 3:  # FULLTEXT precisa de pelo menos 3 caracteres
+                        # Busca com NATURAL LANGUAGE MODE (relevância automática baseada em frequência)
+                        query_fulltext = """
+                            SELECT kb.answer, 'kb' as fonte,
+                                   MATCH(kb.question, kb.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as similarity
+                            FROM knowledge_base kb
+                            WHERE MATCH(kb.question, kb.answer) AGAINST(%s IN NATURAL LANGUAGE MODE)
+                            
+                            UNION ALL
+                            
+                            SELECT tp.answer, 'train' as fonte,
+                                   MATCH(tp.question, tp.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as similarity
+                            FROM training_pairs tp
+                            WHERE MATCH(tp.question, tp.answer) AGAINST(%s IN NATURAL LANGUAGE MODE)
+                            
+                            ORDER BY similarity DESC, COALESCE(updated_at, created_at) DESC
+                            LIMIT 1
+                        """
+                        cursor.execute(query_fulltext, (search_term, search_term, search_term, search_term))
+                        result = cursor.fetchone()
+                        
+                        if result:
+                            # Extrair dados de forma segura (suporta DictCursor ou tuple)
+                            if isinstance(result, dict):
+                                resposta = result.get('answer')
+                                fonte = result.get('fonte')
+                                similarity = result.get('similarity', 0) or 0
+                            else:
+                                resposta = result[0] if len(result) > 0 else None
+                                fonte = result[1] if len(result) > 1 else 'train'
+                                similarity = result[2] if len(result) > 2 else 0
+                            
+                            if resposta:
+                                # ✅ Confidence baseado na similaridade do FULLTEXT
+                                # similarity >= 2.0 = muito relevante | >= 1.0 = relevante | >= 0.5 = ok
+                                if similarity >= 2.0:
+                                    confidence = 0.98 if fonte == 'kb' else 0.95
+                                elif similarity >= 1.0:
+                                    confidence = 0.95 if fonte == 'kb' else 0.90
+                                else:
+                                    confidence = 0.85 if fonte == 'kb' else 0.80
+                                
+                                log.debug(f"✅ IA: FULLTEXT match (similaridade={similarity:.2f}, fonte={fonte}, conf={confidence})")
+                                return str(resposta), confidence
+                                
+                except Exception as e:
+                    # Se FULLTEXT falhar (ex: índice não existe ainda), fallback silencioso para LIKE
+                    log.debug(f"⚠️ FULLTEXT não disponível, usando LIKE: {e}")
+                
+                # 🔍 ESTRATÉGIA 2: Fallback para LIKE com tokens (AND lógico)
+                tokens = [t for t in pergunta_normalizada.split() if len(t) >= 3]
                 
                 if len(tokens) >= 2:
                     # Constrói condições LIKE com placeholders %s
                     like_conditions = ' AND '.join(['question LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
-                    # ✅ CORREÇÃO: Usar .format() para estrutura da query, NÃO f-string
-                    # Isso evita conflito entre %s (placeholders) e formatação de string
-                    query = """
+                    query_like = """
                         SELECT answer, 'kb' as fonte FROM knowledge_base
                         WHERE {}
                         UNION ALL
@@ -93,15 +147,15 @@ class IAIntegracao:
                         WHERE {}
                         ORDER BY 
                             CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
-                            updated_at DESC
+                            COALESCE(updated_at, created_at) DESC
                         LIMIT 1
                     """.format(like_conditions, like_conditions)
                     
-                    cursor.execute(query, params)
+                    cursor.execute(query_like, params)
                     
                 else:
                     # Fallback para perguntas curtas (1 token ou vazio)
-                    query = """
+                    query_like = """
                         SELECT answer, 'kb' as fonte FROM knowledge_base
                         WHERE question LIKE %s
                         UNION ALL
@@ -109,33 +163,30 @@ class IAIntegracao:
                         WHERE question LIKE %s
                         ORDER BY 
                             CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
-                            updated_at DESC
+                            COALESCE(updated_at, created_at) DESC
                         LIMIT 1
                     """
-                    cursor.execute(query, (f'%{pergunta_normalizada}%', f'%{pergunta_normalizada}%'))
+                    cursor.execute(query_like, (f'%{pergunta_normalizada}%', f'%{pergunta_normalizada}%'))
                 
-                # ✅ VALIDAÇÃO: Extrair resultado de forma segura (DictCursor ou lista)
                 result = cursor.fetchone()
                 if result:
-                    # Suporta tanto DictCursor quanto tuple
                     if isinstance(result, dict):
                         resposta = result.get('answer')
                         fonte = result.get('fonte')
                     else:
-                        # Resultado como tuple: (answer, fonte)
                         resposta = result[0] if len(result) > 0 else None
                         fonte = result[1] if len(result) > 1 else 'train'
                     
                     if resposta:
-                        confidence = 0.95 if fonte == 'kb' else 0.90
-                        log.debug(f"✅ IA: resposta encontrada (fonte={fonte}, conf={confidence})")
+                        confidence = 0.90 if fonte == 'kb' else 0.85
+                        log.debug(f"✅ IA: LIKE match (fonte={fonte}, conf={confidence})")
                         return str(resposta), confidence
                 
-                # 🔍 ESTRATÉGIA 2: Busca por categoria (fallback)
+                # 🔍 ESTRATÉGIA 3: Busca por categoria (fallback final)
                 categorias_conhecidas = [
                     'horarios', 'culto', 'batismo', 'membro', 'oracao', 
                     'grupo', 'whatsapp', 'discipulado', 'novo come', 
-                    'pastor', 'lider', 'evento'
+                    'pastor', 'lider', 'evento', 'fundadores'
                 ]
                 
                 for cat in categorias_conhecidas:
@@ -143,11 +194,10 @@ class IAIntegracao:
                         cursor.execute("""
                             SELECT answer FROM knowledge_base 
                             WHERE category = %s 
-                            ORDER BY updated_at DESC LIMIT 1
+                            ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1
                         """, (cat,))
                         result = cursor.fetchone()
                         if result:
-                            # Extrair resposta de forma segura
                             if isinstance(result, dict):
                                 resposta = result.get('answer')
                             else:
@@ -155,7 +205,7 @@ class IAIntegracao:
                             
                             if resposta:
                                 log.debug(f"✅ IA: resposta por categoria '{cat}'")
-                                return str(resposta), 0.85
+                                return str(resposta), 0.80
                 
                 # ❌ Nada encontrado: registra para treinamento futuro
                 try:
@@ -167,7 +217,6 @@ class IAIntegracao:
                     conn.commit()
                     log.info(f"📝 Pergunta registrada para treino: '{pergunta_normalizada[:60]}...'")
                 except Exception as e:
-                    # Não falhar se não conseguir registrar pendência
                     log.warning(f"⚠️ Não foi possível registrar pergunta pendente: {e}")
                 
                 return self._fallback_response(), 0.5
