@@ -113,58 +113,78 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # 🔍 DETECÇÕES INTELIGENTES (ORDEM ESTRATÉGICA!)
     # ==========================================================
     
-    # 🎯 PRIORIDADE 1: Falar com pastores / secretaria / agendar visita
-    # ✅ Esta detecção deve vir ANTES de detectar_intencao_pastores
-    def detectar_intencao_falar_pastores(texto: str) -> bool:
+    # 🎯 PRIORIDADE 1: Pastores (UNIFICADO: nomes + Instagram + contato secretaria)
+    # ✅ Esta detecção cobre: "quem são os pastores", "falar com pastores", "agenda com pastores", etc.
+    def detectar_intencao_pastores_unificado(texto: str) -> bool:
         """
-        Detecta se o visitante quer entrar em contato direto com os pastores ou secretaria.
+        Detecta qualquer intenção relacionada aos pastores:
+        - Quem são / nomes dos pastores
+        - Falar com / contato com pastores
+        - Agendar visita pastoral / marcar agenda
+        - WhatsApp / telefone dos pastores
+        - Secretaria / Wilson Martins (como canal de contato)
+        
         ✅ Regex flexível para aceitar artigos e variações naturais.
         """
         texto = texto.lower().strip()
         
         padroes = [
-            # Contato direto com pastores
+            # === QUEM SÃO OS PASTORES (informação) ===
+            r"quem (é|são|e|sao) (os |o |as |a )?pastores?",
+            r"quem (são|sao|é|e) (o |os |a |as )?pastor(es)?",
+            r"qual (é|e|são|sao) (o |os |a |as )?pastor(es)?",
+            r"quem é o pastor",
+            r"quem são os líderes",
+            r"pastores? da igreja",
+            r"nome dos pastores",
+            r"quem (são|sao) (os )?lideres?",
+            r"fundadores da igreja",
+            r"historia da igreja",
+            
+            # === CONTATO / FALAR COM PASTORES ===
             r"falar (com|para) (o |a |os |as )?pastor(es)?",
             r"contato (com|dos|do|da) (o |a |os |as )?pastor(es)?",
             r"ligar (para|pros|pra) (o |a |os |as )?pastor(es)?",
             r"whatsapp (dos|do|da) (o |a |os |as )?pastor(es)?",
             r"numero (dos|do|da) (o |a |os |as )?pastor(es)?",
             r"telefone (dos|do|da) (o |a |os |as )?pastor(es)?",
+            r"como falo com (os |as )?pastor(es)?",
+            r"como entro em contato com (os |as )?pastor(es)?",
             
-            # Agenda/visita pastoral (CORRIGIDO: aceita artigos entre palavras)
+            # === AGENDAR VISITA / MARCAR AGENDA ===
             r"agenda (com|dos|do|da) (o |a |os |as )?pastor(es)?",
             r"agendar (com|uma visita com) (o |a |os |as )?pastor",
             r"marcar (com|uma visita com) (o |a |os |as )?pastor",
-            r"marcar.*agenda.*pastor",  # Flexível: "quero marcar uma agenda com os pastores"
+            r"marcar.*agenda.*pastor",
             r"quero.*falar.*pastor",
             r"preciso.*contato.*pastor",
-            
-            # Visita pastoral
             r"visita pastoral",
             r"visita (dos|do|da) (o |a |os |as )?pastor(es)?",
             r"receber visita pastoral",
             r"visita dos pastores",
+            r"agendar.*pastor",
             
-            # Perguntas diretas
-            r"como falo com (os |as )?pastor(es)?",
-            r"como entro em contato com (os |as )?pastor(es)?",
-            r"como agendar com (os |as )?pastor(es)?",
-            
-            # Secretaria / Wilson
+            # === SECRETARIA / WILSON (como canal de contato) ===
             r"secretario wilson",
             r"wilson martins",
             r"falar com a secretaria",
             r"contato da secretaria",
             r"ligar para a secretaria",
             r"whatsapp da secretaria",
+            r"secretaria da igreja",
         ]
         
         return any(re.search(p, texto) for p in padroes)
 
-    if detectar_intencao_falar_pastores(texto_normalizado):
+    if detectar_intencao_pastores_unificado(texto_normalizado):
+        # ✅ RESPOSTA UNIFICADA: Nomes + Instagram + Contato Secretaria
         resposta = (
-            "Para falar diretamente com nossos pastores ou agendar uma visita pastoral, "
-            "entre em contato com nossa secretaria:\n\n"
+            "Nossos pastores atuais são:\n"
+            "- *Pr. Fábio Ferreira*\n"
+            "- *Pra. Cláudia Ferreira*\n\n"
+            "Você pode seguir o Pr. Fábio no Instagram: @prfabioferreirasoficial\n"
+            "E a Pra. Cláudia em: @claudiaferreiras1\n\n"
+            "📅 *Para agendar uma visita pastoral ou falar diretamente:*\n"
             "📞 *(48) 99828-4104*\n"
             "👤 *Secretário Presbítero Wilson Martins*\n\n"
             "Estaremos felizes em atendê-lo! 🙏"
@@ -225,58 +245,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 3: Saber QUEM SÃO os pastores (informação, não contato)
-    def detectar_intencao_pastores(texto: str) -> bool:
-        """
-        Detecta se o visitante está perguntando QUEM SÃO os pastores.
-        Ignora contextos de contato direto (já tratados acima).
-        """
-        texto = texto.lower().strip()
-
-        padroes_validos = [
-            r"quem (é|são|e|sao) (os |o |as |a )?pastores?",
-            r"quem (são|sao|é|e) (o |os |a |as )?pastor(es)?",
-            r"qual (é|e|são|sao) (o |os |a |as )?pastor(es)?",
-            r"quem é o pastor",
-            r"quem são os líderes",
-            r"pastores? da igreja",
-            r"nome dos pastores",
-            r"quem (são|sao) (os )?lideres?",
-        ]
-
-        padroes_ignorados = [
-            r"pastor [a-z]",      # Ex: "pastor fabio" → não é pergunta
-            r"pastora [a-z]",     # Ex: "pastora claudia" → não é pergunta
-            r"falar com",         # Já tratado acima
-            r"contato",           # Já tratado acima
-            r"whatsapp",          # Já tratado acima
-            r"agenda",            # Já tratado acima
-            r"visita",            # Já tratado acima
-            r"marcar",            # Já tratado acima
-            r"ligar",             # Já tratado acima
-            r"teste",
-            r"não precisa responder",
-            r"mensagem de teste",
-        ]
-
-        if any(re.search(p, texto) for p in padroes_ignorados):
-            return False
-
-        return any(re.search(p, texto) for p in padroes_validos)
-
-    if detectar_intencao_pastores(texto_normalizado):
-        resposta = (
-            "Nossos pastores atuais são:\n"
-            "- *Pr. Fábio Ferreira*\n"
-            "- *Pra. Cláudia Ferreira*\n\n"
-            "Você pode seguir o Pr. Fábio no Instagram: @prfabioferreirasoficial\n"
-            "E a Pra. Cláudia em: @claudiaferreiras1"
-        )
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
-        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
-        return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": estado_atual.name}
-
-    # 🎯 PRIORIDADE 4: Grupos de WhatsApp / GC
+    # 🎯 PRIORIDADE 3: Grupos de WhatsApp / GC
     def detectar_intencao_grupo_whatsapp(texto: str) -> bool:
         """
         Detecta interesse em entrar em grupos de WhatsApp ou GC.
@@ -316,7 +285,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 5: Batismo / Tornar-se membro
+    # 🎯 PRIORIDADE 4: Batismo / Tornar-se membro
     def detectar_intencao_batismo_membro(texto: str) -> bool:
         """
         Detecta interesse em batismo ou tornar-se membro.
@@ -361,7 +330,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 6: Localização / Endereço da igreja
+    # 🎯 PRIORIDADE 5: Localização / Endereço da igreja
     def detectar_intencao_localizacao(texto: str) -> bool:
         """
         Detecta perguntas sobre endereço ou localização da igreja.
@@ -402,7 +371,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 7: Opções do menu numérico (1-6)
+    # 🎯 PRIORIDADE 6: Opções do menu numérico (1-6)
     def detectar_opcao_menu(texto: str) -> str | None:
         """
         Detecta se o visitante digitou uma opção do menu (1, 2, 3, 4, 5, 6).
