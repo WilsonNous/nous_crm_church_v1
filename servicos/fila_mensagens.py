@@ -8,6 +8,7 @@
 # ✅ Timezone-aware: respeita horário do Brasil (BRT/UTC-3)
 # ✅ CORREÇÃO: JOIN com visitantes para buscar telefone em conversas
 # ✅ CONFIG: Variáveis mapeadas do .env (Render v4)
+# ✅ BYPASS: Manuais (boas-vindas) ignoram consentimento, mas respeitam limites anti-spam
 # ==============================================
 
 import os
@@ -488,7 +489,7 @@ def _db_reequeue_item(envio_id: int, scheduled_for: datetime) -> bool:
 
 
 # =========================
-# 🛡️ Anti-Spam: Verificação e Delay (com is_reply)
+# 🛡️ Anti-Spam: Verificação e Delay (com is_reply e is_manual)
 # =========================
 
 def _check_anti_spam_and_sleep(envio_id: int, numero: str, meta: Dict[str, Any]) -> Tuple[bool, str]:
@@ -498,7 +499,7 @@ def _check_anti_spam_and_sleep(envio_id: int, numero: str, meta: Dict[str, Any])
     Args:
         envio_id: ID do envio na fila
         numero: Número do destinatário
-        meta: Metadados do envio (contém is_reply)
+        meta: Metadados do envio (contém is_reply e tipo)
     
     Returns:
         Tuple[bool, str]: (pode_enviar, motivo)
@@ -508,10 +509,11 @@ def _check_anti_spam_and_sleep(envio_id: int, numero: str, meta: Dict[str, Any])
     if not _anti_spam:
         return True, "ok"  # Fallback se controller não estiver inicializado
 
-    # Extrai is_reply do meta (padrão: False para compatibilidade)
     is_reply = meta.get("is_reply", False)
+    is_manual = meta.get("tipo") == "manual"  # ← NOVO: detectar envio manual (boas-vindas)
     
-    can_send, reason = _anti_spam.can_send_now(is_reply=is_reply)
+    # ✅ Passa is_manual para o controller anti-spam
+    can_send, reason = _anti_spam.can_send_now(is_reply=is_reply, is_manual=is_manual)
     
     if not can_send:
         if reason.startswith("reequeue:"):
@@ -525,7 +527,7 @@ def _check_anti_spam_and_sleep(envio_id: int, numero: str, meta: Dict[str, Any])
             except Exception as e:
                 log.error(f"❌ Falha ao re-agendar envio_id={envio_id}: {e}")
         else:
-            log.info(f"⏸️ Aguardando anti-spam: {reason} | envio_id={envio_id} | reply={is_reply}")
+            log.info(f"⏸️ Aguardando anti-spam: {reason} | envio_id={envio_id} | reply={is_reply} | manual={is_manual}")
             time.sleep(5)  # Pequena pausa antes de reavaliar
     
     return can_send, reason
@@ -670,18 +672,20 @@ def _processar_fila_worker():
                 continue
 
             # 🛡️ VERIFICAÇÃO DE CONSENTIMENTO para envios proativos
-            # (respostas conversacionais is_reply=True não precisam desta verificação)
+            # ✅ BYPASS: Manuais (boas-vindas) NÃO passam por validação de consentimento
             is_reply = meta.get("is_reply", False)
             tipo_envio = meta.get("tipo", "bot")
+            is_manual = tipo_envio == "manual"
             
-            if not is_reply and tipo_envio in ("manual", "campanha", "proativo"):
+            # ✅ Manuais ignoram consentimento, mas proativos validam
+            if not is_manual and not is_reply and tipo_envio in ("campanha", "proativo", "bot"):
                 if not _pode_enviar_proativo(numero):
                     log.info(f"🚫 Consentimento não validado para proativo | envio_id={envio_id} | {numero}")
                     # Marca como falha suave (não conta como erro de reputação)
                     _db_mark_fail_or_retry(envio_id, tentativas_atual + 1, 0, "consentimento_nao_validado")
                     continue
 
-            # 🛡️ VERIFICAÇÃO ANTI-SPAM ANTES DO ENVIO (com is_reply)
+            # 🛡️ VERIFICAÇÃO ANTI-SPAM ANTES DO ENVIO (com is_reply e is_manual)
             pode_enviar, motivo = _check_anti_spam_and_sleep(envio_id, numero, meta)
             if not pode_enviar:
                 if motivo.startswith("reequeued:"):
@@ -711,9 +715,9 @@ def _processar_fila_worker():
                 last_code = 0
                 last_res = None
 
-            # 🛡️ REGISTRA RESULTADO NO CONTROLLER ANTI-SPAM (com is_reply)
+            # 🛡️ REGISTRA RESULTADO NO CONTROLLER ANTI-SPAM (com is_reply e is_manual)
             if _anti_spam:
-                _anti_spam.register_send(ok, is_reply=is_reply)
+                _anti_spam.register_send(ok, is_reply=is_reply, is_manual=is_manual)  # ← Passa is_manual
 
             msg_preview = (mensagem_para_envio or "").replace("\n", " ")[:60]
             err_preview = (last_err or "").replace("\n", " ")[:180]
@@ -755,12 +759,12 @@ def _processar_fila_worker():
                     log.error(f"❌ Falha final → envio_id={envio_id} | {numero_envio} | code={last_code} | err={err_preview}")
                     _safe_call(on_fail, payload)
 
-            # 🛡️ DELAY ALEATÓRIO PÓS-ENVIO (anti-spam com is_reply)
+            # 🛡️ DELAY ALEATÓRIO PÓS-ENVIO (anti-spam com is_reply e is_manual)
             if _anti_spam:
-                delay = _anti_spam.get_next_delay(is_reply=is_reply)
+                delay = _anti_spam.get_next_delay(is_reply=is_reply, is_manual=is_manual)  # ← Passa is_manual
                 # Garante que delay esteja dentro dos limites configurados
                 delay = max(MIN_DELAY_SEG, min(MAX_DELAY_SEG, delay))
-                log.debug(f"😴 Delay aplicado: {delay:.1f}s (reply={is_reply})")
+                log.debug(f"😴 Delay aplicado: {delay:.1f}s (reply={is_reply}, manual={is_manual})")
                 time.sleep(delay)
             else:
                 time.sleep(ENVIO_INTERVALO_SEG)
