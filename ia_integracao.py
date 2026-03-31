@@ -1,4 +1,4 @@
-# ia_integracao.py - Integração com banco de dados (OTIMIZADA COM FULLTEXT)
+# ia_integracao.py - Integração com banco de dados (CORRIGIDA - Sem updated_at)
 import logging
 import re
 import unicodedata
@@ -83,7 +83,7 @@ class IAIntegracao:
                     search_term = re.sub(r'[^\w\s]', '', pergunta_normalizada).strip()
                     
                     if len(search_term) >= 3:  # FULLTEXT precisa de pelo menos 3 caracteres
-                        # Busca com NATURAL LANGUAGE MODE (relevância automática baseada em frequência)
+                        # ✅ CORREÇÃO: Usar apenas created_at (updated_at pode não existir)
                         query_fulltext = """
                             SELECT kb.answer, 'kb' as fonte,
                                    MATCH(kb.question, kb.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as similarity
@@ -97,7 +97,7 @@ class IAIntegracao:
                             FROM training_pairs tp
                             WHERE MATCH(tp.question, tp.answer) AGAINST(%s IN NATURAL LANGUAGE MODE)
                             
-                            ORDER BY similarity DESC, COALESCE(updated_at, created_at) DESC
+                            ORDER BY similarity DESC, created_at DESC
                             LIMIT 1
                         """
                         cursor.execute(query_fulltext, (search_term, search_term, search_term, search_term))
@@ -139,6 +139,7 @@ class IAIntegracao:
                     like_conditions = ' AND '.join(['question LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
+                    # ✅ CORREÇÃO: Usar apenas created_at na ordenação
                     query_like = """
                         SELECT answer, 'kb' as fonte FROM knowledge_base
                         WHERE {}
@@ -147,7 +148,7 @@ class IAIntegracao:
                         WHERE {}
                         ORDER BY 
                             CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
-                            COALESCE(updated_at, created_at) DESC
+                            created_at DESC
                         LIMIT 1
                     """.format(like_conditions, like_conditions)
                     
@@ -155,6 +156,7 @@ class IAIntegracao:
                     
                 else:
                     # Fallback para perguntas curtas (1 token ou vazio)
+                    # ✅ CORREÇÃO: Usar apenas created_at na ordenação
                     query_like = """
                         SELECT answer, 'kb' as fonte FROM knowledge_base
                         WHERE question LIKE %s
@@ -163,7 +165,7 @@ class IAIntegracao:
                         WHERE question LIKE %s
                         ORDER BY 
                             CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
-                            COALESCE(updated_at, created_at) DESC
+                            created_at DESC
                         LIMIT 1
                     """
                     cursor.execute(query_like, (f'%{pergunta_normalizada}%', f'%{pergunta_normalizada}%'))
@@ -191,10 +193,11 @@ class IAIntegracao:
                 
                 for cat in categorias_conhecidas:
                     if cat in pergunta_normalizada:
+                        # ✅ CORREÇÃO: Usar apenas created_at na ordenação
                         cursor.execute("""
                             SELECT answer FROM knowledge_base 
                             WHERE category = %s 
-                            ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1
+                            ORDER BY created_at DESC LIMIT 1
                         """, (cat,))
                         result = cursor.fetchone()
                         if result:
