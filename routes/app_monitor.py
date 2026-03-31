@@ -103,6 +103,9 @@ def monitor_status():
         # Stats da fila + anti-spam (já implementado em fila_mensagens.py)
         stats = get_queue_anti_spam_stats()
         
+        # 🔍 LOG PARA DEBUG (remover em produção se desejar)
+        log.debug(f"📊 Stats recebidos: queue_today={stats.get('queue_today')}, anti_spam={stats.get('anti_spam')}")
+        
         # Busca últimos envios para a tabela "Últimos Envios"
         recent_sends = _get_recent_sends(limit=10)
         
@@ -125,10 +128,10 @@ def monitor_status():
             health_status = "critical"
             health_message = "🔴 Crítico"
         
-        # ✅ Usa valores do .env v4 como fallback (não hardcoded 20)
+        # ✅ Usa valores do .env v4 como fallback (não hardcoded)
         daily_limit_fallback = int(os.getenv("FILA_DAILY_LIMIT", "10"))
         
-        return jsonify({
+        response_data = {
             "status": "success",
             "timestamp": datetime.now().isoformat(),
             
@@ -144,9 +147,8 @@ def monitor_status():
             },
             
             # Métricas do anti-spam
-            # ✅ Fallback com valores do .env v4 (não hardcoded)
             "anti_spam": stats.get("anti_spam", {
-                "daily_limit": daily_limit_fallback,  # ← 10 (não 20)
+                "daily_limit": daily_limit_fallback,
                 "sent": 0,
                 "can_send_now": True,
                 "next_delay_sec": int(os.getenv("FILA_MIN_DELAY_SEC", "25")),
@@ -160,7 +162,12 @@ def monitor_status():
             
             # Últimos envios para a tabela
             "recent_sends": recent_sends
-        }), 200
+        }
+        
+        # 🔍 LOG DA RESPOSTA (debug)
+        log.debug(f"📤 Resposta /api/monitor-status: sent={response_data['queue_today']['sent']}, pending={response_data['queue_today']['pending']}")
+        
+        return jsonify(response_data), 200
         
     except Exception as e:
         logging.error(f"❌ Erro em /api/monitor-status: {e}", exc_info=True)
@@ -173,7 +180,7 @@ def monitor_status():
             "anti_spam": {
                 "daily_limit": daily_limit_fallback,
                 "sent": 0,
-                "can_send_now": False,  # Assume indisponível em caso de erro
+                "can_send_now": False,
                 "next_delay_sec": int(os.getenv("FILA_MIN_DELAY_SEC", "25"))
             },
             "recent_sends": []
