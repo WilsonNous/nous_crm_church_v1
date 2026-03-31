@@ -9,6 +9,7 @@
 # ✅ CORREÇÃO: JOIN com visitantes para buscar telefone em conversas
 # ✅ CONFIG: Variáveis mapeadas do .env (Render v4)
 # ✅ BYPASS: Manuais (boas-vindas) ignoram consentimento, mas respeitam limites anti-spam
+# ✅ FIX: Queries de consentimento com timezone correto (BRT → UTC)
 # ==============================================
 
 import os
@@ -242,9 +243,19 @@ def _pode_enviar_proativo(numero: str) -> bool:
             
             cur = conn.cursor()
             
+            # ✅ CORREÇÃO: Calcular intervalos em BRT e converter para UTC
+            # Isso evita conflito de timezone entre servidor (UTC) e horário Brasil (BRT)
+            agora_br = datetime.now(TZ_BRASIL)
+            
+            # 30 dias atrás em BRT → UTC para query de bloqueios
+            trinta_dias_atras_br = agora_br - timedelta(days=30)
+            trinta_dias_atras_utc = trinta_dias_atras_br.astimezone(timezone.utc)
+            
+            # 7 dias atrás em BRT → UTC para query de engajamento
+            sete_dias_atras_br = agora_br - timedelta(days=7)
+            sete_dias_atras_utc = sete_dias_atras_br.astimezone(timezone.utc)
+            
             # 🔍 Verifica bloqueios/denúncias recentes (30 dias)
-            # ✅ CORREÇÃO DEFINITIVA: A tabela conversas NÃO tem coluna telefone/numero
-            # Ela usa visitante_id (FK) → precisamos JOIN com visitantes para buscar por telefone
             patterns = ['%pare%', '%bloque%', '%spam%', '%denuncia%']
             cur.execute("""
                 SELECT COUNT(*) as bloqueios 
@@ -258,24 +269,23 @@ def _pode_enviar_proativo(numero: str) -> bool:
                     OR c.mensagem LIKE %s
                     OR c.mensagem LIKE %s
                 )
-                AND c.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-            """, (numero, *patterns))
+                AND c.created_at >= %s
+            """, (numero, *patterns, trinta_dias_atras_utc))  # ← Usa timestamp UTC
             
             resultado = cur.fetchone()
             if resultado and resultado.get('bloqueios', 0) > 0:
                 log.info(f"🚫 Bloqueado/denunciado recentemente: {numero}")
                 return False
             
-            # 🔍 Verifica engajamento recente (7 dias)
-            # ✅ CORREÇÃO: Usar JOIN com visitantes para buscar por telefone
+            # 🔍 Verifica engajamento recente (7 dias) - com timezone correto
             cur.execute("""
                 SELECT COUNT(*) as interacoes 
                 FROM conversas c
                 INNER JOIN visitantes v ON c.visitante_id = v.id
                 WHERE v.telefone = %s 
                 AND c.tipo = 'recebida'
-                AND c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-            """, (numero,))
+                AND c.created_at >= %s
+            """, (numero, sete_dias_atras_utc))  # ← Usa timestamp UTC
             
             resultado = cur.fetchone()
             interacoes = resultado.get('interacoes', 0) if resultado else 0
