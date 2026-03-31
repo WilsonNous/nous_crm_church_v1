@@ -21,17 +21,17 @@ log = logging.getLogger(__name__)
 # ==============================================
 # Configurações via Environment Variables
 # ==============================================
-MIN_DELAY_SEC = float(os.getenv("FILA_MIN_DELAY_SEC", "15"))
-MAX_DELAY_SEC = float(os.getenv("FILA_MAX_DELAY_SEC", "30"))
-BATCH_SEND_LIMIT = int(os.getenv("FILA_BATCH_SEND_LIMIT", "3"))
-BATCH_PAUSE_MIN_SEC = float(os.getenv("FILA_BATCH_PAUSE_MIN_SEC", "300"))
-BATCH_PAUSE_MAX_SEC = float(os.getenv("FILA_BATCH_PAUSE_MAX_SEC", "600"))
-DAILY_LIMIT = int(os.getenv("FILA_DAILY_LIMIT", "20"))  # 0 = ilimitado
-BUSINESS_START = int(os.getenv("FILA_BUSINESS_HOURS_START", "9"))
-BUSINESS_END = int(os.getenv("FILA_BUSINESS_HOURS_END", "18"))
+MIN_DELAY_SEC = float(os.getenv("FILA_MIN_DELAY_SEC", "25"))
+MAX_DELAY_SEC = float(os.getenv("FILA_MAX_DELAY_SEC", "45"))
+BATCH_SEND_LIMIT = int(os.getenv("FILA_BATCH_SEND_LIMIT", "2"))
+BATCH_PAUSE_MIN_SEC = float(os.getenv("FILA_BATCH_PAUSE_MIN_SEC", "600"))
+BATCH_PAUSE_MAX_SEC = float(os.getenv("FILA_BATCH_PAUSE_MAX_SEC", "900"))
+DAILY_LIMIT = int(os.getenv("FILA_DAILY_LIMIT", "10"))  # 10 envios/dia para recuperação
+BUSINESS_START = int(os.getenv("FILA_BUSINESS_HOURS_START", "8"))
+BUSINESS_END = int(os.getenv("FILA_BUSINESS_HOURS_END", "19"))
 OUTSIDE_HOURS_ACTION = os.getenv("FILA_OUTSIDE_HOURS_ACTION", "reequeue").lower()
-ERROR_RATE_THRESHOLD = float(os.getenv("FILA_ERROR_RATE_THRESHOLD", "0.05"))
-SLOWDOWN_FACTOR = float(os.getenv("FILA_SLOWDOWN_FACTOR", "3.0"))
+ERROR_RATE_THRESHOLD = float(os.getenv("FILA_ERROR_RATE_THRESHOLD", "0.02"))
+SLOWDOWN_FACTOR = float(os.getenv("FILA_SLOWDOWN_FACTOR", "5.0"))
 
 
 class AntiSpamController:
@@ -42,12 +42,13 @@ class AntiSpamController:
     1. Delay aleatório entre mensagens (jitter) → evita padrão robótico
     2. Batches com pausas obrigatórias → simula comportamento humano
     3. Limite diário por instância → previne volume suspeito
-    4. Janela de horário comercial → evita envios noturnos
+    4. Janela de horário comercial → evita envios noturnos (opcional para manuais)
     5. Throttling adaptativo → reduz velocidade se erros aumentarem
     
-    🎯 Diferenciação:
+    🎯 Diferenciação de tipos de envio:
     - is_reply=True: Regras flexíveis para respostas conversacionais
-    - is_reply=False: Regras completas para envios proativos/em massa
+    - is_manual=True: Boas-vindas para visitantes novos (bypass consentimento, mas respeita limites)
+    - is_reply=False, is_manual=False: Regras completas para campanhas proativas
     
     Thread-safe para uso em worker único (Gunicorn com gthread).
     """
@@ -227,12 +228,13 @@ class AntiSpamController:
     # ------------------------------------------
     # API Pública - Verificações
     # ------------------------------------------
-    def can_send_now(self, is_reply: bool = False) -> Tuple[bool, str]:
+    def can_send_now(self, is_reply: bool = False, is_manual: bool = False) -> Tuple[bool, str]:
         """
         Verifica se pode enviar mensagem agora.
         
         Args:
             is_reply: Se True, aplica regras flexíveis para respostas conversacionais
+            is_manual: Se True, é envio manual (boas-vindas) - bypass consentimento mas respeita limites
             
         Returns:
             Tuple[bool, str]: 
@@ -240,28 +242,30 @@ class AntiSpamController:
                 - (False, motivo) se não pode
                 - Se motivo começar com "reequeue:", o restante é ISO datetime
         """
-        # 🎯 Se for resposta conversacional, aplica regras flexíveis
+        limits = self._fetch_limits()
+        now = datetime.now()
+        current_hour = now.hour
+
+        # 🎯 Respostas conversacionais: regras mais flexíveis
         if is_reply:
-            # ✅ Respostas: só verifica limite diário (se configurado)
-            limits = self._fetch_limits()
+            # ✅ Só verifica limite diário
             if DAILY_LIMIT > 0 and limits["total_sent"] >= DAILY_LIMIT:
                 log.warning(f"🚫 Limite diário atingido para resposta: {limits['total_sent']}/{DAILY_LIMIT}")
                 return False, f"Limite diário atingido ({DAILY_LIMIT} envios)"
             # ✅ Respostas não entram em batch, não verificam horário, delay mínimo
             return True, "ok"
         
-        # 📦 Para envios proativos, aplica todas as regras anti-spam
-        limits = self._fetch_limits()
-        now = datetime.now()
-        current_hour = now.hour
-
-        # 1. Verifica limite diário
+        # 📦 Para envios proativos e manuais, aplica regras anti-spam
+        # ✅ IMPORTANTE: Manuais TAMBÉM contam no limite diário e respeitam batch/delay
+        
+        # 1. Verifica limite diário (PARA TODOS: proativos e manuais)
         if DAILY_LIMIT > 0 and limits["total_sent"] >= DAILY_LIMIT:
             log.warning(f"🚫 Limite diário atingido: {limits['total_sent']}/{DAILY_LIMIT}")
             return False, f"Limite diário atingido ({DAILY_LIMIT} envios)"
 
         # 2. Verifica janela de horário comercial
-        if not (BUSINESS_START <= current_hour < BUSINESS_END):
+        # ✅ Manuais podem ser enviados fora do horário (opcional - configurable)
+        if not is_manual and not (BUSINESS_START <= current_hour < BUSINESS_END):
             if OUTSIDE_HOURS_ACTION == "skip":
                 log.info(f"⏭️ Fora do horário comercial ({BUSINESS_START}h-{BUSINESS_END}h) - pulando")
                 return False, f"Fora do horário comercial ({BUSINESS_START}h-{BUSINESS_END}h)"
@@ -273,7 +277,7 @@ class AntiSpamController:
                 log.info(f"⏰ Fora do horário - re-agendando para {next_send}")
                 return False, f"reequeue:{next_send.isoformat()}"
 
-        # 3. Verifica batch (só para proativos)
+        # 3. Verifica batch (para proativos e manuais)
         if limits["messages_in_batch"] >= BATCH_SEND_LIMIT:
             if limits["last_batch_pause"]:
                 last_pause = limits["last_batch_pause"]
@@ -310,18 +314,22 @@ class AntiSpamController:
     # ------------------------------------------
     # API Pública - Registro de Envios
     # ------------------------------------------
-    def register_send(self, success: bool, is_reply: bool = False):
+    def register_send(self, success: bool, is_reply: bool = False, is_manual: bool = False):
         """
         Registra um envio concluído e atualiza métricas.
         
         Args:
             success: True se o envio foi bem-sucedido
             is_reply: Se True, não conta para batch (só para limite diário)
+            is_manual: Se True, é envio manual (boas-vindas) - conta no limite diário e batch
         """
-        # Sempre atualiza total de enviados/falhas
+        # Sempre atualiza total de enviados/falhas (PARA TODOS os tipos)
         self._update_counter("total_sent" if success else "total_failed")
         
-        # ✅ Só incrementa batch se NÃO for resposta e foi sucesso
+        # ✅ Incrementa batch se:
+        # - Foi sucesso
+        # - E NÃO é resposta conversacional
+        # (Manuais e proativos contam no batch)
         if success and not is_reply:
             self._update_counter("messages_in_current_batch")
         
@@ -334,15 +342,16 @@ class AntiSpamController:
             f"📊 Rate limit update | sent={limits['total_sent']}/{DAILY_LIMIT if DAILY_LIMIT>0 else '∞'} | "
             f"batch={limits['messages_in_batch']}/{BATCH_SEND_LIMIT} | "
             f"error_rate={limits['error_rate']:.1%} | "
-            f"slowdown={limits['slowdown_active']} | reply={is_reply}"
+            f"slowdown={limits['slowdown_active']} | reply={is_reply} | manual={is_manual}"
         )
 
-    def get_next_delay(self, is_reply: bool = False) -> float:
+    def get_next_delay(self, is_reply: bool = False, is_manual: bool = False) -> float:
         """
         Calcula delay até o próximo envio.
         
         Args:
             is_reply: Se True, retorna delay mínimo para respostas naturais
+            is_manual: Se True, aplica delay normal (25-45s) como proativos
         """
         # 🎯 Respostas conversacionais: delay natural de 1-3 segundos
         if is_reply:
@@ -350,7 +359,7 @@ class AntiSpamController:
             log.debug(f"⏱️ Delay calculado (reply): {delay:.1f}s")
             return delay
         
-        # 📦 Envios proativos: aplica delay anti-spam configurado
+        # 📦 Envios proativos e manuais: aplica delay anti-spam configurado
         limits = self._fetch_limits()
         base_min = MIN_DELAY_SEC
         base_max = MAX_DELAY_SEC
@@ -360,7 +369,7 @@ class AntiSpamController:
             base_max *= SLOWDOWN_FACTOR
         
         delay = random.uniform(base_min, base_max)
-        log.debug(f"⏱️ Delay calculado (proativo): {delay:.1f}s (slowdown={limits['slowdown_active']})")
+        log.debug(f"⏱️ Delay calculado (proativo/manual): {delay:.1f}s (slowdown={limits['slowdown_active']})")
         return delay
 
     # ------------------------------------------
