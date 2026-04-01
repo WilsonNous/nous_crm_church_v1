@@ -861,17 +861,8 @@ def get_queue_anti_spam_stats() -> dict:
             if conn:
                 cur = conn.cursor()
                 
-                # ✅ CORREÇÃO: Usar timezone Brasil (UTC-3) para filtrar "hoje"
-                # Calcula o início e fim do dia em BRT, convertendo para UTC para a query
-                agora_br = datetime.now(TZ_BRASIL)
-                inicio_dia_br = agora_br.replace(hour=0, minute=0, second=0, microsecond=0)
-                fim_dia_br = agora_br.replace(hour=23, minute=59, second=59, microsecond=999999)
-                
-                # Converte para UTC para comparar com created_at (que está em UTC no banco)
-                inicio_dia_utc = inicio_dia_br.astimezone(timezone.utc)
-                fim_dia_utc = fim_dia_br.astimezone(timezone.utc)
-                
-                # ✅ Query com filtro de timezone correto
+                # ✅ CORREÇÃO DEFINITIVA: Usar CONVERT_TZ do MySQL para filtrar por dia Brasil
+                # Converte created_at (UTC) para BRT (-03:00) e compara com CURDATE()
                 cur.execute("""
                     SELECT 
                         COUNT(CASE WHEN status='pendente' THEN 1 END) as pending,
@@ -880,8 +871,9 @@ def get_queue_anti_spam_stats() -> dict:
                         COUNT(CASE WHEN status='falha' THEN 1 END) as failed,
                         COUNT(CASE WHEN status='falha' AND last_error LIKE %s THEN 1 END) as consent_blocked
                     FROM fila_envios
-                    WHERE created_at >= %s AND created_at <= %s
-                """, ('%consentimento%', inicio_dia_utc, fim_dia_utc))
+                    WHERE CONVERT_TZ(created_at, '+00:00', '-03:00') >= CURDATE()
+                      AND CONVERT_TZ(created_at, '+00:00', '-03:00') < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+                """, ('%consentimento%',))
                 
                 row = cur.fetchone() or {}
                 stats["queue_today"] = {
