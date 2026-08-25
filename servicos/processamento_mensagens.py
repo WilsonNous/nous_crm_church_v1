@@ -1,4 +1,4 @@
-# processamento_mensagens.py - CORREÇÃO
+# processamento_mensagens.py - CORREÇÃO COMPLETA COM JOVENS/ADOLESCENTES
 
 import logging
 import re
@@ -39,20 +39,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
     logging.debug(f"📊 Estado atual no banco: {estado_str} → {estado_atual.name}")
 
-    # ⚠️ CORREÇÃO: Helper para criar meta com is_reply
-    # Para respostas a perguntas do visitante, is_reply=True
-    # Para mensagens proativas (primeiro contato), is_reply=False
     def _criar_meta(tipo="bot", is_reply_override: bool = None):
-        """
-        Cria meta para envio.
-        
-        Args:
-            tipo: Tipo de mensagem ('bot', 'manual', 'campanha')
-            is_reply_override: Se True, força is_reply=True (resposta a pergunta)
-                               Se False, força is_reply=False (proativo)
-                               Se None, usa is_webhook_reply
-        """
-        # Determina is_reply
         if is_reply_override is not None:
             is_reply = is_reply_override
         else:
@@ -69,7 +56,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # ========== Palavra-chave de ministério ==========
     resposta_ministerio = detectar_palavra_chave_ministerio(texto_normalizado)
     if resposta_ministerio:
-        # ✅ Resposta a pergunta → is_reply=True
         enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta_ministerio, tipo="enviada", sid=message_sid, origem=origem)
         return {
@@ -87,7 +73,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         resposta = ("Olá! Parece que você ainda não está cadastrado no nosso sistema. "
                     "Para começar, por favor, me diga o seu nome completo.")
         atualizar_status(numero_normalizado, "PEDIR_NOME", origem=origem)
-        # ✅ Primeiro contato → is_reply=False (proativo)
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="manual", is_reply_override=False))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": "NOVO", "proximo_estado": "PEDIR_NOME"}
@@ -101,7 +86,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         return processar_evento_enviado(numero_normalizado, visitor_name, message_sid, origem)
 
-    # ========== Novo tratamento direto da opção 3 (Pedido de Oração) ==========
+    # ========== Pedido de Oração ==========
     if texto_normalizado in ["3", "3.", "3️⃣", "pedido de oração", "pedido de oracao"]:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         texto_pedido_generico = "Pedido de oração solicitado pelo visitante."
@@ -127,10 +112,12 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         return processar_outro(numero_normalizado, visitor_name, texto_recebido, message_sid, origem)
 
     # ==========================================================
-    # DETECÇÕES INTELIGENTES
+    # DETECÇÕES INTELIGENTES (ORDEM ESTRATÉGICA)
     # ==========================================================
     
-    # PRIORIDADE 1: Pastores
+    # ==========================================================
+    # 🎯 PRIORIDADE 1: PASTORES
+    # ==========================================================
     def detectar_intencao_pastores_unificado(texto: str) -> bool:
         texto = texto.lower().strip()
         
@@ -187,7 +174,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "👤 *Secretário Presbítero Wilson Martins*\n\n"
             "Estaremos felizes em atendê-lo! 🙏"
         )
-        # ✅ Resposta a pergunta → is_reply=True
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
@@ -196,7 +182,58 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # PRIORIDADE 2: Horários de cultos
+    # ==========================================================
+    # 🎯 PRIORIDADE 2: JOVENS E ADOLESCENTES (NOVO!)
+    # ==========================================================
+    def detectar_intencao_jovens(texto: str) -> bool:
+        texto = texto.lower().strip()
+        
+        padroes = [
+            r"adolescentes?",
+            r"jovens?",
+            r"juventude",
+            r"atividade para (adolescentes?|jovens?)",
+            r"tem (grupo|atividade) (de|para) (adolescentes?|jovens?)",
+            r"culto (para|de) jovens",
+            r"culto alive",
+            r"gc (de|para) (adolescentes?|jovens?)",
+            r"o que tem para (adolescentes?|jovens?)",
+            r"programação (para|dos) (jovens|adolescentes)",
+            r"grupo de jovens",
+            r"grupo de adolescentes",
+            r"tem atividade para jovem",
+            r"tem atividade para adolescente",
+        ]
+        
+        return any(re.search(p, texto) for p in padroes)
+
+    if detectar_intencao_jovens(texto_original):
+        resposta = (
+            "Sim! Temos atividades incríveis para adolescentes e jovens! 🙏🎉\n\n"
+            "*Atividades para Adolescentes e Jovens:*\n\n"
+            "• *Culto Alive* - Aos sábados às 20h\n"
+            "  Um culto especial com linguagem jovem, louvores contemporâneos e mensagens que conectam com a realidade dos adolescentes.\n\n"
+            "• *Grupo de Adolescentes (GC)* - Encontros semanais\n"
+            "  Um espaço para comunhão, amizade e crescimento espiritual.\n\n"
+            "• *Acampamentos e Retiros* - Durante o ano\n"
+            "  Momentos especiais de conexão com Deus e novos amigos.\n\n"
+            "• *Escola Bíblica* - Aos domingos\n"
+            "  Aprendizado da Palavra de forma dinâmica e interativa.\n\n"
+            "📍 *Local:* Rod. José Carlos Daux, 17876 - Canasvieiras, Florianópolis/SC\n\n"
+            "Venha conhecer! Traga seus amigos! 🎵🔥\n\n"
+            '"Ninguém despreze a tua mocidade, mas sê exemplo dos fiéis." (1 Timóteo 4:12)'
+        )
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
+        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": estado_atual.name
+        }
+
+    # ==========================================================
+    # 🎯 PRIORIDADE 3: HORÁRIOS DE CULTOS
+    # ==========================================================
     def detectar_intencao_horarios_cultos(texto: str) -> bool:
         texto = texto.lower().strip()
         
@@ -254,7 +291,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             
             "Gostaria de mais informações?"
         )
-        # ✅ Resposta a pergunta → is_reply=True
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
@@ -263,7 +299,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # PRIORIDADE 3: Grupos de WhatsApp
+    # ==========================================================
+    # 🎯 PRIORIDADE 4: GRUPOS DE WHATSAPP
+    # ==========================================================
     def detectar_intencao_grupo_whatsapp(texto: str) -> bool:
         texto = texto.lower().strip()
         
@@ -292,7 +330,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "Ou fale diretamente com nossa secretaria: *(48) 99828-4104*\n\n"
             "Queremos caminhar com você! 🙏"
         )
-        # ✅ Resposta a pergunta → is_reply=True
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
@@ -301,7 +338,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # PRIORIDADE 4: Batismo / Tornar-se membro
+    # ==========================================================
+    # 🎯 PRIORIDADE 5: BATISMO / MEMBRO
+    # ==========================================================
     def detectar_intencao_batismo_membro(texto: str) -> bool:
         texto = texto.lower().strip()
         
@@ -335,7 +374,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "• Digite *2* se ainda não foi batizado\n\n"
             "Ou fale com nossa secretaria: *(48) 99828-4104*"
         )
-        # ✅ Resposta a pergunta → is_reply=True
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
@@ -344,7 +382,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # PRIORIDADE 5: Localização
+    # ==========================================================
+    # 🎯 PRIORIDADE 6: LOCALIZAÇÃO
+    # ==========================================================
     def detectar_intencao_localizacao(texto: str) -> bool:
         texto = texto.lower().strip()
         
@@ -374,7 +414,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "• Estacionamento disponível no local\n\n"
             "Estamos te esperando! 🙏"
         )
-        # ✅ Resposta a pergunta → is_reply=True
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
@@ -383,28 +422,35 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # PRIORIDADE 6: Opções do menu numérico
+    # ==========================================================
+    # 🎯 PRIORIDADE 7: OPÇÕES DO MENU (CORRIGIDO)
+    # ==========================================================
     def detectar_opcao_menu(texto: str) -> str | None:
         texto = texto.strip()
         
+        # ✅ APENAS números isolados (sem palavras extras)
         if texto in ["1", "2", "3", "4", "5", "6"]:
             return texto
         
+        # ✅ Apenas números com pontuação ou emoji
         if texto in ["1.", "2.", "3.", "4.", "5.", "6.", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣"]:
             return texto[0]
         
-        opcoes = {
-            "1": [r"ja fiz batismo", r"já fiz batismo", r"batizado", r"quero ser membro e ja fui batizado"],
-            "2": [r"nao fiz batismo", r"não fiz batismo", r"ainda nao fui batizado", r"ainda não fui batizado", r"quero ser membro mas nao sou batizado"],
-            "3": [r"pedido de oração", r"pedido de oracao", r"quero oração", r"quero oracao", r"orar por mim"],
-            "4": [r"horarios cultos", r"horários cultos", r"quando tem culto", r"programação igreja"],
-            "5": [r"grupo whatsapp", r"entrar grupo", r"gc", r"grupo de comunhão"],
-            "6": [r"outro assunto", r"outro", r"nenhuma das opções", r"não é isso"],
+        # ✅ Frases EXATAS (não parciais) - para evitar falsos positivos
+        # Usa \b para bordas de palavra
+        opcoes_exatas = {
+            "1": [r"\bja fiz batismo\b", r"\bjá fiz batismo\b", r"\bbatizado\b", r"\bquero ser membro e ja fui batizado\b"],
+            "2": [r"\bnao fiz batismo\b", r"\bnão fiz batismo\b", r"\bainda nao fui batizado\b", r"\bainda não fui batizado\b", r"\bquero ser membro mas nao sou batizado\b"],
+            "3": [r"\bpedido de oração\b", r"\bpedido de oracao\b", r"\bquero oração\b", r"\bquero oracao\b", r"\borar por mim\b"],
+            "4": [r"\bhorarios cultos\b", r"\bhorários cultos\b", r"\bquando tem culto\b", r"\bprogramação igreja\b"],
+            "5": [r"\bgrupo whatsapp\b", r"\bentrar grupo\b", r"\bgc\b", r"\bgrupo de comunhão\b"],
+            "6": [r"\boutro assunto\b", r"\boutro\b", r"\bnenhuma das opções\b", r"\bnão é isso\b"],
         }
         
-        for opcao, padroes in opcoes.items():
-            if any(re.search(p, texto) for p in padroes):
-                return opcao
+        for opcao, padroes in opcoes_exatas.items():
+            for padrao in padroes:
+                if re.search(padrao, texto, re.IGNORECASE):
+                    return opcao
         
         return None
 
@@ -415,18 +461,18 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
             resposta = obter_mensagem_estado(proximo_estado, visitor_name)
             atualizar_status(numero_normalizado, proximo_estado.value, origem=origem)
-            # ✅ Resposta a pergunta → is_reply=True
             enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
             salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
             return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
 
-    # Fluxo normal de transições
+    # ==========================================================
+    # FLUXO NORMAL DE TRANSIÇÕES
+    # ==========================================================
     proximo_estado = obter_proximo_estado(estado_atual, texto_normalizado)
     if proximo_estado:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         resposta = obter_mensagem_estado(proximo_estado, visitor_name)
         atualizar_status(numero_normalizado, proximo_estado.value, origem=origem)
-        # ✅ Resposta a pergunta → is_reply=True
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
@@ -437,7 +483,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     try:
         resposta_ia, confianca = ia_integracao.responder_pergunta(pergunta_usuario=texto_recebido)
         if resposta_ia and confianca > 0.3:
-            # ✅ Resposta da IA a pergunta → is_reply=True
             enviar_mensagem_para_fila(numero_normalizado, resposta_ia, meta=_criar_meta(tipo="bot", is_reply_override=True))
             salvar_conversa(numero_normalizado, resposta_ia, tipo="enviada", sid=message_sid, origem=origem)
             atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value, origem=origem)
@@ -460,7 +505,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         f"Como posso te ajudar hoje?"
     )
     
-    # ✅ Fallback também é resposta → is_reply=True
     enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
     salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
 
