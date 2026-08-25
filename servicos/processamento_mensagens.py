@@ -1,4 +1,4 @@
-# processamento_mensagens.py - CORRIGIDO
+# processamento_mensagens.py - CORREÇÃO
 
 import logging
 import re
@@ -28,7 +28,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # Normalização
     numero_normalizado = numero.lstrip("55")
     texto_normalizado = normalizar_texto(texto_recebido)
-    texto_original = texto_recebido.strip()  # Mantém o texto original para detecções
+    texto_original = texto_recebido.strip()
     
     # Salva mensagem recebida
     salvar_conversa(numero_normalizado, texto_recebido, tipo="recebida", sid=message_sid, origem=origem)
@@ -39,12 +39,29 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
     logging.debug(f"📊 Estado atual no banco: {estado_str} → {estado_atual.name}")
 
-    # Helper para criar meta com is_reply
-    def _criar_meta(tipo="bot"):
+    # ⚠️ CORREÇÃO: Helper para criar meta com is_reply
+    # Para respostas a perguntas do visitante, is_reply=True
+    # Para mensagens proativas (primeiro contato), is_reply=False
+    def _criar_meta(tipo="bot", is_reply_override: bool = None):
+        """
+        Cria meta para envio.
+        
+        Args:
+            tipo: Tipo de mensagem ('bot', 'manual', 'campanha')
+            is_reply_override: Se True, força is_reply=True (resposta a pergunta)
+                               Se False, força is_reply=False (proativo)
+                               Se None, usa is_webhook_reply
+        """
+        # Determina is_reply
+        if is_reply_override is not None:
+            is_reply = is_reply_override
+        else:
+            is_reply = is_webhook_reply
+        
         return {
             "origem": origem,
             "tipo": tipo,
-            "is_reply": is_webhook_reply,
+            "is_reply": is_reply,
             "telefone_raw": numero_normalizado,
             "sid_origem": message_sid,
         }
@@ -52,7 +69,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     # ========== Palavra-chave de ministério ==========
     resposta_ministerio = detectar_palavra_chave_ministerio(texto_normalizado)
     if resposta_ministerio:
-        enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio, meta=_criar_meta())
+        # ✅ Resposta a pergunta → is_reply=True
+        enviar_mensagem_para_fila(numero_normalizado, resposta_ministerio, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta_ministerio, tipo="enviada", sid=message_sid, origem=origem)
         return {
             "resposta": resposta_ministerio,
@@ -69,7 +87,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         resposta = ("Olá! Parece que você ainda não está cadastrado no nosso sistema. "
                     "Para começar, por favor, me diga o seu nome completo.")
         atualizar_status(numero_normalizado, "PEDIR_NOME", origem=origem)
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        # ✅ Primeiro contato → is_reply=False (proativo)
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="manual", is_reply_override=False))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": "NOVO", "proximo_estado": "PEDIR_NOME"}
 
@@ -108,7 +127,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         return processar_outro(numero_normalizado, visitor_name, texto_recebido, message_sid, origem)
 
     # ==========================================================
-    # DETECÇÕES INTELIGENTES (USANDO TEXTO ORIGINAL PARA MELHOR PRECISÃO)
+    # DETECÇÕES INTELIGENTES
     # ==========================================================
     
     # PRIORIDADE 1: Pastores
@@ -168,7 +187,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "👤 *Secretário Presbítero Wilson Martins*\n\n"
             "Estaremos felizes em atendê-lo! 🙏"
         )
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        # ✅ Resposta a pergunta → is_reply=True
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
             "resposta": resposta,
@@ -176,7 +196,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # PRIORIDADE 2: Horários de cultos (usando texto original)
+    # PRIORIDADE 2: Horários de cultos
     def detectar_intencao_horarios_cultos(texto: str) -> bool:
         texto = texto.lower().strip()
         
@@ -197,8 +217,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"o que vai ter hoje",
             r"tem culto hoje",
             r"vai ter culto",
-            r"horario dos cultos",  # Adicionado padrão explícito
-            r"horários dos cultos", # Adicionado padrão explícito
+            r"horario dos cultos",
+            r"horários dos cultos",
         ]
         
         return any(re.search(p, texto) for p in padroes)
@@ -234,7 +254,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             
             "Gostaria de mais informações?"
         )
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        # ✅ Resposta a pergunta → is_reply=True
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
             "resposta": resposta,
@@ -271,7 +292,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "Ou fale diretamente com nossa secretaria: *(48) 99828-4104*\n\n"
             "Queremos caminhar com você! 🙏"
         )
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        # ✅ Resposta a pergunta → is_reply=True
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
             "resposta": resposta,
@@ -313,7 +335,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "• Digite *2* se ainda não foi batizado\n\n"
             "Ou fale com nossa secretaria: *(48) 99828-4104*"
         )
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        # ✅ Resposta a pergunta → is_reply=True
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
             "resposta": resposta,
@@ -351,7 +374,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "• Estacionamento disponível no local\n\n"
             "Estamos te esperando! 🙏"
         )
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        # ✅ Resposta a pergunta → is_reply=True
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
             "resposta": resposta,
@@ -391,7 +415,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
             resposta = obter_mensagem_estado(proximo_estado, visitor_name)
             atualizar_status(numero_normalizado, proximo_estado.value, origem=origem)
-            enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+            # ✅ Resposta a pergunta → is_reply=True
+            enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
             salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
             return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
 
@@ -401,17 +426,19 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         resposta = obter_mensagem_estado(proximo_estado, visitor_name)
         atualizar_status(numero_normalizado, proximo_estado.value, origem=origem)
-        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+        # ✅ Resposta a pergunta → is_reply=True
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
 
     # ==========================================================
-    # 🤖 IA como camada inteligente (ANTES do fallback genérico)
+    # 🤖 IA como camada inteligente
     # ==========================================================
     try:
         resposta_ia, confianca = ia_integracao.responder_pergunta(pergunta_usuario=texto_recebido)
         if resposta_ia and confianca > 0.3:
-            enviar_mensagem_para_fila(numero_normalizado, resposta_ia, meta=_criar_meta())
+            # ✅ Resposta da IA a pergunta → is_reply=True
+            enviar_mensagem_para_fila(numero_normalizado, resposta_ia, meta=_criar_meta(tipo="bot", is_reply_override=True))
             salvar_conversa(numero_normalizado, resposta_ia, tipo="enviada", sid=message_sid, origem=origem)
             atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value, origem=origem)
             return {"resposta": resposta_ia, "estado_atual": estado_atual.name, "proximo_estado": EstadoVisitante.INICIO.name}
@@ -419,7 +446,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         logging.error(f"❌ Erro IA: {e}")
 
     # ==========================================================
-    # ❌ Fallback inteligente e conversacional
+    # ❌ Fallback
     # ==========================================================
     visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
     
@@ -433,7 +460,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         f"Como posso te ajudar hoje?"
     )
     
-    enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
+    # ✅ Fallback também é resposta → is_reply=True
+    enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
     salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
 
     return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": estado_atual.name}
