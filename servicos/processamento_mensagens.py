@@ -1,4 +1,4 @@
-# processamento_mensagens.py - CORREÇÃO COMPLETA COM JOVENS/ADOLESCENTES
+# processamento_mensagens.py - CORREÇÃO COMPLETA COM JOVENS/ADOLESCENTES + AGENDA
 
 import logging
 import re
@@ -183,7 +183,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         }
 
     # ==========================================================
-    # 🎯 PRIORIDADE 2: JOVENS E ADOLESCENTES (NOVO!)
+    # 🎯 PRIORIDADE 2: JOVENS E ADOLESCENTES
     # ==========================================================
     def detectar_intencao_jovens(texto: str) -> bool:
         texto = texto.lower().strip()
@@ -232,7 +232,57 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         }
 
     # ==========================================================
-    # 🎯 PRIORIDADE 3: HORÁRIOS DE CULTOS
+    # 🎯 PRIORIDADE 3: AGENDA E PROGRAMACÃO (NOVO!)
+    # ==========================================================
+    def detectar_intencao_agenda(texto: str) -> bool:
+        texto = texto.lower().strip()
+        
+        padroes = [
+            r"agenda (da )?igreja",
+            r"programa(ç|c)ão (da )?igreja",
+            r"eventos (da )?igreja",
+            r"calendario (da )?igreja",
+            r"o que vai ter (na igreja|hoje)",
+            r"programa(ç|c)ão (de )?cultos",
+            r"eventos (de )?cultos",
+            r"agenda (de )?cultos",
+            r"calendario (de )?cultos",
+            r"atividades (da )?igreja",
+            r"o que tem (na igreja|hoje)",
+            r"programação semanal",
+            r"agenda semanal",
+            r"calendário de eventos",
+            r"programação dos cultos",  # Moveu de horários para agenda
+            r"programação da igreja",   # Moveu de horários para agenda
+        ]
+        
+        return any(re.search(p, texto) for p in padroes)
+
+    if detectar_intencao_agenda(texto_original):
+        resposta = (
+            "📅 *Agenda da Igreja Mais de Cristo Canasvieiras*\n\n"
+            "Acompanhe todos os nossos eventos e programações semanais!\n\n"
+            "📍 *Link da Agenda Completa:*\n"
+            "👉 https://www.maisdecristo.com.br/canasvieiras/agenda\n\n"
+            "Lá você encontra:\n"
+            "• Cultos e horários\n"
+            "• Eventos especiais\n"
+            "• Escalas de ministérios\n"
+            "• Programação de células (GCs)\n"
+            "• Campanhas e avivamentos\n\n"
+            "📱 *Fique ligado!* A agenda é atualizada semanalmente.\n"
+            "Não perca nenhum evento! 🙏✨"
+        )
+        enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta(tipo="bot", is_reply_override=True))
+        salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
+        return {
+            "resposta": resposta,
+            "estado_atual": estado_atual.name,
+            "proximo_estado": estado_atual.name
+        }
+
+    # ==========================================================
+    # 🎯 PRIORIDADE 4: HORÁRIOS DE CULTOS
     # ==========================================================
     def detectar_intencao_horarios_cultos(texto: str) -> bool:
         texto = texto.lower().strip()
@@ -242,16 +292,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"horarios? (da )?igreja",
             r"quando (temos|são|sao|é|e) (os )?cultos?",
             r"qual (é|e) (o )?horario (do )?culto",
-            r"programa(ç|c)ao (da )?igreja",
-            r"programa(ç|c)ao dos cultos",
             r"cultos? (quando|horario)",
             r"que horas (é|e) (o )?culto",
             r"que dia (temos|são|sao) cultos?",
-            r"agenda (da )?igreja",
-            r"calendario (da )?igreja",
-            r"eventos (da )?igreja",
-            r"o que tem hoje na igreja",
-            r"o que vai ter hoje",
             r"tem culto hoje",
             r"vai ter culto",
             r"horario dos cultos",
@@ -300,7 +343,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         }
 
     # ==========================================================
-    # 🎯 PRIORIDADE 4: GRUPOS DE WHATSAPP
+    # 🎯 PRIORIDADE 5: GRUPOS DE WHATSAPP
     # ==========================================================
     def detectar_intencao_grupo_whatsapp(texto: str) -> bool:
         texto = texto.lower().strip()
@@ -339,7 +382,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         }
 
     # ==========================================================
-    # 🎯 PRIORIDADE 5: BATISMO / MEMBRO
+    # 🎯 PRIORIDADE 6: BATISMO / MEMBRO
     # ==========================================================
     def detectar_intencao_batismo_membro(texto: str) -> bool:
         texto = texto.lower().strip()
@@ -383,7 +426,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         }
 
     # ==========================================================
-    # 🎯 PRIORIDADE 6: LOCALIZAÇÃO
+    # 🎯 PRIORIDADE 7: LOCALIZAÇÃO
     # ==========================================================
     def detectar_intencao_localizacao(texto: str) -> bool:
         texto = texto.lower().strip()
@@ -423,7 +466,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         }
 
     # ==========================================================
-    # 🎯 PRIORIDADE 7: OPÇÕES DO MENU (CORRIGIDO)
+    # 🎯 PRIORIDADE 8: OPÇÕES DO MENU (CORRIGIDO)
     # ==========================================================
     def detectar_opcao_menu(texto: str) -> str | None:
         texto = texto.strip()
