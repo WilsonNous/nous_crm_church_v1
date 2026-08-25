@@ -1,3 +1,5 @@
+# processamento_mensagens.py - CORRIGIDO
+
 import logging
 import re
 from database import salvar_conversa, atualizar_status, obter_estado_atual_do_banco, obter_nome_do_visitante, salvar_novo_visitante
@@ -20,16 +22,13 @@ ia_integracao = IAIntegracao()
 def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_manual=False, origem="integra+", is_webhook_reply: bool = False) -> dict:
     """
     Orquestra o fluxo de atendimento do visitante conforme o estado atual e a mensagem recebida.
-    
-    Args:
-        is_webhook_reply: Se True, marca respostas do bot como conversacionais (is_reply=True no meta)
-                         Padrão: False para compatibilidade com chamadas manuais
     """
     logging.info(f"📥 Processando mensagem | Origem={origem} | Numero={numero}, SID={message_sid}, Mensagem={texto_recebido[:80]}... | is_webhook_reply={is_webhook_reply}")
 
     # Normalização
     numero_normalizado = numero.lstrip("55")
     texto_normalizado = normalizar_texto(texto_recebido)
+    texto_original = texto_recebido.strip()  # Mantém o texto original para detecções
     
     # Salva mensagem recebida
     salvar_conversa(numero_normalizado, texto_recebido, tipo="recebida", sid=message_sid, origem=origem)
@@ -109,7 +108,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         return processar_outro(numero_normalizado, visitor_name, texto_recebido, message_sid, origem)
 
     # ==========================================================
-    # DETECÇÕES INTELIGENTES
+    # DETECÇÕES INTELIGENTES (USANDO TEXTO ORIGINAL PARA MELHOR PRECISÃO)
     # ==========================================================
     
     # PRIORIDADE 1: Pastores
@@ -157,7 +156,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         
         return any(re.search(p, texto) for p in padroes)
 
-    if detectar_intencao_pastores_unificado(texto_normalizado):
+    if detectar_intencao_pastores_unificado(texto_original):
         resposta = (
             "Nossos pastores atuais são:\n"
             "- *Pr. Fábio Ferreira*\n"
@@ -177,7 +176,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # PRIORIDADE 2: Horários de cultos
+    # PRIORIDADE 2: Horários de cultos (usando texto original)
     def detectar_intencao_horarios_cultos(texto: str) -> bool:
         texto = texto.lower().strip()
         
@@ -198,11 +197,13 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"o que vai ter hoje",
             r"tem culto hoje",
             r"vai ter culto",
+            r"horario dos cultos",  # Adicionado padrão explícito
+            r"horários dos cultos", # Adicionado padrão explícito
         ]
         
         return any(re.search(p, texto) for p in padroes)
 
-    if detectar_intencao_horarios_cultos(texto_normalizado):
+    if detectar_intencao_horarios_cultos(texto_original):
         resposta = (
             "*Seguem nossos horários de cultos:*\n\n"
             
@@ -261,7 +262,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         
         return any(re.search(p, texto) for p in padroes)
 
-    if detectar_intencao_grupo_whatsapp(texto_normalizado):
+    if detectar_intencao_grupo_whatsapp(texto_original):
         resposta = (
             "*Grupos de Comunhão (GC)* - _Pequenos encontros semanais nos lares!_\n\n"
             "Para entrar em um GC próximo a você:\n"
@@ -300,7 +301,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         
         return any(re.search(p, texto) for p in padroes)
 
-    if detectar_intencao_batismo_membro(texto_normalizado):
+    if detectar_intencao_batismo_membro(texto_original):
         resposta = (
             "*Que bom que você deseja caminhar conosco!* 🙏\n\n"
             "Para se tornar membro da Mais de Cristo Canasvieiras:\n\n"
@@ -339,7 +340,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         
         return any(re.search(p, texto) for p in padroes)
 
-    if detectar_intencao_localizacao(texto_normalizado):
+    if detectar_intencao_localizacao(texto_original):
         resposta = (
             "*📍 Nossa Localização:*\n\n"
             "Rod. José Carlos Daux, 17876\n"
@@ -404,7 +405,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
 
-    # IA
+    # ==========================================================
+    # 🤖 IA como camada inteligente (ANTES do fallback genérico)
+    # ==========================================================
     try:
         resposta_ia, confianca = ia_integracao.responder_pergunta(pergunta_usuario=texto_recebido)
         if resposta_ia and confianca > 0.3:
@@ -415,7 +418,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     except Exception as e:
         logging.error(f"❌ Erro IA: {e}")
 
-    # Fallback
+    # ==========================================================
+    # ❌ Fallback inteligente e conversacional
+    # ==========================================================
     visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
     
     resposta = (
