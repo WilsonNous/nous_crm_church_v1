@@ -1,4 +1,4 @@
-# ia_integracao.py - Versão Inteligente com Múltiplas Estratégias de Busca
+# ia_integracao.py - Motor de Busca Inteligente (Versão Definitiva)
 import logging
 import re
 import unicodedata
@@ -14,7 +14,6 @@ log = logging.getLogger(__name__)
 class IAIntegracao:
     def __init__(self, cache_size: int = 512):
         self.cache_size = cache_size
-        # Cache LRU para respostas frequentes
         self._cached_responder = lru_cache(maxsize=cache_size)(self._responder_sem_cache)
 
     def responder_pergunta(self, pergunta_usuario: str = '', contexto: dict = None) -> tuple[str, float]:
@@ -25,13 +24,9 @@ class IAIntegracao:
         if not pergunta_usuario or not pergunta_usuario.strip():
             return "Não entendi sua pergunta. Pode repetir?", 0.0
 
-        # Guarda a pergunta original
         pergunta_original = pergunta_usuario.strip()
-        
-        # Normaliza a pergunta para cache e busca
         pergunta_normalizada = self._normalizar_para_busca(pergunta_usuario)
         
-        # Tenta cache primeiro
         try:
             return self._cached_responder(pergunta_normalizada, pergunta_original)
         except Exception as e:
@@ -40,38 +35,30 @@ class IAIntegracao:
 
     def _normalizar_para_busca(self, texto: str) -> str:
         """
-        Normaliza texto para busca com múltiplas variações.
+        Normaliza texto para busca: lowercase, remove acentos, tokens.
         """
-        # Remove acentos
         texto = unicodedata.normalize('NFKD', texto)
         texto = ''.join(c for c in texto if not unicodedata.combining(c))
-        
-        # Lowercase e extrai palavras
         tokens = re.findall(r'\b[a-zà-ú0-9]+\b', texto.lower())
         
-        # Stopwords reduzidas (mantém palavras importantes)
+        # Remove stopwords apenas as mais comuns
         stopwords = {
             'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'da', 'do', 
             'das', 'dos', 'em', 'no', 'na', 'nos', 'nas', 'por', 'para', 'com', 
-            'sem', 'sob', 'sobre', 'que', 'qual', 'quais', 'quem', 'como', 
-            'quando', 'onde', 'entao', 'mas', 'e', 'ou', 'se', 'nao', 'não', 
-            'sim', 'ja', 'já', 'ainda', 'tambem', 'também', 'so', 'só', 
-            'somente', 'apenas', 'mais', 'menos', 'muito', 'pouco'
+            'sem', 'sob', 'sobre', 'que', 'se', 'e', 'ou', 'mas', 'sim', 'nao',
+            'tambem', 'so', 'só', 'ja', 'já', 'ainda', 'mais', 'menos'
         }
-        tokens = [t for t in tokens if t not in stopwords]
+        tokens = [t for t in tokens if t not in stopwords and len(t) >= 2]
         
-        # Retorna tokens únicos
         return ' '.join(sorted(set(tokens)))
 
     def _calcular_similaridade(self, texto1: str, texto2: str) -> float:
-        """
-        Calcula similaridade entre dois textos usando SequenceMatcher.
-        """
+        """Calcula similaridade entre dois textos."""
         return SequenceMatcher(None, texto1.lower(), texto2.lower()).ratio()
 
     def _responder_sem_cache(self, pergunta_normalizada: str, pergunta_original: str = None) -> tuple[str, float]:
         """
-        Lógica de busca inteligente com múltiplas estratégias.
+        Motor de busca inteligente com 7 estratégias diferentes.
         """
         try:
             with closing(get_db_connection()) as conn:
@@ -79,44 +66,33 @@ class IAIntegracao:
                     return self._fallback_response(), 0.3
                 
                 cursor = conn.cursor()
+                tokens = [t for t in pergunta_normalizada.split() if len(t) >= 2]
                 
                 # ============================================================
-                # ESTRATÉGIA 1: BUSCA EXATA (mais precisa)
+                # ESTRATÉGIA 1: BUSCA EXATA (pergunta original)
                 # ============================================================
                 if pergunta_original:
-                    # Busca exata na knowledge_base
                     cursor.execute("""
-                        SELECT answer, 'kb' as fonte
-                        FROM knowledge_base
+                        SELECT answer FROM knowledge_base
                         WHERE question = %s AND active = 1
                         LIMIT 1
                     """, (pergunta_original,))
                     result = cursor.fetchone()
-                    
                     if result:
-                        if isinstance(result, dict):
-                            resposta = result.get('answer')
-                        else:
-                            resposta = result[0] if len(result) > 0 else None
-                        
+                        resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                         if resposta:
-                            log.info(f"✅ IA: BUSCA EXATA encontrada")
+                            log.info(f"✅ IA: EXATA encontrada")
                             return str(resposta), 1.0
 
                 # ============================================================
-                # ESTRATÉGIA 2: BUSCA POR KEYWORDS (prioridade máxima)
+                # ESTRATÉGIA 2: KEYWORDS (coluna keywords)
                 # ============================================================
-                # Busca por palavras-chave na coluna keywords
-                tokens = [t for t in pergunta_normalizada.split() if len(t) >= 2]
-                
                 if tokens:
-                    # Constrói condições para keywords
                     keyword_conditions = ' OR '.join(['keywords LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
                     cursor.execute("""
-                        SELECT answer, 'kb' as fonte
-                        FROM knowledge_base
+                        SELECT answer FROM knowledge_base
                         WHERE ({keyword_cond}) AND active = 1
                         ORDER BY 
                             CASE 
@@ -131,53 +107,30 @@ class IAIntegracao:
                     
                     result = cursor.fetchone()
                     if result:
-                        if isinstance(result, dict):
-                            resposta = result.get('answer')
-                        else:
-                            resposta = result[0] if len(result) > 0 else None
-                        
+                        resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                         if resposta:
-                            log.info(f"✅ IA: KEYWORDS match com {len(tokens)} tokens")
+                            log.info(f"✅ IA: KEYWORDS match ({len(tokens)} tokens)")
                             return str(resposta), 0.95
 
                 # ============================================================
-                # ESTRATÉGIA 3: BUSCA POR CATEGORIA + KEYWORDS
+                # ESTRATÉGIA 3: CATEGORIA (mapeamento inteligente)
                 # ============================================================
-                # Mapeamento de palavras para categorias
                 mapa_categorias = {
-                    'horario': 'horarios',
-                    'horarios': 'horarios',
-                    'culto': 'horarios',
-                    'cultos': 'horarios',
-                    'programacao': 'horarios',
-                    'agenda': 'horarios',
-                    'evento': 'horarios',
-                    'batismo': 'membro',
-                    'membro': 'membro',
-                    'pastor': 'pastores',
-                    'pastores': 'pastores',
-                    'lider': 'pastores',
-                    'lideres': 'pastores',
-                    'grupo': 'grupos',
-                    'whatsapp': 'grupos',
-                    'gc': 'grupos',
-                    'endereco': 'localizacao',
-                    'localizacao': 'localizacao',
-                    'maps': 'localizacao',
-                    'oracao': 'oracao',
-                    'oração': 'oracao',
+                    'horario': 'horarios', 'horarios': 'horarios', 'culto': 'horarios', 'cultos': 'horarios',
+                    'programacao': 'horarios', 'agenda': 'horarios', 'evento': 'horarios',
+                    'batismo': 'membro', 'membro': 'membro',
+                    'pastor': 'pastores', 'pastores': 'pastores', 'lider': 'pastores', 'lideres': 'pastores',
+                    'grupo': 'grupos', 'whatsapp': 'grupos', 'gc': 'grupos',
+                    'endereco': 'localizacao', 'localizacao': 'localizacao', 'maps': 'localizacao',
+                    'oracao': 'oracao', 'oração': 'oracao',
                     'discipulado': 'discipulado',
-                    'fundador': 'Fundadores',
-                    'fundadores': 'Fundadores',
+                    'fundador': 'Fundadores', 'fundadores': 'Fundadores',
                 }
                 
-                # Encontra a categoria mais relevante
                 for palavra, categoria in mapa_categorias.items():
                     if palavra in pergunta_normalizada:
-                        # Busca por categoria e palavras-chave
                         cursor.execute("""
-                            SELECT answer, question, category
-                            FROM knowledge_base
+                            SELECT answer FROM knowledge_base
                             WHERE category = %s AND active = 1
                             ORDER BY 
                                 CASE 
@@ -191,146 +144,113 @@ class IAIntegracao:
                         
                         result = cursor.fetchone()
                         if result:
-                            if isinstance(result, dict):
-                                resposta = result.get('answer')
-                            else:
-                                resposta = result[0] if len(result) > 0 else None
-                            
+                            resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                             if resposta:
-                                log.info(f"✅ IA: CATEGORIA match '{categoria}' (palavra: {palavra})")
+                                log.info(f"✅ IA: CATEGORIA match ({categoria})")
                                 return str(resposta), 0.90
 
                 # ============================================================
-                # ESTRATÉGIA 4: LIKE AND (múltiplos tokens)
+                # ESTRATÉGIA 4: LIKE AND (todos os tokens)
                 # ============================================================
                 if len(tokens) >= 2:
                     like_conditions = ' AND '.join(['question LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
                     query_like = """
-                        SELECT answer, 'kb' as fonte FROM knowledge_base
+                        SELECT answer FROM knowledge_base
                         WHERE {like_cond} AND active = 1
                         UNION ALL
-                        SELECT answer, 'train' as fonte FROM training_pairs
+                        SELECT answer FROM training_pairs
                         WHERE {like_cond} AND active = 1
-                        ORDER BY 
-                            CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
-                            LENGTH(answer) ASC
+                        ORDER BY LENGTH(answer) ASC
                         LIMIT 1
                     """.format(like_cond=like_conditions)
                     
                     cursor.execute(query_like, params + params)
                     result = cursor.fetchone()
-                    
                     if result:
-                        if isinstance(result, dict):
-                            resposta = result.get('answer')
-                            fonte = result.get('fonte')
-                        else:
-                            resposta = result[0] if len(result) > 0 else None
-                            fonte = result[1] if len(result) > 1 else 'train'
-                        
+                        resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                         if resposta:
-                            confidence = 0.92 if fonte == 'kb' else 0.85
-                            log.info(f"✅ IA: LIKE AND match com {len(tokens)} tokens")
-                            return str(resposta), confidence
+                            log.info(f"✅ IA: LIKE AND ({len(tokens)} tokens)")
+                            return str(resposta), 0.92
 
                 # ============================================================
-                # ESTRATÉGIA 5: LIKE OR (mais flexível)
+                # ESTRATÉGIA 5: LIKE OR (pelo menos um token)
                 # ============================================================
                 if len(tokens) >= 1:
                     like_conditions = ' OR '.join(['question LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
                     query_like_or = """
-                        SELECT answer, 'kb' as fonte FROM knowledge_base
+                        SELECT answer FROM knowledge_base
                         WHERE ({like_cond}) AND active = 1
                         UNION ALL
-                        SELECT answer, 'train' as fonte FROM training_pairs
+                        SELECT answer FROM training_pairs
                         WHERE ({like_cond}) AND active = 1
                         ORDER BY 
-                            CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
+                            CASE 
+                                WHEN question LIKE %s THEN 0
+                                ELSE 1
+                            END,
                             LENGTH(answer) ASC
                         LIMIT 1
                     """.format(like_cond=like_conditions)
                     
-                    cursor.execute(query_like_or, params + params)
+                    # Adiciona o primeiro token como prioridade
+                    cursor.execute(query_like_or, params + params + [f'%{tokens[0]}%'])
                     result = cursor.fetchone()
-                    
                     if result:
-                        if isinstance(result, dict):
-                            resposta = result.get('answer')
-                            fonte = result.get('fonte')
-                        else:
-                            resposta = result[0] if len(result) > 0 else None
-                            fonte = result[1] if len(result) > 1 else 'train'
-                        
+                        resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                         if resposta:
-                            confidence = 0.85 if fonte == 'kb' else 0.78
-                            log.info(f"✅ IA: LIKE OR match com {len(tokens)} tokens")
-                            return str(resposta), confidence
+                            log.info(f"✅ IA: LIKE OR ({len(tokens)} tokens)")
+                            return str(resposta), 0.85
 
                 # ============================================================
-                # ESTRATÉGIA 6: FULLTEXT MATCH (busca semântica)
+                # ESTRATÉGIA 6: FULLTEXT (busca semântica)
                 # ============================================================
                 try:
                     search_term = re.sub(r'[^\w\s]', '', pergunta_normalizada).strip()
-                    
                     if len(search_term) >= 3:
                         query_fulltext = """
-                            SELECT kb.answer, 'kb' as fonte,
-                                   MATCH(kb.question, kb.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as similarity
-                            FROM knowledge_base kb
-                            WHERE MATCH(kb.question, kb.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) AND kb.active = 1
-                            
+                            SELECT answer, MATCH(question, answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as score
+                            FROM knowledge_base
+                            WHERE MATCH(question, answer) AGAINST(%s IN NATURAL LANGUAGE MODE) AND active = 1
                             UNION ALL
-                            
-                            SELECT tp.answer, 'train' as fonte,
-                                   MATCH(tp.question, tp.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as similarity
-                            FROM training_pairs tp
-                            WHERE MATCH(tp.question, tp.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) AND tp.active = 1
-                            
-                            ORDER BY 
-                                CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
-                                similarity DESC
+                            SELECT answer, MATCH(question, answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as score
+                            FROM training_pairs
+                            WHERE MATCH(question, answer) AGAINST(%s IN NATURAL LANGUAGE MODE) AND active = 1
+                            ORDER BY score DESC
                             LIMIT 1
                         """
                         cursor.execute(query_fulltext, (search_term, search_term, search_term, search_term))
                         result = cursor.fetchone()
-                        
                         if result:
                             if isinstance(result, dict):
                                 resposta = result.get('answer')
-                                fonte = result.get('fonte')
-                                similarity = result.get('similarity', 0) or 0
+                                score = result.get('score', 0) or 0
                             else:
                                 resposta = result[0] if len(result) > 0 else None
-                                fonte = result[1] if len(result) > 1 else 'train'
-                                similarity = result[2] if len(result) > 2 else 0
+                                score = result[1] if len(result) > 1 else 0
                             
-                            if resposta and similarity > 0.3:
-                                confidence = 0.95 if fonte == 'kb' else 0.90
-                                log.info(f"✅ IA: FULLTEXT match (similaridade={similarity:.2f})")
-                                return str(resposta), confidence
-                                
+                            if resposta and score > 0.3:
+                                log.info(f"✅ IA: FULLTEXT match (score={score:.2f})")
+                                return str(resposta), 0.95
                 except Exception as e:
-                    log.debug(f"⚠️ FULLTEXT não disponível: {e}")
+                    log.debug(f"⚠️ FULLTEXT: {e}")
 
                 # ============================================================
-                # ESTRATÉGIA 7: BUSCA POR SIMILARIDADE (fallback final)
+                # ESTRATÉGIA 7: SIMILARIDADE (fallback final)
                 # ============================================================
-                # Busca todas as perguntas e calcula similaridade
                 cursor.execute("""
-                    SELECT question, answer, category
-                    FROM knowledge_base
+                    SELECT question, answer FROM knowledge_base
                     WHERE active = 1
                     ORDER BY id DESC
-                    LIMIT 100
+                    LIMIT 200
                 """)
                 
                 results = cursor.fetchall()
-                melhor_match = None
-                melhor_similaridade = 0.0
+                melhor_resposta = None
+                melhor_score = 0.0
                 
                 for result in results:
                     if isinstance(result, dict):
@@ -340,24 +260,24 @@ class IAIntegracao:
                         pergunta_db = result[0] if len(result) > 0 else ''
                         resposta_db = result[1] if len(result) > 1 else ''
                     
-                    # Calcula similaridade com a pergunta normalizada
-                    similaridade = self._calcular_similaridade(pergunta_normalizada, pergunta_db)
+                    # Similaridade com a pergunta original
+                    similaridade = self._calcular_similaridade(pergunta_original or pergunta_normalizada, pergunta_db)
                     
-                    # Também verifica se algum token importante está presente
+                    # Bônus para tokens específicos
                     for token in tokens:
                         if token in pergunta_db.lower():
-                            similaridade += 0.1
+                            similaridade += 0.05
                     
-                    if similaridade > melhor_similaridade:
-                        melhor_similaridade = similaridade
-                        melhor_match = resposta_db
+                    if similaridade > melhor_score:
+                        melhor_score = similaridade
+                        melhor_resposta = resposta_db
                 
-                if melhor_match and melhor_similaridade > 0.3:
-                    log.info(f"✅ IA: SIMILARIDADE match (score={melhor_similaridade:.2f})")
-                    return str(melhor_match), 0.75
+                if melhor_resposta and melhor_score > 0.25:
+                    log.info(f"✅ IA: SIMILARIDADE match (score={melhor_score:.2f})")
+                    return str(melhor_resposta), 0.75
 
                 # ============================================================
-                # NADA ENCONTRADO - Registra para treinamento
+                # NADA ENCONTRADO
                 # ============================================================
                 try:
                     cursor.execute("""
@@ -365,27 +285,24 @@ class IAIntegracao:
                         VALUES (%s, %s, %s, NOW())
                     """, ("whatsapp", pergunta_normalizada, "pending"))
                     conn.commit()
-                    log.info(f"📝 Pergunta registrada para treino: '{pergunta_normalizada[:60]}...'")
+                    log.info(f"📝 Pergunta registrada: '{pergunta_normalizada[:60]}...'")
                 except Exception as e:
-                    log.warning(f"⚠️ Não foi possível registrar pergunta pendente: {e}")
+                    log.warning(f"⚠️ Registro pendente: {e}")
                 
                 return self._fallback_response(), 0.3
                 
         except Exception as e:
-            log.error(f"❌ Erro na busca da IA: {e}", exc_info=True)
+            log.error(f"❌ Erro IA: {e}", exc_info=True)
             return self._fallback_response(), 0.2
 
     def _fallback_response(self) -> str:
-        """Resposta padrão quando nada é encontrado."""
         return "Ainda não tenho essa resposta, mas já registrei sua pergunta para nosso time. 🙏"
 
     def limpar_cache(self):
-        """Limpa o cache LRU."""
         self._cached_responder.cache_clear()
         log.info("🔄 Cache da IA limpo")
 
     def get_cache_stats(self) -> dict:
-        """Retorna estatísticas do cache."""
         cache_info = self._cached_responder.cache_info()
         total = cache_info.hits + cache_info.misses
         return {
@@ -421,11 +338,6 @@ def call_ai(prompt: str, *args, **kwargs) -> dict:
     return gerar_resposta(prompt, *args, **kwargs)
 
 IS_MOCK = False
-
-
-# =======================
-# Utilitários para admin
-# =======================
 
 def recarregar_cache_ia():
     _get_ia_instance().limpar_cache()
