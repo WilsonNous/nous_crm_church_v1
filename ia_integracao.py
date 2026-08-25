@@ -1,4 +1,4 @@
-# ia_integracao.py - Motor de Busca Inteligente (Versão Definitiva)
+# ia_integracao.py - Motor de Busca Inteligente (Sem coluna 'active')
 import logging
 import re
 import unicodedata
@@ -41,7 +41,6 @@ class IAIntegracao:
         texto = ''.join(c for c in texto if not unicodedata.combining(c))
         tokens = re.findall(r'\b[a-zà-ú0-9]+\b', texto.lower())
         
-        # Remove stopwords apenas as mais comuns
         stopwords = {
             'o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'da', 'do', 
             'das', 'dos', 'em', 'no', 'na', 'nos', 'nas', 'por', 'para', 'com', 
@@ -58,7 +57,8 @@ class IAIntegracao:
 
     def _responder_sem_cache(self, pergunta_normalizada: str, pergunta_original: str = None) -> tuple[str, float]:
         """
-        Motor de busca inteligente com 7 estratégias diferentes.
+        Motor de busca inteligente com múltiplas estratégias.
+        SEM referência à coluna 'active' (não existe na tabela).
         """
         try:
             with closing(get_db_connection()) as conn:
@@ -74,7 +74,7 @@ class IAIntegracao:
                 if pergunta_original:
                     cursor.execute("""
                         SELECT answer FROM knowledge_base
-                        WHERE question = %s AND active = 1
+                        WHERE question = %s
                         LIMIT 1
                     """, (pergunta_original,))
                     result = cursor.fetchone()
@@ -93,7 +93,7 @@ class IAIntegracao:
                     
                     cursor.execute("""
                         SELECT answer FROM knowledge_base
-                        WHERE ({keyword_cond}) AND active = 1
+                        WHERE ({keyword_cond})
                         ORDER BY 
                             CASE 
                                 WHEN keywords LIKE %s THEN 0
@@ -131,7 +131,7 @@ class IAIntegracao:
                     if palavra in pergunta_normalizada:
                         cursor.execute("""
                             SELECT answer FROM knowledge_base
-                            WHERE category = %s AND active = 1
+                            WHERE category = %s
                             ORDER BY 
                                 CASE 
                                     WHEN question LIKE %s THEN 0
@@ -158,10 +158,10 @@ class IAIntegracao:
                     
                     query_like = """
                         SELECT answer FROM knowledge_base
-                        WHERE {like_cond} AND active = 1
+                        WHERE {like_cond}
                         UNION ALL
                         SELECT answer FROM training_pairs
-                        WHERE {like_cond} AND active = 1
+                        WHERE {like_cond}
                         ORDER BY LENGTH(answer) ASC
                         LIMIT 1
                     """.format(like_cond=like_conditions)
@@ -183,10 +183,10 @@ class IAIntegracao:
                     
                     query_like_or = """
                         SELECT answer FROM knowledge_base
-                        WHERE ({like_cond}) AND active = 1
+                        WHERE ({like_cond})
                         UNION ALL
                         SELECT answer FROM training_pairs
-                        WHERE ({like_cond}) AND active = 1
+                        WHERE ({like_cond})
                         ORDER BY 
                             CASE 
                                 WHEN question LIKE %s THEN 0
@@ -196,7 +196,6 @@ class IAIntegracao:
                         LIMIT 1
                     """.format(like_cond=like_conditions)
                     
-                    # Adiciona o primeiro token como prioridade
                     cursor.execute(query_like_or, params + params + [f'%{tokens[0]}%'])
                     result = cursor.fetchone()
                     if result:
@@ -206,44 +205,10 @@ class IAIntegracao:
                             return str(resposta), 0.85
 
                 # ============================================================
-                # ESTRATÉGIA 6: FULLTEXT (busca semântica)
-                # ============================================================
-                try:
-                    search_term = re.sub(r'[^\w\s]', '', pergunta_normalizada).strip()
-                    if len(search_term) >= 3:
-                        query_fulltext = """
-                            SELECT answer, MATCH(question, answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as score
-                            FROM knowledge_base
-                            WHERE MATCH(question, answer) AGAINST(%s IN NATURAL LANGUAGE MODE) AND active = 1
-                            UNION ALL
-                            SELECT answer, MATCH(question, answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as score
-                            FROM training_pairs
-                            WHERE MATCH(question, answer) AGAINST(%s IN NATURAL LANGUAGE MODE) AND active = 1
-                            ORDER BY score DESC
-                            LIMIT 1
-                        """
-                        cursor.execute(query_fulltext, (search_term, search_term, search_term, search_term))
-                        result = cursor.fetchone()
-                        if result:
-                            if isinstance(result, dict):
-                                resposta = result.get('answer')
-                                score = result.get('score', 0) or 0
-                            else:
-                                resposta = result[0] if len(result) > 0 else None
-                                score = result[1] if len(result) > 1 else 0
-                            
-                            if resposta and score > 0.3:
-                                log.info(f"✅ IA: FULLTEXT match (score={score:.2f})")
-                                return str(resposta), 0.95
-                except Exception as e:
-                    log.debug(f"⚠️ FULLTEXT: {e}")
-
-                # ============================================================
-                # ESTRATÉGIA 7: SIMILARIDADE (fallback final)
+                # ESTRATÉGIA 6: SIMILARIDADE (fallback final)
                 # ============================================================
                 cursor.execute("""
                     SELECT question, answer FROM knowledge_base
-                    WHERE active = 1
                     ORDER BY id DESC
                     LIMIT 200
                 """)
@@ -260,10 +225,8 @@ class IAIntegracao:
                         pergunta_db = result[0] if len(result) > 0 else ''
                         resposta_db = result[1] if len(result) > 1 else ''
                     
-                    # Similaridade com a pergunta original
                     similaridade = self._calcular_similaridade(pergunta_original or pergunta_normalizada, pergunta_db)
                     
-                    # Bônus para tokens específicos
                     for token in tokens:
                         if token in pergunta_db.lower():
                             similaridade += 0.05
