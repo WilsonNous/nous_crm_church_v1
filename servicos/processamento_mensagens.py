@@ -28,7 +28,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     logging.info(f"📥 Processando mensagem | Origem={origem} | Numero={numero}, SID={message_sid}, Mensagem={texto_recebido[:80]}... | is_webhook_reply={is_webhook_reply}")
 
     # Normalização
-    numero_normalizado = numero.lstrip("55")  # 🔧 Corrige: banco só guarda número nacional
+    numero_normalizado = numero.lstrip("55")
     texto_normalizado = normalizar_texto(texto_recebido)
     
     # Salva mensagem recebida
@@ -45,7 +45,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         return {
             "origem": origem,
             "tipo": tipo,
-            "is_reply": is_webhook_reply,  # ← Marca como resposta conversacional se for webhook
+            "is_reply": is_webhook_reply,
             "telefone_raw": numero_normalizado,
             "sid_origem": message_sid,
         }
@@ -90,7 +90,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         
         logging.info(f"🙏 Pedido de oração automático iniciado para {visitor_name} ({numero_normalizado})")
 
-        # Processa automaticamente o pedido genérico
         return processar_pedido_oracao(
             numero=numero_normalizado,
             nome_visitante=visitor_name,
@@ -110,25 +109,14 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         return processar_outro(numero_normalizado, visitor_name, texto_recebido, message_sid, origem)
 
     # ==========================================================
-    # 🔍 DETECÇÕES INTELIGENTES (ORDEM ESTRATÉGICA!)
+    # DETECÇÕES INTELIGENTES
     # ==========================================================
     
-    # 🎯 PRIORIDADE 1: Pastores (UNIFICADO: nomes + Instagram + contato secretaria)
+    # PRIORIDADE 1: Pastores
     def detectar_intencao_pastores_unificado(texto: str) -> bool:
-        """
-        Detecta qualquer intenção relacionada aos pastores:
-        - Quem são / nomes dos pastores
-        - Falar com / contato com pastores
-        - Agendar visita pastoral / marcar agenda
-        - WhatsApp / telefone dos pastores
-        - Secretaria / Wilson Martins (como canal de contato)
-        
-        ✅ Regex flexível para aceitar artigos e variações naturais.
-        """
         texto = texto.lower().strip()
         
         padroes = [
-            # === QUEM SÃO OS PASTORES (informação) ===
             r"quem (é|são|e|sao) (os |o |as |a )?pastores?",
             r"quem (são|sao|é|e) (o |os |a |as )?pastor(es)?",
             r"qual (é|e|são|sao) (o |os |a |as )?pastor(es)?",
@@ -139,8 +127,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"quem (são|sao) (os )?lideres?",
             r"fundadores da igreja",
             r"historia da igreja",
-            
-            # === CONTATO / FALAR COM PASTORES ===
             r"falar (com|para) (o |a |os |as )?pastor(es)?",
             r"contato (com|dos|do|da) (o |a |os |as )?pastor(es)?",
             r"ligar (para|pros|pra) (o |a |os |as )?pastor(es)?",
@@ -149,8 +135,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"telefone (dos|do|da) (o |a |os |as )?pastor(es)?",
             r"como falo com (os |as )?pastor(es)?",
             r"como entro em contato com (os |as )?pastor(es)?",
-            
-            # === AGENDAR VISITA / MARCAR AGENDA ===
             r"agenda (com|dos|do|da) (o |a |os |as )?pastor(es)?",
             r"agendar (com|uma visita com) (o |a |os |as )?pastor",
             r"marcar (com|uma visita com) (o |a |os |as )?pastor",
@@ -162,8 +146,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             r"receber visita pastoral",
             r"visita dos pastores",
             r"agendar.*pastor",
-            
-            # === SECRETARIA / WILSON (como canal de contato) ===
             r"secretario wilson",
             r"wilson martins",
             r"falar com a secretaria",
@@ -176,7 +158,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         return any(re.search(p, texto) for p in padroes)
 
     if detectar_intencao_pastores_unificado(texto_normalizado):
-        # ✅ RESPOSTA UNIFICADA: Nomes + Instagram + Contato Secretaria
         resposta = (
             "Nossos pastores atuais são:\n"
             "- *Pr. Fábio Ferreira*\n"
@@ -196,12 +177,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 2: Horários de cultos / programação da igreja
+    # PRIORIDADE 2: Horários de cultos
     def detectar_intencao_horarios_cultos(texto: str) -> bool:
-        """
-        Detecta perguntas sobre horários de cultos e programação da igreja.
-        ✅ Aceita variações naturais e perguntas indiretas.
-        """
         texto = texto.lower().strip()
         
         padroes = [
@@ -229,29 +206,29 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         resposta = (
             "*Seguem nossos horários de cultos:*\n\n"
             
-            "🌅 *Domingo* - Culto Celebração da Vida - às 10h\n"
+            "[DOMINGO - 10h] *Culto Celebração da Vida*\n"
             "Um momento de adoração e comunhão para toda a família.\n"
             "\"Eu e a minha casa serviremos ao Senhor.\" (Josué 24:15)\n\n"
             
-            "🌿 *Domingo* - Culto Celebração da Vida - às 19h\n"
+            "[DOMINGO - 19h] *Culto Celebração da Vida*\n"
             "Uma oportunidade de estar em comunhão com sua família, adorando a Deus e agradecendo por cada bênção.\n"
             "\"Eu e a minha casa serviremos ao Senhor.\" (Josué 24:15)\n\n"
             
-            "🔥 *Quinta-feira* - Quinta Profética - às 20h\n"
+            "[QUINTA-FEIRA - 20h] *Quinta Profética*\n"
             "Um encontro de fé para vivermos o sobrenatural de Deus.\n"
             "\"Tudo é possível ao que crê.\" (Marcos 9:23)\n\n"
             
-            "🎉 *Sábado* - Culto Alive - às 20h\n"
+            "[SÁBADO - 20h] *Culto Alive*\n"
             "Jovem, venha viver o melhor sábado da sua vida com muita alegria e propósito!\n"
             "\"Ninguém despreze a tua mocidade, mas sê exemplo dos fiéis.\" (1 Timóteo 4:12)\n\n"
             
-            "🙏 *Terça-feira* - Culto de Oração - às 21h30\n"
+            "[TERÇA-FEIRA - 21h30] *Culto de Oração*\n"
             "Um momento de intimidade com Deus, onde elevamos nossas petições e intercedemos uns pelos outros.\n"
             "\"Orai sem cessar.\" (1 Tessalonicenses 5:17)\n\n"
             
             "📍 *Local:* Rod. José Carlos Daux, 17876 - Canasvieiras, Florianópolis/SC\n\n"
             
-            "🙏 Somos Uma Igreja Família, Vivendo os Propósitos de Deus!\n"
+            "Somos Uma Igreja Família, Vivendo os Propósitos de Deus!\n"
             "\"Pois onde estiverem dois ou três reunidos em meu nome, ali estou no meio deles.\" (Mateus 18:20)\n\n"
             
             "Gostaria de mais informações?"
@@ -264,11 +241,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 3: Grupos de WhatsApp / GC
+    # PRIORIDADE 3: Grupos de WhatsApp
     def detectar_intencao_grupo_whatsapp(texto: str) -> bool:
-        """
-        Detecta interesse em entrar em grupos de WhatsApp ou GC.
-        """
         texto = texto.lower().strip()
         
         padroes = [
@@ -291,8 +265,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         resposta = (
             "*Grupos de Comunhão (GC)* - _Pequenos encontros semanais nos lares!_\n\n"
             "Para entrar em um GC próximo a você:\n"
-            "1️⃣ Nos informe seu bairro ou região\n"
-            "2️⃣ Nossa equipe entrará em contato para conectar você ao grupo ideal\n\n"
+            "1) Nos informe seu bairro ou região\n"
+            "2) Nossa equipe entrará em contato para conectar você ao grupo ideal\n\n"
             "Ou fale diretamente com nossa secretaria: *(48) 99828-4104*\n\n"
             "Queremos caminhar com você! 🙏"
         )
@@ -304,11 +278,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 4: Batismo / Tornar-se membro
+    # PRIORIDADE 4: Batismo / Tornar-se membro
     def detectar_intencao_batismo_membro(texto: str) -> bool:
-        """
-        Detecta interesse em batismo ou tornar-se membro.
-        """
         texto = texto.lower().strip()
         
         padroes = [
@@ -333,9 +304,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         resposta = (
             "*Que bom que você deseja caminhar conosco!* 🙏\n\n"
             "Para se tornar membro da Mais de Cristo Canasvieiras:\n\n"
-            "1️⃣ *Batismo nas águas* (se ainda não foi batizado)\n"
-            "2️⃣ *Curso de Membros* (conheça nossa visão e valores)\n"
-            "3️⃣ *Entrevista pastoral* (converse com nossos líderes)\n\n"
+            "1) *Batismo nas águas* (se ainda não foi batizado)\n"
+            "2) *Curso de Membros* (conheça nossa visão e valores)\n"
+            "3) *Entrevista pastoral* (converse com nossos líderes)\n\n"
             "Para iniciar seu processo, responda:\n"
             "• Digite *1* se já foi batizado nas águas\n"
             "• Digite *2* se ainda não foi batizado\n\n"
@@ -349,11 +320,8 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 5: Localização / Endereço da igreja
+    # PRIORIDADE 5: Localização
     def detectar_intencao_localizacao(texto: str) -> bool:
-        """
-        Detecta perguntas sobre endereço ou localização da igreja.
-        """
         texto = texto.lower().strip()
         
         padroes = [
@@ -390,23 +358,16 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "proximo_estado": estado_atual.name
         }
 
-    # 🎯 PRIORIDADE 6: Opções do menu numérico (1-6)
+    # PRIORIDADE 6: Opções do menu numérico
     def detectar_opcao_menu(texto: str) -> str | None:
-        """
-        Detecta se o visitante digitou uma opção do menu (1, 2, 3, 4, 5, 6).
-        Retorna a opção detectada ou None.
-        """
         texto = texto.strip()
         
-        # Opções exatas
         if texto in ["1", "2", "3", "4", "5", "6"]:
             return texto
         
-        # Variações com pontuação ou emojis
         if texto in ["1.", "2.", "3.", "4.", "5.", "6.", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣"]:
-            return texto[0]  # Retorna apenas o número
+            return texto[0]
         
-        # Texto descritivo das opções
         opcoes = {
             "1": [r"ja fiz batismo", r"já fiz batismo", r"batizado", r"quero ser membro e ja fui batizado"],
             "2": [r"nao fiz batismo", r"não fiz batismo", r"ainda nao fui batizado", r"ainda não fui batizado", r"quero ser membro mas nao sou batizado"],
@@ -424,7 +385,6 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
     opcao_menu = detectar_opcao_menu(texto_normalizado)
     if opcao_menu:
-        # Redireciona para o fluxo normal de transições
         proximo_estado = obter_proximo_estado(estado_atual, opcao_menu)
         if proximo_estado:
             visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
@@ -434,9 +394,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
             return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
 
-    # ==========================================================
-    # 🔁 Fluxo normal de transições (menu numérico via estado)
-    # ==========================================================
+    # Fluxo normal de transições
     proximo_estado = obter_proximo_estado(estado_atual, texto_normalizado)
     if proximo_estado:
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
@@ -446,12 +404,10 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {"resposta": resposta, "estado_atual": estado_atual.name, "proximo_estado": proximo_estado.name}
 
-    # ==========================================================
-    # 🤖 IA como camada inteligente (ANTES do fallback genérico)
-    # ==========================================================
+    # IA
     try:
         resposta_ia, confianca = ia_integracao.responder_pergunta(pergunta_usuario=texto_recebido)
-        if resposta_ia and confianca > 0.3:  # Threshold um pouco mais alto para evitar respostas fracas
+        if resposta_ia and confianca > 0.3:
             enviar_mensagem_para_fila(numero_normalizado, resposta_ia, meta=_criar_meta())
             salvar_conversa(numero_normalizado, resposta_ia, tipo="enviada", sid=message_sid, origem=origem)
             atualizar_status(numero_normalizado, EstadoVisitante.INICIO.value, origem=origem)
@@ -459,12 +415,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     except Exception as e:
         logging.error(f"❌ Erro IA: {e}")
 
-    # ==========================================================
-    # ❌ Fallback inteligente e conversacional
-    # ==========================================================
+    # Fallback
     visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
     
-    # Resposta mais útil que guia o usuário
     resposta = (
         f"Oi, {visitor_name}! 🙏 Ainda não tenho uma resposta pronta para isso, "
         f"mas quero te ajudar!\n\n"
