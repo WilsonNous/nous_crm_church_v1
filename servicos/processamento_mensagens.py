@@ -227,16 +227,36 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         return any(re.search(p, texto) for p in padroes)
 
     if detectar_intencao_horarios_cultos(texto_normalizado):
-        resposta = (
-            "*Seguem nossos horários de cultos:*\n\n"
-            "🌅 *Domingo*\n"
-            "• Culto da Família: 09h\n"
-            "• Culto de Celebração: 18h\n\n"
-            "🌙 *Quarta-feira*\n"
-            "• Culto de Oração e Palavra: 19h\n\n"
-            "📍 *Local:* Rua das Flores, 123 - Canasvieiras\n\n"
-            "Estamos esperando por você! 🙏"
-        )
+            resposta = (
+                "*Seguem nossos horários de cultos:*\n\n"
+                
+                "🌅 *Domingo* - Culto Celebração da Vida - às 10h\n"
+                "Um momento de adoração e comunhão para toda a família.\n"
+                "\"Eu e a minha casa serviremos ao Senhor.\" (Josué 24:15)\n\n"
+                
+                "🌿 *Domingo* - Culto Celebração da Vida - às 19h\n"
+                "Uma oportunidade de estar em comunhão com sua família, adorando a Deus e agradecendo por cada bênção.\n"
+                "\"Eu e a minha casa serviremos ao Senhor.\" (Josué 24:15)\n\n"
+                
+                "🔥 *Quinta-feira* - Quinta Profética - às 20h\n"
+                "Um encontro de fé para vivermos o sobrenatural de Deus.\n"
+                "\"Tudo é possível ao que crê.\" (Marcos 9:23)\n\n"
+                
+                "🎉 *Sábado* - Culto Alive - às 20h\n"
+                "Jovem, venha viver o melhor sábado da sua vida com muita alegria e propósito!\n"
+                "\"Ninguém despreze a tua mocidade, mas sê exemplo dos fiéis.\" (1 Timóteo 4:12)\n\n"
+                
+                "🙏 *Terça-feira* - Culto de Oração - às 21h30\n"
+                "Um momento de intimidade com Deus, onde elevamos nossas petições e intercedemos uns pelos outros.\n"
+                "\"Orai sem cessar.\" (1 Tessalonicenses 5:17)\n\n"
+                
+                "📍 *Local:* Rod. José Carlos Daux, 17876 - Canasvieiras, Florianópolis/SC\n\n"
+                
+                "🙏 Somos Uma Igreja Família, Vivendo os Propósitos de Deus!\n"
+                "\"Pois onde estiverem dois ou três reunidos em meu nome, ali estou no meio deles.\" (Mateus 18:20)\n\n"
+                
+                "Gostaria de mais informações?"
+            )
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
@@ -353,16 +373,16 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         return any(re.search(p, texto) for p in padroes)
 
     if detectar_intencao_localizacao(texto_normalizado):
-        resposta = (
-            "*📍 Nossa Localização:*\n\n"
-            "Rua das Flores, 123\n"
-            "Canasvieiras - Florianópolis/SC\n\n"
-            "*🗺️ Como chegar:*\n"
-            "• Google Maps: [link aqui]\n"
-            "• Ônibus: Linhas 123, 456 (ponto em frente)\n"
-            "• Estacionamento disponível no local\n\n"
-            "Estamos te esperando! 🙏"
-        )
+            resposta = (
+                "*📍 Nossa Localização:*\n\n"
+                "Rod. José Carlos Daux, 17876\n"
+                "Canasvieiras - Florianópolis/SC\n"
+                "CEP: 88050-401\n\n"
+                "*🗺️ Como chegar:*\n"
+                "• Google Maps: [clique aqui para abrir](https://maps.google.com/?q=HG2V%2BG58+Rod.+Jos%C3%A9+Carlos+Daux,+17876+-+Canasvieiras,+Florian%C3%B3polis+-+SC,+88050-401)\n"
+                "• Estacionamento disponível no local\n\n"
+                "Estamos te esperando! 🙏"
+            )
         enviar_mensagem_para_fila(numero_normalizado, resposta, meta=_criar_meta())
         salvar_conversa(numero_normalizado, resposta, tipo="enviada", sid=message_sid, origem=origem)
         return {
