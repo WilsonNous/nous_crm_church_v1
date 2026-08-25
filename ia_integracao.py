@@ -1,4 +1,4 @@
-# ia_integracao.py - Integração com banco de dados (CORRIGIDA)
+# ia_integracao.py - Integração com banco de dados (CORRIGIDA - Sem created_at)
 import logging
 import re
 import unicodedata
@@ -81,6 +81,7 @@ class IAIntegracao:
                     search_term = re.sub(r'[^\w\s]', '', pergunta_normalizada).strip()
                     
                     if len(search_term) >= 3:
+                        # ✅ CORRIGIDO: Removido ORDER BY created_at
                         query_fulltext = """
                             SELECT kb.answer, 'kb' as fonte,
                                    MATCH(kb.question, kb.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as similarity
@@ -94,7 +95,7 @@ class IAIntegracao:
                             FROM training_pairs tp
                             WHERE MATCH(tp.question, tp.answer) AGAINST(%s IN NATURAL LANGUAGE MODE)
                             
-                            ORDER BY similarity DESC, created_at DESC
+                            ORDER BY similarity DESC
                             LIMIT 1
                         """
                         cursor.execute(query_fulltext, (search_term, search_term, search_term, search_term))
@@ -125,7 +126,6 @@ class IAIntegracao:
                     log.debug(f"⚠️ FULLTEXT não disponível, usando LIKE: {e}")
                 
                 # 🔍 ESTRATÉGIA 2: Fallback para LIKE com tokens (AND lógico)
-                # ✅ CORREÇÃO: Usar placeholders %s e NÃO usar format() para montar a query
                 tokens = [t for t in pergunta_normalizada.split() if len(t) >= 3]
                 
                 if len(tokens) >= 2:
@@ -133,8 +133,7 @@ class IAIntegracao:
                     like_conditions = ' AND '.join(['question LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
-                    # ⚠️ IMPORTANTE: NÃO usar format() aqui - usar interpolação segura com %s
-                    # A query completa usa o mesmo like_conditions para ambas as tabelas
+                    # ✅ CORRIGIDO: Removido ORDER BY created_at
                     query_like = """
                         SELECT answer, 'kb' as fonte FROM knowledge_base
                         WHERE {like_cond}
@@ -142,16 +141,15 @@ class IAIntegracao:
                         SELECT answer, 'train' as fonte FROM training_pairs
                         WHERE {like_cond}
                         ORDER BY 
-                            CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
-                            created_at DESC
+                            CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END
                         LIMIT 1
                     """.format(like_cond=like_conditions)
                     
-                    # Os parâmetros são duplicados para UNION (kb e train)
                     cursor.execute(query_like, params + params)
                     
                 else:
                     # Fallback para perguntas curtas (1 token ou vazio)
+                    # ✅ CORRIGIDO: Removido ORDER BY created_at
                     query_like = """
                         SELECT answer, 'kb' as fonte FROM knowledge_base
                         WHERE question LIKE %s
@@ -159,8 +157,7 @@ class IAIntegracao:
                         SELECT answer, 'train' as fonte FROM training_pairs
                         WHERE question LIKE %s
                         ORDER BY 
-                            CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
-                            created_at DESC
+                            CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END
                         LIMIT 1
                     """
                     cursor.execute(query_like, (f'%{pergunta_normalizada}%', f'%{pergunta_normalizada}%'))
@@ -188,10 +185,11 @@ class IAIntegracao:
                 
                 for cat in categorias_conhecidas:
                     if cat in pergunta_normalizada:
+                        # ✅ CORRIGIDO: Removido ORDER BY created_at
                         cursor.execute("""
                             SELECT answer FROM knowledge_base 
                             WHERE category = %s 
-                            ORDER BY created_at DESC LIMIT 1
+                            LIMIT 1
                         """, (cat,))
                         result = cursor.fetchone()
                         if result:
@@ -206,10 +204,10 @@ class IAIntegracao:
                 
                 # ❌ Nada encontrado: registra para treinamento futuro
                 try:
+                    # ✅ CORRIGIDO: Removido ON DUPLICATE KEY com updated_at
                     cursor.execute("""
                         INSERT INTO unknown_questions (user_id, question, status, created_at)
                         VALUES (%s, %s, %s, NOW())
-                        ON DUPLICATE KEY UPDATE status = VALUES(status), updated_at = NOW()
                     """, ("whatsapp", pergunta_normalizada, "pending"))
                     conn.commit()
                     log.info(f"📝 Pergunta registrada para treino: '{pergunta_normalizada[:60]}...'")
