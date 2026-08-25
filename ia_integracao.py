@@ -1,4 +1,4 @@
-# ia_integracao.py - Integração com banco de dados (CORRIGIDA - Sem updated_at)
+# ia_integracao.py - Integração com banco de dados (CORRIGIDA)
 import logging
 import re
 import unicodedata
@@ -66,7 +66,7 @@ class IAIntegracao:
     def _responder_sem_cache(self, pergunta_normalizada: str) -> tuple[str, float]:
         """
         Lógica real de busca no banco (sem cache).
-        ✅ ESTRATÉGIA: FULLTEXT MATCH (principal) → LIKE (fallback) → Categoria (último recurso)
+        ESTRATÉGIA: FULLTEXT MATCH (principal) → LIKE (fallback) → Categoria (último recurso)
         Retorna (resposta, confidence).
         """
         try:
@@ -77,13 +77,10 @@ class IAIntegracao:
                 cursor = conn.cursor()
                 
                 # 🔍 ESTRATÉGIA 1: FULLTEXT MATCH (mais rápido e relevante)
-                # Usa índice FULLTEXT criado: ALTER TABLE knowledge_base ADD FULLTEXT INDEX ft_question_answer (question, answer)
                 try:
-                    # Prepara termo para FULLTEXT (remove aspas e caracteres especiais)
                     search_term = re.sub(r'[^\w\s]', '', pergunta_normalizada).strip()
                     
-                    if len(search_term) >= 3:  # FULLTEXT precisa de pelo menos 3 caracteres
-                        # ✅ CORREÇÃO: Usar apenas created_at (updated_at pode não existir)
+                    if len(search_term) >= 3:
                         query_fulltext = """
                             SELECT kb.answer, 'kb' as fonte,
                                    MATCH(kb.question, kb.answer) AGAINST(%s IN NATURAL LANGUAGE MODE) as similarity
@@ -104,7 +101,6 @@ class IAIntegracao:
                         result = cursor.fetchone()
                         
                         if result:
-                            # Extrair dados de forma segura (suporta DictCursor ou tuple)
                             if isinstance(result, dict):
                                 resposta = result.get('answer')
                                 fonte = result.get('fonte')
@@ -115,8 +111,6 @@ class IAIntegracao:
                                 similarity = result[2] if len(result) > 2 else 0
                             
                             if resposta:
-                                # ✅ Confidence baseado na similaridade do FULLTEXT
-                                # similarity >= 2.0 = muito relevante | >= 1.0 = relevante | >= 0.5 = ok
                                 if similarity >= 2.0:
                                     confidence = 0.98 if fonte == 'kb' else 0.95
                                 elif similarity >= 1.0:
@@ -128,35 +122,36 @@ class IAIntegracao:
                                 return str(resposta), confidence
                                 
                 except Exception as e:
-                    # Se FULLTEXT falhar (ex: índice não existe ainda), fallback silencioso para LIKE
                     log.debug(f"⚠️ FULLTEXT não disponível, usando LIKE: {e}")
                 
                 # 🔍 ESTRATÉGIA 2: Fallback para LIKE com tokens (AND lógico)
+                # ✅ CORREÇÃO: Usar placeholders %s e NÃO usar format() para montar a query
                 tokens = [t for t in pergunta_normalizada.split() if len(t) >= 3]
                 
                 if len(tokens) >= 2:
-                    # Constrói condições LIKE com placeholders %s
+                    # Constrói a query com placeholders %s para os tokens
                     like_conditions = ' AND '.join(['question LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
-                    # ✅ CORREÇÃO: Usar apenas created_at na ordenação
+                    # ⚠️ IMPORTANTE: NÃO usar format() aqui - usar interpolação segura com %s
+                    # A query completa usa o mesmo like_conditions para ambas as tabelas
                     query_like = """
                         SELECT answer, 'kb' as fonte FROM knowledge_base
-                        WHERE {}
+                        WHERE {like_cond}
                         UNION ALL
                         SELECT answer, 'train' as fonte FROM training_pairs
-                        WHERE {}
+                        WHERE {like_cond}
                         ORDER BY 
                             CASE WHEN fonte = 'kb' THEN 0 ELSE 1 END,
                             created_at DESC
                         LIMIT 1
-                    """.format(like_conditions, like_conditions)
+                    """.format(like_cond=like_conditions)
                     
-                    cursor.execute(query_like, params)
+                    # Os parâmetros são duplicados para UNION (kb e train)
+                    cursor.execute(query_like, params + params)
                     
                 else:
                     # Fallback para perguntas curtas (1 token ou vazio)
-                    # ✅ CORREÇÃO: Usar apenas created_at na ordenação
                     query_like = """
                         SELECT answer, 'kb' as fonte FROM knowledge_base
                         WHERE question LIKE %s
@@ -193,7 +188,6 @@ class IAIntegracao:
                 
                 for cat in categorias_conhecidas:
                     if cat in pergunta_normalizada:
-                        # ✅ CORREÇÃO: Usar apenas created_at na ordenação
                         cursor.execute("""
                             SELECT answer FROM knowledge_base 
                             WHERE category = %s 
