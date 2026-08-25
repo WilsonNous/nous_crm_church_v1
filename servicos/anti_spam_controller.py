@@ -46,9 +46,10 @@ class AntiSpamController:
     5. Throttling adaptativo → reduz velocidade se erros aumentarem
     
     🎯 Diferenciação de tipos de envio:
-    - is_reply=True: Regras flexíveis para respostas conversacionais
-    - is_manual=True: Boas-vindas para visitantes novos (bypass consentimento, mas respeita limites)
-    - is_reply=False, is_manual=False: Regras completas para campanhas proativas
+    - is_reply=True: RESPOSTA a pergunta do visitante → NUNCA BLOQUEIA, NÃO CONTA NO LIMITE
+    - is_manual=True: Boas-vindas para visitantes novos (respeita limites)
+    - is_reply=False, is_manual=False: Campanhas proativas (respeita limites)
+    - is_visitor_message=True: Mensagem RECEBIDA do visitante → NUNCA BLOQUEIA
     
     Thread-safe para uso em worker único (Gunicorn com gthread).
     """
@@ -228,13 +229,14 @@ class AntiSpamController:
     # ------------------------------------------
     # API Pública - Verificações
     # ------------------------------------------
-    def can_send_now(self, is_reply: bool = False, is_manual: bool = False) -> Tuple[bool, str]:
+    def can_send_now(self, is_reply: bool = False, is_manual: bool = False, is_visitor_message: bool = False) -> Tuple[bool, str]:
         """
         Verifica se pode enviar mensagem agora.
         
         Args:
-            is_reply: Se True, aplica regras flexíveis para respostas conversacionais
-            is_manual: Se True, é envio manual (boas-vindas) - bypass consentimento mas respeita limites
+            is_reply: Se True, é RESPOSTA a pergunta do visitante → NUNCA BLOQUEIA!
+            is_manual: Se True, é envio manual (boas-vindas) - respeita limites
+            is_visitor_message: Se True, é mensagem RECEBIDA do visitante → NUNCA BLOQUEIA!
             
         Returns:
             Tuple[bool, str]: 
@@ -242,28 +244,32 @@ class AntiSpamController:
                 - (False, motivo) se não pode
                 - Se motivo começar com "reequeue:", o restante é ISO datetime
         """
+        # ⚠️ CORREÇÃO 1: Mensagens do visitante NUNCA são bloqueadas
+        if is_visitor_message:
+            log.debug("✅ Mensagem do visitante recebida - SEM BLOQUEIO")
+            return True, "ok"
+
+        # ⚠️ CORREÇÃO 2: Respostas a perguntas do visitante NUNCA são bloqueadas
+        # (Não verifica limite diário, nem batch, nem horário)
+        if is_reply:
+            log.debug("✅ Resposta a pergunta do visitante - SEM BLOQUEIO")
+            return True, "ok"
+
+        # ============================================================
+        # A PARTIR DAQUI: APENAS MENSAGENS PROATIVAS DO BOT
+        # (primeiro contato, campanhas, etc)
+        # ============================================================
+
         limits = self._fetch_limits()
         now = datetime.now()
         current_hour = now.hour
 
-        # 🎯 Respostas conversacionais: regras mais flexíveis
-        if is_reply:
-            # ✅ Só verifica limite diário
-            if DAILY_LIMIT > 0 and limits["total_sent"] >= DAILY_LIMIT:
-                log.warning(f"🚫 Limite diário atingido para resposta: {limits['total_sent']}/{DAILY_LIMIT}")
-                return False, f"Limite diário atingido ({DAILY_LIMIT} envios)"
-            # ✅ Respostas não entram em batch, não verificam horário, delay mínimo
-            return True, "ok"
-        
-        # 📦 Para envios proativos e manuais, aplica regras anti-spam
-        # ✅ IMPORTANTE: Manuais TAMBÉM contam no limite diário e respeitam batch/delay
-        
-        # 1. Verifica limite diário (PARA TODOS: proativos e manuais)
+        # 1. Verifica limite diário (APENAS PARA PROATIVOS)
         if DAILY_LIMIT > 0 and limits["total_sent"] >= DAILY_LIMIT:
-            log.warning(f"🚫 Limite diário atingido: {limits['total_sent']}/{DAILY_LIMIT}")
+            log.warning(f"🚫 Limite diário atingido para envios proativos: {limits['total_sent']}/{DAILY_LIMIT}")
             return False, f"Limite diário atingido ({DAILY_LIMIT} envios)"
 
-        # 2. Verifica janela de horário comercial
+        # 2. Verifica janela de horário comercial (APENAS PARA PROATIVOS)
         # ✅ Manuais podem ser enviados fora do horário (opcional - configurable)
         if not is_manual and not (BUSINESS_START <= current_hour < BUSINESS_END):
             if OUTSIDE_HOURS_ACTION == "skip":
@@ -314,49 +320,69 @@ class AntiSpamController:
     # ------------------------------------------
     # API Pública - Registro de Envios
     # ------------------------------------------
-    def register_send(self, success: bool, is_reply: bool = False, is_manual: bool = False):
+    def register_send(self, success: bool, is_reply: bool = False, is_manual: bool = False, is_visitor_message: bool = False):
         """
         Registra um envio concluído e atualiza métricas.
         
         Args:
             success: True se o envio foi bem-sucedido
-            is_reply: Se True, não conta para batch (só para limite diário)
-            is_manual: Se True, é envio manual (boas-vindas) - conta no limite diário e batch
+            is_reply: Se True, é RESPOSTA a pergunta - NÃO CONTA NO LIMITE!
+            is_manual: Se True, é envio manual (boas-vindas) - conta no limite
+            is_visitor_message: Se True, é mensagem do visitante - NÃO CONTA NO LIMITE!
         """
-        # Sempre atualiza total de enviados/falhas (PARA TODOS os tipos)
+        # ⚠️ CORREÇÃO: Mensagens do visitante NÃO contam no limite
+        if is_visitor_message:
+            log.debug("📊 Mensagem do visitante - NÃO contando no limite diário")
+            return
+
+        # ⚠️ CORREÇÃO: Respostas a perguntas NÃO contam no limite diário
+        if is_reply:
+            log.debug("📊 Resposta ao visitante - NÃO contando no limite diário")
+            # Ainda atualiza taxa de erro para monitoramento
+            self._update_error_rate(success)
+            return
+
+        # ============================================================
+        # A PARTIR DAQUI: APENAS MENSAGENS PROATIVAS DO BOT
+        # (primeiro contato, campanhas, etc)
+        # ============================================================
+        
+        # Atualiza total de enviados/falhas para proativos
         self._update_counter("total_sent" if success else "total_failed")
         
-        # ✅ Incrementa batch se:
-        # - Foi sucesso
-        # - E NÃO é resposta conversacional
-        # (Manuais e proativos contam no batch)
-        if success and not is_reply:
+        # Incrementa batch (apenas para proativos bem-sucedidos)
+        if success:
             self._update_counter("messages_in_current_batch")
         
-        # Recalcula taxa de erro (inclui todos os envios)
+        # Recalcula taxa de erro
         self._update_error_rate(success)
         
         # Log resumido
         limits = self._fetch_limits()
         log.debug(
-            f"📊 Rate limit update | sent={limits['total_sent']}/{DAILY_LIMIT if DAILY_LIMIT>0 else '∞'} | "
+            f"📊 Rate limit update (proativo) | sent={limits['total_sent']}/{DAILY_LIMIT if DAILY_LIMIT>0 else '∞'} | "
             f"batch={limits['messages_in_batch']}/{BATCH_SEND_LIMIT} | "
             f"error_rate={limits['error_rate']:.1%} | "
-            f"slowdown={limits['slowdown_active']} | reply={is_reply} | manual={is_manual}"
+            f"slowdown={limits['slowdown_active']} | manual={is_manual}"
         )
 
-    def get_next_delay(self, is_reply: bool = False, is_manual: bool = False) -> float:
+    def get_next_delay(self, is_reply: bool = False, is_manual: bool = False, is_visitor_message: bool = False) -> float:
         """
         Calcula delay até o próximo envio.
         
         Args:
-            is_reply: Se True, retorna delay mínimo para respostas naturais
-            is_manual: Se True, aplica delay normal (25-45s) como proativos
+            is_reply: Se True, é RESPOSTA a pergunta - delay mínimo (1-3s)
+            is_manual: Se True, é envio manual - delay anti-spam (25-45s)
+            is_visitor_message: Se True, é mensagem do visitante - delay zero
         """
-        # 🎯 Respostas conversacionais: delay natural de 1-3 segundos
+        # ⚠️ Mensagem do visitante: delay zero (já chegou)
+        if is_visitor_message:
+            return 0.0
+        
+        # 🎯 Respostas a perguntas: delay natural de 0.5-2 segundos
         if is_reply:
-            delay = random.uniform(1.0, 3.0)
-            log.debug(f"⏱️ Delay calculado (reply): {delay:.1f}s")
+            delay = random.uniform(0.5, 2.0)
+            log.debug(f"⏱️ Delay para resposta: {delay:.1f}s")
             return delay
         
         # 📦 Envios proativos e manuais: aplica delay anti-spam configurado
@@ -369,7 +395,7 @@ class AntiSpamController:
             base_max *= SLOWDOWN_FACTOR
         
         delay = random.uniform(base_min, base_max)
-        log.debug(f"⏱️ Delay calculado (proativo/manual): {delay:.1f}s (slowdown={limits['slowdown_active']})")
+        log.debug(f"⏱️ Delay para proativo: {delay:.1f}s (slowdown={limits['slowdown_active']})")
         return delay
 
     # ------------------------------------------
