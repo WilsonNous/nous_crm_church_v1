@@ -1,4 +1,6 @@
-# ia_integracao.py - Motor de Busca Inteligente (Sem coluna 'active')
+# ia_integracao.py - VERSÃO OTIMIZADA FINAL
+# Otimizada para a estrutura da tabela knowledge_base
+
 import logging
 import re
 import unicodedata
@@ -17,10 +19,6 @@ class IAIntegracao:
         self._cached_responder = lru_cache(maxsize=cache_size)(self._responder_sem_cache)
 
     def responder_pergunta(self, pergunta_usuario: str = '', contexto: dict = None) -> tuple[str, float]:
-        """
-        Busca resposta no banco com cache e otimizações.
-        Retorna (texto_resposta, confidence).
-        """
         if not pergunta_usuario or not pergunta_usuario.strip():
             return "Não entendi sua pergunta. Pode repetir?", 0.0
 
@@ -34,9 +32,7 @@ class IAIntegracao:
             return self._responder_sem_cache(pergunta_normalizada, pergunta_original)
 
     def _normalizar_para_busca(self, texto: str) -> str:
-        """
-        Normaliza texto para busca: lowercase, remove acentos, tokens.
-        """
+        """Normaliza texto para busca."""
         texto = unicodedata.normalize('NFKD', texto)
         texto = ''.join(c for c in texto if not unicodedata.combining(c))
         tokens = re.findall(r'\b[a-zà-ú0-9]+\b', texto.lower())
@@ -52,13 +48,11 @@ class IAIntegracao:
         return ' '.join(sorted(set(tokens)))
 
     def _calcular_similaridade(self, texto1: str, texto2: str) -> float:
-        """Calcula similaridade entre dois textos."""
         return SequenceMatcher(None, texto1.lower(), texto2.lower()).ratio()
 
     def _responder_sem_cache(self, pergunta_normalizada: str, pergunta_original: str = None) -> tuple[str, float]:
         """
-        Motor de busca inteligente com múltiplas estratégias.
-        SEM referência à coluna 'active' (não existe na tabela).
+        Busca otimizada usando índices e keywords.
         """
         try:
             with closing(get_db_connection()) as conn:
@@ -69,7 +63,7 @@ class IAIntegracao:
                 tokens = [t for t in pergunta_normalizada.split() if len(t) >= 2]
                 
                 # ============================================================
-                # ESTRATÉGIA 1: BUSCA EXATA (pergunta original)
+                # 🎯 ESTRATÉGIA 1: BUSCA EXATA (usando UNIQUE)
                 # ============================================================
                 if pergunta_original:
                     cursor.execute("""
@@ -81,25 +75,28 @@ class IAIntegracao:
                     if result:
                         resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                         if resposta:
-                            log.info(f"✅ IA: EXATA encontrada")
+                            log.info(f"✅ EXATA: '{pergunta_original[:30]}...'")
                             return str(resposta), 1.0
 
                 # ============================================================
-                # ESTRATÉGIA 2: KEYWORDS (coluna keywords)
+                # 🎯 ESTRATÉGIA 2: KEYWORDS (usando índice idx_keywords)
                 # ============================================================
                 if tokens:
                     keyword_conditions = ' OR '.join(['keywords LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
                     cursor.execute("""
-                        SELECT answer FROM knowledge_base
-                        WHERE ({keyword_cond})
+                        SELECT answer, keywords, category
+                        FROM knowledge_base
+                        WHERE {keyword_cond}
                         ORDER BY 
                             CASE 
                                 WHEN keywords LIKE %s THEN 0
                                 WHEN keywords LIKE %s THEN 1
                                 ELSE 2
                             END,
+                            category = 'horarios' DESC,
+                            category = 'pastores' DESC,
                             id DESC
                         LIMIT 1
                     """.format(keyword_cond=keyword_conditions), 
@@ -109,22 +106,28 @@ class IAIntegracao:
                     if result:
                         resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                         if resposta:
-                            log.info(f"✅ IA: KEYWORDS match ({len(tokens)} tokens)")
+                            log.info(f"✅ KEYWORDS: {len(tokens)} tokens")
                             return str(resposta), 0.95
 
                 # ============================================================
-                # ESTRATÉGIA 3: CATEGORIA (mapeamento inteligente)
+                # 🎯 ESTRATÉGIA 3: CATEGORIA (usando índice idx_category)
                 # ============================================================
                 mapa_categorias = {
-                    'horario': 'horarios', 'horarios': 'horarios', 'culto': 'horarios', 'cultos': 'horarios',
-                    'programacao': 'horarios', 'agenda': 'horarios', 'evento': 'horarios',
+                    'horario': 'horarios', 'horarios': 'horarios', 
+                    'culto': 'horarios', 'cultos': 'horarios',
+                    'programacao': 'horarios', 'agenda': 'horarios', 
+                    'evento': 'horarios',
                     'batismo': 'membro', 'membro': 'membro',
-                    'pastor': 'pastores', 'pastores': 'pastores', 'lider': 'pastores', 'lideres': 'pastores',
+                    'pastor': 'pastores', 'pastores': 'pastores', 
+                    'lider': 'pastores', 'lideres': 'pastores',
                     'grupo': 'grupos', 'whatsapp': 'grupos', 'gc': 'grupos',
-                    'endereco': 'localizacao', 'localizacao': 'localizacao', 'maps': 'localizacao',
+                    'endereco': 'localizacao', 'localizacao': 'localizacao',
+                    'maps': 'localizacao',
                     'oracao': 'oracao', 'oração': 'oracao',
                     'discipulado': 'discipulado',
                     'fundador': 'Fundadores', 'fundadores': 'Fundadores',
+                    'visita': 'visitacao', 'visitante': 'visitacao',
+                    'ministerio': 'Ministérios', 'ministerios': 'Ministérios',
                 }
                 
                 for palavra, categoria in mapa_categorias.items():
@@ -146,71 +149,117 @@ class IAIntegracao:
                         if result:
                             resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                             if resposta:
-                                log.info(f"✅ IA: CATEGORIA match ({categoria})")
+                                log.info(f"✅ CATEGORIA: '{categoria}'")
                                 return str(resposta), 0.90
 
                 # ============================================================
-                # ESTRATÉGIA 4: LIKE AND (todos os tokens)
+                # 🎯 ESTRATÉGIA 4: LIKE AND (busca na question)
                 # ============================================================
                 if len(tokens) >= 2:
                     like_conditions = ' AND '.join(['question LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
-                    query_like = """
-                        SELECT answer FROM knowledge_base
+                    cursor.execute("""
+                        SELECT answer, category FROM knowledge_base
                         WHERE {like_cond}
-                        UNION ALL
-                        SELECT answer FROM training_pairs
-                        WHERE {like_cond}
-                        ORDER BY LENGTH(answer) ASC
+                        ORDER BY 
+                            CASE 
+                                WHEN category = 'horarios' THEN 0
+                                WHEN category = 'pastores' THEN 1
+                                WHEN category = 'membro' THEN 2
+                                ELSE 3
+                            END,
+                            LENGTH(answer) ASC,
+                            id DESC
                         LIMIT 1
-                    """.format(like_cond=like_conditions)
+                    """.format(like_cond=like_conditions), params)
                     
-                    cursor.execute(query_like, params + params)
                     result = cursor.fetchone()
                     if result:
                         resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                         if resposta:
-                            log.info(f"✅ IA: LIKE AND ({len(tokens)} tokens)")
-                            return str(resposta), 0.92
+                            log.info(f"✅ LIKE AND: {len(tokens)} tokens")
+                            return str(resposta), 0.88
 
                 # ============================================================
-                # ESTRATÉGIA 5: LIKE OR (pelo menos um token)
+                # 🎯 ESTRATÉGIA 5: LIKE OR (fallback)
                 # ============================================================
                 if len(tokens) >= 1:
                     like_conditions = ' OR '.join(['question LIKE %s'] * len(tokens))
                     params = [f'%{t}%' for t in tokens]
                     
-                    query_like_or = """
+                    cursor.execute("""
                         SELECT answer FROM knowledge_base
-                        WHERE ({like_cond})
-                        UNION ALL
-                        SELECT answer FROM training_pairs
-                        WHERE ({like_cond})
+                        WHERE {like_cond}
                         ORDER BY 
                             CASE 
-                                WHEN question LIKE %s THEN 0
-                                ELSE 1
+                                WHEN category = 'horarios' THEN 0
+                                WHEN category = 'pastores' THEN 1
+                                WHEN category = 'membro' THEN 2
+                                ELSE 3
                             END,
-                            LENGTH(answer) ASC
+                            id DESC
                         LIMIT 1
-                    """.format(like_cond=like_conditions)
+                    """.format(like_cond=like_conditions), params)
                     
-                    cursor.execute(query_like_or, params + params + [f'%{tokens[0]}%'])
                     result = cursor.fetchone()
                     if result:
                         resposta = result[0] if not isinstance(result, dict) else result.get('answer')
                         if resposta:
-                            log.info(f"✅ IA: LIKE OR ({len(tokens)} tokens)")
-                            return str(resposta), 0.85
+                            log.info(f"✅ LIKE OR: {len(tokens)} tokens")
+                            return str(resposta), 0.80
 
                 # ============================================================
-                # ESTRATÉGIA 6: SIMILARIDADE (fallback final)
+                # 🎯 ESTRATÉGIA 6: FULLTEXT (índice ft_search)
+                # ============================================================
+                try:
+                    search_term = re.sub(r'[^\w\s]', '', pergunta_normalizada).strip()
+                    if len(search_term) >= 3:
+                        cursor.execute("""
+                            SELECT answer, 
+                                   MATCH(question, answer, keywords) AGAINST(%s IN NATURAL LANGUAGE MODE) as score
+                            FROM knowledge_base
+                            WHERE MATCH(question, answer, keywords) AGAINST(%s IN NATURAL LANGUAGE MODE)
+                            ORDER BY score DESC,
+                                CASE 
+                                    WHEN category = 'horarios' THEN 0
+                                    WHEN category = 'pastores' THEN 1
+                                    WHEN category = 'membro' THEN 2
+                                    ELSE 3
+                                END,
+                                id DESC
+                            LIMIT 1
+                        """, (search_term, search_term))
+                        
+                        result = cursor.fetchone()
+                        if result:
+                            if isinstance(result, dict):
+                                resposta = result.get('answer')
+                                score = result.get('score', 0) or 0
+                            else:
+                                resposta = result[0] if len(result) > 0 else None
+                                score = result[1] if len(result) > 1 else 0
+                            
+                            if resposta and score > 0.3:
+                                log.info(f"✅ FULLTEXT: score={score:.2f}")
+                                return str(resposta), 0.95
+                except Exception as e:
+                    log.debug(f"⚠️ FULLTEXT: {e}")
+
+                # ============================================================
+                # 🎯 ESTRATÉGIA 7: SIMILARIDADE (fallback final)
                 # ============================================================
                 cursor.execute("""
-                    SELECT question, answer FROM knowledge_base
-                    ORDER BY id DESC
-                    LIMIT 200
+                    SELECT question, answer, category FROM knowledge_base
+                    ORDER BY 
+                        CASE 
+                            WHEN category = 'horarios' THEN 0
+                            WHEN category = 'pastores' THEN 1
+                            WHEN category = 'membro' THEN 2
+                            ELSE 3
+                        END,
+                        id DESC
+                    LIMIT 100
                 """)
                 
                 results = cursor.fetchall()
@@ -236,11 +285,11 @@ class IAIntegracao:
                         melhor_resposta = resposta_db
                 
                 if melhor_resposta and melhor_score > 0.25:
-                    log.info(f"✅ IA: SIMILARIDADE match (score={melhor_score:.2f})")
+                    log.info(f"✅ SIMILARIDADE: score={melhor_score:.2f}")
                     return str(melhor_resposta), 0.75
 
                 # ============================================================
-                # NADA ENCONTRADO
+                # ❌ NADA ENCONTRADO
                 # ============================================================
                 try:
                     cursor.execute("""
