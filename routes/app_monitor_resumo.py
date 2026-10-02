@@ -11,6 +11,8 @@ def register(app):
 
 @monitor_resumo_bp.route('/api/monitor/resumo', methods=['GET'])
 def monitor_resumo():
+    conn = None
+    cursor = None
     try:
         date_filter = (request.args.get('date') or '').strip()
         search_filter = (request.args.get('q') or '').strip()
@@ -34,60 +36,63 @@ def monitor_resumo():
         if filters:
             where_sql = " AND " + " AND ".join(filters)
 
-        # A mesma seleção filtrada alimenta métricas e prévia. ROW_NUMBER escolhe
-        # a mensagem mais recente de cada visitante sem gerar uma query adicional
-        # para cada linha do resumo (evita o antigo padrão N+1).
+        # Compatível com versões antigas de MySQL/MariaDB: evita CTE e
+        # ROW_NUMBER. A subconsulta correlacionada retorna a última mensagem
+        # dentro do MESMO conjunto filtrado, sem executar N+1 no Python.
+        preview_filters = []
+        preview_params = []
+
+        if date_filter:
+            preview_filters.append("DATE(c2.data_hora) = %s")
+            preview_params.append(date_filter)
+
+        if search_filter:
+            like = f"%{search_filter}%"
+            preview_filters.append("(v2.nome LIKE %s OR v2.telefone LIKE %s OR c2.mensagem LIKE %s)")
+            preview_params.extend([like, like, like])
+
+        preview_where = ""
+        if preview_filters:
+            preview_where = " AND " + " AND ".join(preview_filters)
+
         query = f"""
-            WITH mensagens_filtradas AS (
-                SELECT
-                    v.id AS visitante_id,
-                    v.nome AS visitante_nome,
-                    v.telefone,
-                    c.id AS conversa_id,
-                    c.mensagem,
-                    c.tipo,
-                    c.data_hora,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY v.id
-                        ORDER BY c.data_hora DESC, c.id DESC
-                    ) AS rn
-                FROM visitantes v
-                JOIN conversas c ON c.visitante_id = v.id
-                WHERE 1 = 1{where_sql}
-            ),
-            resumo AS (
-                SELECT
-                    visitante_id,
-                    MAX(visitante_nome) AS visitante_nome,
-                    MAX(telefone) AS telefone,
-                    COUNT(*) AS total_mensagens,
-                    SUM(CASE WHEN LOWER(tipo) = 'recebida' THEN 1 ELSE 0 END) AS recebidas,
-                    SUM(CASE WHEN LOWER(tipo) = 'enviada' THEN 1 ELSE 0 END) AS enviadas,
-                    MIN(data_hora) AS primeira_mensagem,
-                    MAX(data_hora) AS ultima_mensagem
-                FROM mensagens_filtradas
-                GROUP BY visitante_id
-            )
             SELECT
-                r.visitante_id,
-                r.visitante_nome,
-                r.telefone,
-                r.total_mensagens,
-                r.recebidas,
-                r.enviadas,
-                r.primeira_mensagem,
-                r.ultima_mensagem,
-                mf.mensagem AS ultima_mensagem_texto,
-                mf.tipo AS ultimo_tipo
-            FROM resumo r
-            JOIN mensagens_filtradas mf
-              ON mf.visitante_id = r.visitante_id
-             AND mf.rn = 1
-            ORDER BY r.ultima_mensagem DESC
+                v.id AS visitante_id,
+                v.nome AS visitante_nome,
+                v.telefone,
+                COUNT(c.id) AS total_mensagens,
+                SUM(CASE WHEN LOWER(c.tipo) = 'recebida' THEN 1 ELSE 0 END) AS recebidas,
+                SUM(CASE WHEN LOWER(c.tipo) = 'enviada' THEN 1 ELSE 0 END) AS enviadas,
+                MIN(c.data_hora) AS primeira_mensagem,
+                MAX(c.data_hora) AS ultima_mensagem,
+                (
+                    SELECT c2.mensagem
+                    FROM conversas c2
+                    JOIN visitantes v2 ON v2.id = c2.visitante_id
+                    WHERE c2.visitante_id = v.id{preview_where}
+                    ORDER BY c2.data_hora DESC, c2.id DESC
+                    LIMIT 1
+                ) AS ultima_mensagem_texto,
+                (
+                    SELECT c3.tipo
+                    FROM conversas c3
+                    JOIN visitantes v3 ON v3.id = c3.visitante_id
+                    WHERE c3.visitante_id = v.id{preview_where.replace('c2.', 'c3.').replace('v2.', 'v3.')}
+                    ORDER BY c3.data_hora DESC, c3.id DESC
+                    LIMIT 1
+                ) AS ultimo_tipo
+            FROM visitantes v
+            JOIN conversas c ON c.visitante_id = v.id
+            WHERE 1 = 1{where_sql}
+            GROUP BY v.id, v.nome, v.telefone
+            ORDER BY MAX(c.data_hora) DESC
             LIMIT 300
         """
 
-        cursor.execute(query, tuple(params))
+        # A consulta possui os filtros da prévia duas vezes (texto e tipo),
+        # seguidos pelos filtros do agrupamento principal.
+        all_params = preview_params + preview_params + params
+        cursor.execute(query, tuple(all_params))
         rows = cursor.fetchall() or []
 
         conversas = []
@@ -105,9 +110,6 @@ def monitor_resumo():
                 "ultimo_tipo": row.get("ultimo_tipo") or ""
             })
 
-        cursor.close()
-        conn.close()
-
         return jsonify({
             "status": "success",
             "total": len(conversas),
@@ -117,3 +119,8 @@ def monitor_resumo():
     except Exception as e:
         logging.error(f"Erro em /api/monitor/resumo: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
