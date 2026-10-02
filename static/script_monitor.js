@@ -1,14 +1,14 @@
 // ===============================
 // script_monitor.js — CRM Church
-// Monitor de Conversas (Integra+)
+// Monitor detalhado de Conversas (Integra+)
 // ===============================
 
-// Helper para normalizar ID vindo da URL ou do select
+let visitanteAtual = null;
+let telefoneAtual = "";
+
 function normalizarVisitanteId(value) {
   if (!value) return "";
   const s = String(value).trim();
-
-  // Corrige formatos tipo "id:1"
   if (s.toLowerCase().startsWith("id:")) {
     const partes = s.split(":");
     return partes[1] ? partes[1].trim() : "";
@@ -16,187 +16,219 @@ function normalizarVisitanteId(value) {
   return s;
 }
 
-// ========= CARREGAR VISITANTES =========
-async function carregarVisitantes() {
-  const area = document.getElementById("chatArea");
-  const select = document.getElementById("visitanteSelect");
+function formatarDataHora(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString("pt-BR");
+}
 
-  area.innerHTML =
-    '<p style="text-align:center; color:#888;">⏳ Carregando lista de visitantes...</p>';
-  select.innerHTML = "";
+function formatarDia(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
+}
+
+function escapeHtml(texto) {
+  return String(texto ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function carregarResumo() {
+  const lista = document.getElementById("conversationList");
+  const dataFiltro = document.getElementById("dataFiltro")?.value || "";
+  const busca = document.getElementById("buscaFiltro")?.value.trim() || "";
+
+  lista.innerHTML = '<div class="empty">⏳ Carregando conversas...</div>';
+
+  const params = new URLSearchParams();
+  if (dataFiltro) params.set("date", dataFiltro);
+  if (busca) params.set("q", busca);
 
   try {
-    const res = await fetch("/api/monitor/visitantes");
+    const res = await fetch(`/api/monitor/resumo?${params.toString()}`);
     const data = await res.json();
 
-    if (data.status !== "success" || !Array.isArray(data.visitantes)) {
-      select.innerHTML = "<option>Erro ao carregar visitantes</option>";
-      area.innerHTML =
-        "<p style='text-align:center; color:#c00;'>Erro ao carregar visitantes.</p>";
+    if (!res.ok || data.status !== "success") {
+      lista.innerHTML = '<div class="empty">Erro ao carregar o resumo das conversas.</div>';
       return;
     }
 
-    // Preenche select (nome visível, telefone no dataset)
-    data.visitantes.forEach((v) => {
-      const opt = document.createElement("option");
-      opt.value = String(v.id);          // ✅ visitante_id
-      opt.textContent = v.nome || "Sem nome";
-      opt.dataset.telefone = v.telefone || "";
-      select.appendChild(opt);
-    });
-
-    // Verifica se há ?visitante= na URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const visitanteBruto = urlParams.get("visitante");
-    const visitanteId = normalizarVisitanteId(visitanteBruto);
-
-    if (visitanteId && select.options.length > 0) {
-      const exists = Array.from(select.options).some(
-        (opt) => opt.value === visitanteId
-      );
-
-      if (exists) {
-        select.value = visitanteId;
-        area.innerHTML = `
-          <p style="text-align:center; color:#000;">
-            🔍 Carregando conversa do visitante #${visitanteId}...
-          </p>
-        `;
-        await carregarConversas();
-      } else {
-        area.innerHTML =
-          "<p style='text-align:center; color:#888;'>Visitante não encontrado na lista atual.</p>";
-      }
-    } else {
-      area.innerHTML =
-        '<p style="text-align:center; color:#888;">Selecione um visitante para visualizar as mensagens.</p>';
-    }
+    const conversas = Array.isArray(data.conversas) ? data.conversas : [];
+    renderizarResumo(conversas, dataFiltro);
   } catch (err) {
-    console.error("Erro ao carregar visitantes:", err);
-    area.innerHTML =
-      "<p style='text-align:center; color:#c00;'>Erro ao carregar visitantes.</p>";
+    console.error("Erro ao carregar resumo:", err);
+    lista.innerHTML = '<div class="empty">Erro ao carregar o resumo das conversas.</div>';
   }
 }
 
-// ========= CARREGAR CONVERSAS =========
-async function carregarConversas() {
-  const visitanteSelect = document.getElementById("visitanteSelect");
-  const visitanteIdRaw = visitanteSelect.value;
-  const visitanteId = normalizarVisitanteId(visitanteIdRaw);
+function renderizarResumo(conversas, dataFiltro) {
+  const lista = document.getElementById("conversationList");
+  const periodo = document.getElementById("resumoPeriodo");
 
-  const visitanteNome =
-    visitanteSelect.options[visitanteSelect.selectedIndex]?.text ||
-    "Visitante";
+  const totalMensagens = conversas.reduce((s, c) => s + Number(c.total_mensagens || 0), 0);
+  const totalRecebidas = conversas.reduce((s, c) => s + Number(c.recebidas || 0), 0);
+  const totalEnviadas = conversas.reduce((s, c) => s + Number(c.enviadas || 0), 0);
 
-  const area = document.getElementById("chatArea");
-  const title = document.getElementById("chatTitle");
+  document.getElementById("mConversas").textContent = conversas.length;
+  document.getElementById("mMensagens").textContent = totalMensagens;
+  document.getElementById("mRecebidas").textContent = totalRecebidas;
+  document.getElementById("mEnviadas").textContent = totalEnviadas;
 
-  if (!visitanteId) {
-    title.textContent = "Monitor de Conversas do Integra+";
-    area.innerHTML =
-      '<p style="text-align:center; color:#888;">Selecione um visitante para visualizar as mensagens.</p>';
+  periodo.textContent = dataFiltro
+    ? new Date(`${dataFiltro}T12:00:00`).toLocaleDateString("pt-BR")
+    : "Todas as datas";
+
+  if (!conversas.length) {
+    lista.innerHTML = '<div class="empty">Nenhuma conversa encontrada para os filtros informados.</div>';
     return;
   }
 
-  title.textContent = `💬 Conversas com ${visitanteNome}`;
-  area.innerHTML = `
-    <p style="text-align:center; color:#000;">
-      ⏳ Buscando mensagens de ${visitanteNome}...
-    </p>
-  `;
+  lista.innerHTML = "";
+  conversas.forEach((c) => {
+    const item = document.createElement("div");
+    item.className = "conversation-item";
+    item.dataset.visitanteId = String(c.visitante_id);
 
-  try {
-    const res = await fetch(`/api/monitor/conversas/${visitanteId}`);
+    item.innerHTML = `
+      <div class="conversation-title">
+        <span>${escapeHtml(c.visitante_nome || "Sem nome")}</span>
+        <span class="badge">${Number(c.total_mensagens || 0)} msg</span>
+      </div>
+      <div class="conversation-meta">
+        ${escapeHtml(c.telefone || "Sem telefone")} • ${formatarDataHora(c.ultima_mensagem)}
+      </div>
+      <div class="conversation-preview">
+        ${escapeHtml(c.ultima_mensagem_texto || "Sem prévia")}
+      </div>
+    `;
 
-    if (!res.ok) {
-      console.error(
-        `Erro HTTP ao buscar conversas: ${res.status} ${res.statusText}`
-      );
-      area.innerHTML = `
-        <p style="text-align:center; color:#c00;">
-          Erro ao buscar conversas (HTTP ${res.status}).
-        </p>
-      `;
-      return;
-    }
+    item.addEventListener("click", () => {
+      document.querySelectorAll(".conversation-item").forEach(el => el.classList.remove("active"));
+      item.classList.add("active");
+      carregarConversas(c.visitante_id, c.visitante_nome, c.telefone);
+    });
 
-    const data = await res.json();
-    area.innerHTML = "";
+    lista.appendChild(item);
+  });
 
-    if (data.status === "success" && data.conversas?.length > 0) {
-      data.conversas.forEach((c) => {
-        const msg = document.createElement("div");
-        msg.classList.add("msg", c.tipo === "enviada" ? "bot" : "user");
-        msg.innerHTML = `
-          <p>${c.mensagem}</p>
-          <small>${c.autor} • ${new Date(c.data_hora).toLocaleString("pt-BR")}</small>
-        `;
-        area.appendChild(msg);
-      });
-
-      area.scrollTo({ top: area.scrollHeight, behavior: "smooth" });
-    } else {
-      area.innerHTML = `
-        <p style="text-align:center; color:#888;">
-          Nenhuma conversa encontrada para este visitante.
-        </p>
-      `;
-    }
-  } catch (err) {
-    console.error("Erro ao carregar conversas:", err);
-    area.innerHTML =
-      "<p style='text-align:center; color:#c00;'>Erro ao carregar conversas.</p>";
+  const urlParams = new URLSearchParams(window.location.search);
+  const visitanteIdUrl = normalizarVisitanteId(urlParams.get("visitante"));
+  if (visitanteIdUrl) {
+    const alvo = Array.from(document.querySelectorAll(".conversation-item"))
+      .find(el => el.dataset.visitanteId === visitanteIdUrl);
+    if (alvo) alvo.click();
   }
 }
 
-// ========= ENVIAR MENSAGEM =========
+async function carregarConversas(visitanteId, visitanteNome = "Visitante", telefone = "") {
+  visitanteAtual = normalizarVisitanteId(visitanteId);
+  telefoneAtual = telefone || "";
+
+  const area = document.getElementById("chatArea");
+  const title = document.getElementById("chatTitle");
+  const subtitle = document.getElementById("chatSubtitle");
+
+  title.textContent = `💬 ${visitanteNome || "Visitante"}`;
+  subtitle.textContent = telefone || "";
+  area.innerHTML = '<div class="empty">⏳ Buscando histórico completo...</div>';
+
+  try {
+    const res = await fetch(`/api/monitor/conversas/${visitanteAtual}`);
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "success") {
+      area.innerHTML = '<div class="empty">Erro ao buscar as mensagens deste visitante.</div>';
+      return;
+    }
+
+    const conversas = Array.isArray(data.conversas) ? data.conversas : [];
+    area.innerHTML = "";
+
+    if (!conversas.length) {
+      area.innerHTML = '<div class="empty">Nenhuma mensagem encontrada.</div>';
+      return;
+    }
+
+    let ultimoDia = "";
+    conversas.forEach((c) => {
+      const d = new Date(c.data_hora);
+      const chaveDia = Number.isNaN(d.getTime()) ? String(c.data_hora || "") : d.toISOString().slice(0, 10);
+
+      if (chaveDia !== ultimoDia) {
+        const sep = document.createElement("div");
+        sep.className = "day-separator";
+        sep.innerHTML = `<span>${escapeHtml(formatarDia(c.data_hora))}</span>`;
+        area.appendChild(sep);
+        ultimoDia = chaveDia;
+      }
+
+      const msg = document.createElement("div");
+      msg.classList.add("msg", String(c.tipo).toLowerCase() === "enviada" ? "bot" : "user");
+      msg.innerHTML = `
+        <div>${escapeHtml(c.mensagem).replace(/\n/g, "<br>")}</div>
+        <small>${escapeHtml(c.autor || "")} • ${formatarDataHora(c.data_hora)}</small>
+      `;
+      area.appendChild(msg);
+    });
+
+    area.scrollTo({ top: area.scrollHeight, behavior: "smooth" });
+  } catch (err) {
+    console.error("Erro ao carregar conversas:", err);
+    area.innerHTML = '<div class="empty">Erro ao carregar as mensagens.</div>';
+  }
+}
+
 async function enviarMensagemManual(e) {
   e.preventDefault();
 
-  const visitanteSelect = document.getElementById("visitanteSelect");
-  const optionSel = visitanteSelect.options[visitanteSelect.selectedIndex];
-
-  const visitante_id = normalizarVisitanteId(optionSel?.value);
-  const numero = optionSel?.dataset.telefone;
   const mensagem = document.getElementById("mensagemInput").value.trim();
-
-  if (!visitante_id) return alert("Selecione um visitante antes de enviar.");
+  if (!visitanteAtual) return alert("Selecione uma conversa antes de enviar.");
   if (!mensagem) return alert("Digite uma mensagem antes de enviar.");
-  if (!numero) return alert("Número do visitante não encontrado.");
+  if (!telefoneAtual) return alert("Número do visitante não encontrado.");
 
   try {
     const res = await fetch("/api/send-message-manual", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        visitante_id, // ✅ obrigatório no backend novo
-        numero,
+        visitante_id: visitanteAtual,
+        numero: telefoneAtual,
         mensagem
-      }),
+      })
     });
 
     const data = await res.json();
-
     if (data.success) {
       document.getElementById("mensagemInput").value = "";
-
-      // ⚠️ Importante:
-      // como agora é FILA, a mensagem só aparece após confirmação da Z-API
-      // então o reload pode demorar alguns segundos
-      setTimeout(carregarConversas, 1500);
+      setTimeout(async () => {
+        await carregarConversas(visitanteAtual, document.getElementById("chatTitle").textContent.replace("💬 ", ""), telefoneAtual);
+        carregarResumo();
+      }, 1500);
     } else {
       alert("Erro ao enviar: " + (data.error || "Falha desconhecida"));
     }
   } catch (err) {
-    alert("Falha na comunicação com o servidor.");
     console.error(err);
+    alert("Falha na comunicação com o servidor.");
   }
 }
 
-// ========= INICIALIZAÇÃO =========
 document.addEventListener("DOMContentLoaded", () => {
-  carregarVisitantes();
-  document
-    .getElementById("btnReload")
-    ?.addEventListener("click", carregarConversas);
+  document.getElementById("btnFiltrar")?.addEventListener("click", carregarResumo);
+  document.getElementById("btnReload")?.addEventListener("click", carregarResumo);
+  document.getElementById("buscaFiltro")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") carregarResumo();
+  });
+  carregarResumo();
 });
