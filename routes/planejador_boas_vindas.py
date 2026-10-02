@@ -1,5 +1,5 @@
 import logging
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, render_template
 from flask_jwt_extended import jwt_required
 
 from servicos.planejador_boas_vindas import get_status, set_enabled, executar_uma_vez, iniciar_planejador
@@ -10,11 +10,14 @@ bp = Blueprint("planejador_boas_vindas", __name__)
 def register(app):
     app.register_blueprint(bp)
     try:
-        # O thread nasce pausado quando a configuração persistida estiver desligada.
-        # Ao iniciar, o loop consulta o banco antes de programar qualquer contato.
         iniciar_planejador()
     except Exception:
         logging.exception("Falha ao iniciar planejador de boas-vindas")
+
+
+@bp.route('/app/planejador-boas-vindas')
+def page():
+    return render_template('planejador_boas_vindas.html')
 
 
 @bp.route('/api/planejador-boas-vindas/status', methods=['GET'])
@@ -45,7 +48,6 @@ def toggle():
 @jwt_required()
 def run_now():
     try:
-        # Não usa force: executar agora continua respeitando Ativo/Pausado e horário operacional.
         result = executar_uma_vez(force=False)
         return jsonify({"status": "success", "result": result, "planner": get_status()}), 200
     except Exception as exc:
