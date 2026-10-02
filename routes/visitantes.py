@@ -1,5 +1,6 @@
 import logging
 from flask import request, jsonify, Response
+from flask_jwt_extended import jwt_required
 
 from database import (
     salvar_visitante, visitante_existe, normalizar_para_recebimento,
@@ -42,10 +43,8 @@ def register(app):
             visitantes = listar_todos_visitantes()
             visitors = []
             for v in visitantes:
-                if isinstance(v, dict):
-                    visitors.append({"id": v.get("id"), "name": v.get("nome"), "phone": v.get("telefone")})
-                else:
-                    visitors.append({"id": v[0], "name": v[1], "phone": v[2] if len(v) > 2 else None})
+                if isinstance(v, dict): visitors.append({"id": v.get("id"), "name": v.get("nome"), "phone": v.get("telefone")})
+                else: visitors.append({"id": v[0], "name": v[1], "phone": v[2] if len(v) > 2 else None})
             return jsonify({"status": "success", "visitors": visitors}), 200
         except Exception as e:
             logging.error(f"Erro em /api/get-visitors: {e}")
@@ -57,38 +56,31 @@ def register(app):
             status_info = monitorar_status_visitantes()
             return jsonify(status_info), 200 if status_info else 500
         except Exception as e:
-            logging.error(f"Erro ao monitorar status: {e}")
             return jsonify({"error": str(e)}), 500
 
     @app.route('/api/fases-visitantes', methods=['GET'])
     def get_fases_visitantes():
-        try:
-            return jsonify(visitantes_listar_fases()), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        try: return jsonify(visitantes_listar_fases()), 200
+        except Exception as e: return jsonify({"error": str(e)}), 500
 
     @app.route('/api/estatisticas-visitantes', methods=['GET'])
     def get_estatisticas_visitantes():
-        try:
-            return jsonify(visitantes_listar_estatisticas()), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+        try: return jsonify(visitantes_listar_estatisticas()), 200
+        except Exception as e: return jsonify({"error": str(e)}), 500
 
     @app.route('/api/send-message-manual', methods=['POST'])
+    @jwt_required()
     def api_send_message_manual():
-        """Resposta humana do monitor: envio direto, fora da fila de campanhas."""
+        """Resposta humana autenticada: envio direto, fora da fila de campanhas."""
         try:
             data = request.get_json() or {}
             visitante_id = data.get("visitante_id")
             numero = (data.get("numero") or "").strip()
             mensagem = (data.get("mensagem") or "").strip()
             imagem_url = data.get("imagem_url")
-            if not visitante_id:
-                return jsonify({"success": False, "error": "Visitante não informado"}), 400
-            if not numero:
-                return jsonify({"success": False, "error": "Número não informado"}), 400
-            if not mensagem:
-                return jsonify({"success": False, "error": "Mensagem vazia"}), 400
+            if not visitante_id: return jsonify({"success": False, "error": "Visitante não informado"}), 400
+            if not numero: return jsonify({"success": False, "error": "Número não informado"}), 400
+            if not mensagem: return jsonify({"success": False, "error": "Mensagem vazia"}), 400
 
             telefone_db = normalizar_para_recebimento(numero)
             telefone_zapi = f"55{telefone_db}" if not str(telefone_db).startswith("55") else str(telefone_db)
@@ -96,10 +88,8 @@ def register(app):
             if not resultado.get("success"):
                 erro = resultado.get("erro") or resultado.get("resposta") or "Z-API não confirmou o envio"
                 logging.warning(f"⚠️ Resposta humana não enviada | visitante={visitante_id} | status={resultado.get('status_code')}")
-                # Nunca devolve o objeto bruto da Z-API: ele pode conter URL/token/credenciais.
                 return jsonify({"success": False, "error": str(erro), "status_code": resultado.get("status_code")}), 502
 
-            # salvar_conversa recebe telefone como primeiro argumento; o ID deve ser nomeado.
             salvar_conversa(telefone_db, mensagem, "enviada", origem="humano", visitante_id=int(visitante_id))
             logging.info(f"✅ Resposta humana enviada diretamente | visitante={visitante_id} | numero={telefone_zapi}")
             return jsonify({"success": True, "message": "Mensagem enviada e confirmada pela Z-API.", "delivery": "confirmed"}), 200
@@ -111,33 +101,21 @@ def register(app):
     def get_visitantes_fase_null():
         try:
             conn = get_db_connection(); cursor = conn.cursor()
-            cursor.execute("""
-                SELECT v.id, v.nome, v.telefone FROM visitantes v
-                LEFT JOIN status s ON v.id = s.visitante_id
-                WHERE s.fase_id IS NULL OR s.fase_id = ''
-            """)
+            cursor.execute("SELECT v.id, v.nome, v.telefone FROM visitantes v LEFT JOIN status s ON v.id=s.visitante_id WHERE s.fase_id IS NULL OR s.fase_id='' ")
             rows = cursor.fetchall(); cursor.close(); conn.close()
-            visitantes = []
+            visitantes=[]
             for row in rows:
-                if isinstance(row, dict):
-                    visitantes.append({"id": row.get("id"), "nome": row.get("nome"), "telefone": row.get("telefone")})
-                else:
-                    visitantes.append({"id": row[0], "nome": row[1], "telefone": row[2] if len(row) > 2 else None})
-            return jsonify({"status": "success", "visitantes": visitantes}), 200
+                if isinstance(row,dict): visitantes.append({"id":row.get("id"),"nome":row.get("nome"),"telefone":row.get("telefone")})
+                else: visitantes.append({"id":row[0],"nome":row[1],"telefone":row[2] if len(row)>2 else None})
+            return jsonify({"status":"success","visitantes":visitantes}),200
         except Exception as e:
-            logging.error(f"Erro em /api/visitantes/fase-null: {e}")
-            return jsonify({"status": "error", "message": str(e)}), 500
+            return jsonify({"status":"error","message":str(e)}),500
 
     @app.route('/api/conversas/<int:visitante_id>', methods=['GET'])
     def api_get_conversas(visitante_id):
         try:
-            html = obter_conversa_por_visitante(visitante_id)
-            styled_html = f"""
-            <html><head><meta charset="utf-8"><title>Histórico de Conversas</title>
-            <style>body{{font-family:Arial,sans-serif;background:#f4f4f9;padding:20px}}.chat-conversa{{max-width:600px;margin:auto;background:#fff;border-radius:10px;padding:15px;box-shadow:0 2px 6px rgba(0,0,0,.15)}}.chat-conversa p{{padding:8px 12px;border-radius:8px;margin:8px 0}}.chat-conversa p strong{{display:block;font-size:.9em;margin-bottom:4px}}.chat-conversa p small{{display:block;font-size:.7em;color:#888;margin-top:4px}}.chat-conversa p.bot{{background:#e0f7fa;text-align:left}}.chat-conversa p.user{{background:#e8eaf6;text-align:right}}</style>
-            </head><body><h2>💬 Conversas do Visitante #{visitante_id}</h2>{html}</body></html>
-            """
-            return Response(styled_html, mimetype='text/html')
+            html=obter_conversa_por_visitante(visitante_id)
+            styled_html=f'''<html><head><meta charset="utf-8"><title>Histórico de Conversas</title><style>body{{font-family:Arial,sans-serif;background:#f4f4f9;padding:20px}}.chat-conversa{{max-width:600px;margin:auto;background:#fff;border-radius:10px;padding:15px;box-shadow:0 2px 6px rgba(0,0,0,.15)}}.chat-conversa p{{padding:8px 12px;border-radius:8px;margin:8px 0}}.chat-conversa p strong{{display:block;font-size:.9em;margin-bottom:4px}}.chat-conversa p small{{display:block;font-size:.7em;color:#888;margin-top:4px}}.chat-conversa p.bot{{background:#e0f7fa;text-align:left}}.chat-conversa p.user{{background:#e8eaf6;text-align:right}}</style></head><body><h2>💬 Conversas do Visitante #{visitante_id}</h2>{html}</body></html>'''
+            return Response(styled_html,mimetype='text/html')
         except Exception as e:
-            logging.error(f"Erro em /api/conversas/{visitante_id}: {e}")
-            return Response(f"<p>Erro: {e}</p>", mimetype='text/html', status=500)
+            return Response(f"<p>Erro: {e}</p>",mimetype='text/html',status=500)
