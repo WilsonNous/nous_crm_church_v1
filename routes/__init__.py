@@ -1,7 +1,7 @@
 import logging
 
 def register_routes(app):
-    from . import auth, visitantes, dashboard, ia, eventos, webhooks, estatisticas, app_monitor, app_monitor_resumo, agendamentos, membros
+    from . import auth, visitantes, dashboard, ia, eventos, webhooks, estatisticas, app_monitor, app_monitor_resumo, agendamentos, membros, planejador_boas_vindas
 
     logging.info("📌 Registrando rotas...")
 
@@ -35,9 +35,8 @@ def register_routes(app):
     agendamentos.register(app)
     logging.info("✅ Rotas agendamentos registradas.")
 
-    membros.register(app)   # 👈 NOVO
+    membros.register(app)
     logging.info("✅ Rotas membros registradas.")
 
-
-
-
+    planejador_boas_vindas.register(app)
+    logging.info("✅ Rotas do planejador automático de boas-vindas registradas.")
