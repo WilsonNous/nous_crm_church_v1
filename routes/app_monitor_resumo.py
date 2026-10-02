@@ -18,34 +18,72 @@ def monitor_resumo():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        query = """
-            SELECT
-                v.id AS visitante_id,
-                v.nome AS visitante_nome,
-                v.telefone,
-                COUNT(c.id) AS total_mensagens,
-                SUM(CASE WHEN LOWER(c.tipo) = 'recebida' THEN 1 ELSE 0 END) AS recebidas,
-                SUM(CASE WHEN LOWER(c.tipo) = 'enviada' THEN 1 ELSE 0 END) AS enviadas,
-                MIN(c.data_hora) AS primeira_mensagem,
-                MAX(c.data_hora) AS ultima_mensagem
-            FROM visitantes v
-            JOIN conversas c ON c.visitante_id = v.id
-            WHERE 1 = 1
-        """
+        filters = []
         params = []
 
         if date_filter:
-            query += " AND DATE(c.data_hora) = %s"
+            filters.append("DATE(c.data_hora) = %s")
             params.append(date_filter)
 
         if search_filter:
             like = f"%{search_filter}%"
-            query += " AND (v.nome LIKE %s OR v.telefone LIKE %s OR c.mensagem LIKE %s)"
+            filters.append("(v.nome LIKE %s OR v.telefone LIKE %s OR c.mensagem LIKE %s)")
             params.extend([like, like, like])
 
-        query += """
-            GROUP BY v.id, v.nome, v.telefone
-            ORDER BY MAX(c.data_hora) DESC
+        where_sql = ""
+        if filters:
+            where_sql = " AND " + " AND ".join(filters)
+
+        # A mesma seleção filtrada alimenta métricas e prévia. ROW_NUMBER escolhe
+        # a mensagem mais recente de cada visitante sem gerar uma query adicional
+        # para cada linha do resumo (evita o antigo padrão N+1).
+        query = f"""
+            WITH mensagens_filtradas AS (
+                SELECT
+                    v.id AS visitante_id,
+                    v.nome AS visitante_nome,
+                    v.telefone,
+                    c.id AS conversa_id,
+                    c.mensagem,
+                    c.tipo,
+                    c.data_hora,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY v.id
+                        ORDER BY c.data_hora DESC, c.id DESC
+                    ) AS rn
+                FROM visitantes v
+                JOIN conversas c ON c.visitante_id = v.id
+                WHERE 1 = 1{where_sql}
+            ),
+            resumo AS (
+                SELECT
+                    visitante_id,
+                    MAX(visitante_nome) AS visitante_nome,
+                    MAX(telefone) AS telefone,
+                    COUNT(*) AS total_mensagens,
+                    SUM(CASE WHEN LOWER(tipo) = 'recebida' THEN 1 ELSE 0 END) AS recebidas,
+                    SUM(CASE WHEN LOWER(tipo) = 'enviada' THEN 1 ELSE 0 END) AS enviadas,
+                    MIN(data_hora) AS primeira_mensagem,
+                    MAX(data_hora) AS ultima_mensagem
+                FROM mensagens_filtradas
+                GROUP BY visitante_id
+            )
+            SELECT
+                r.visitante_id,
+                r.visitante_nome,
+                r.telefone,
+                r.total_mensagens,
+                r.recebidas,
+                r.enviadas,
+                r.primeira_mensagem,
+                r.ultima_mensagem,
+                mf.mensagem AS ultima_mensagem_texto,
+                mf.tipo AS ultimo_tipo
+            FROM resumo r
+            JOIN mensagens_filtradas mf
+              ON mf.visitante_id = r.visitante_id
+             AND mf.rn = 1
+            ORDER BY r.ultima_mensagem DESC
             LIMIT 300
         """
 
@@ -54,15 +92,6 @@ def monitor_resumo():
 
         conversas = []
         for row in rows:
-            cursor.execute("""
-                SELECT mensagem, tipo
-                FROM conversas
-                WHERE visitante_id = %s
-                ORDER BY data_hora DESC, id DESC
-                LIMIT 1
-            """, (row["visitante_id"],))
-            ultima = cursor.fetchone() or {}
-
             conversas.append({
                 "visitante_id": row["visitante_id"],
                 "visitante_nome": row.get("visitante_nome") or "Sem nome",
@@ -72,8 +101,8 @@ def monitor_resumo():
                 "enviadas": int(row.get("enviadas") or 0),
                 "primeira_mensagem": row["primeira_mensagem"].isoformat() if row.get("primeira_mensagem") else None,
                 "ultima_mensagem": row["ultima_mensagem"].isoformat() if row.get("ultima_mensagem") else None,
-                "ultima_mensagem_texto": ultima.get("mensagem") or "",
-                "ultimo_tipo": ultima.get("tipo") or ""
+                "ultima_mensagem_texto": row.get("ultima_mensagem_texto") or "",
+                "ultimo_tipo": row.get("ultimo_tipo") or ""
             })
 
         cursor.close()
