@@ -35,6 +35,16 @@ function formatarDia(value) {
   });
 }
 
+function chaveDiaLocal(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
 function escapeHtml(texto) {
   return String(texto ?? "")
     .replace(/&/g, "&amp;")
@@ -162,8 +172,7 @@ async function carregarConversas(visitanteId, visitanteNome = "Visitante", telef
 
     let ultimoDia = "";
     conversas.forEach((c) => {
-      const d = new Date(c.data_hora);
-      const chaveDia = Number.isNaN(d.getTime()) ? String(c.data_hora || "") : d.toISOString().slice(0, 10);
+      const chaveDia = chaveDiaLocal(c.data_hora);
 
       if (chaveDia !== ultimoDia) {
         const sep = document.createElement("div");
