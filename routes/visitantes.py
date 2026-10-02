@@ -9,6 +9,7 @@ from database import (
     salvar_conversa, obter_conversa_por_visitante, get_db_connection
 )
 from servicos.zapi_cliente import enviar_mensagem
+from servicos.fila_mensagens import adicionar_na_fila
 
 
 def register(app):
@@ -71,17 +72,51 @@ def register(app):
     @app.route('/api/send-message-manual', methods=['POST'])
     @jwt_required()
     def api_send_message_manual():
-        """Resposta humana autenticada: envio direto, fora da fila de campanhas."""
+        """
+        Dois fluxos explicitamente separados:
+        - com visitante_id: resposta humana/pastoral, envio direto pela Z-API;
+        - sem visitante_id: compatibilidade do disparo de boas-vindas em massa,
+          obrigatoriamente enfileirado e sujeito ao anti-spam.
+        """
         try:
             data = request.get_json() or {}
             visitante_id = data.get("visitante_id")
-            numero = (data.get("numero") or "").strip()
-            mensagem = (data.get("mensagem") or "").strip()
+            numero = (data.get("numero") or data.get("telefone") or "").strip()
+            mensagem = (data.get("mensagem") or data.get("message") or "").strip()
             imagem_url = data.get("imagem_url")
-            if not visitante_id: return jsonify({"success": False, "error": "Visitante não informado"}), 400
-            if not numero: return jsonify({"success": False, "error": "Número não informado"}), 400
-            if not mensagem: return jsonify({"success": False, "error": "Mensagem vazia"}), 400
 
+            if not numero:
+                return jsonify({"success": False, "error": "Número não informado"}), 400
+            if not mensagem:
+                return jsonify({"success": False, "error": "Mensagem vazia"}), 400
+
+            # DISPARO EM MASSA / BOAS-VINDAS: nunca usa o bypass humano direto.
+            # O frontend legado não envia visitante_id. Mantemos compatibilidade,
+            # mas devolvemos apenas confirmação de ENFILEIRAMENTO, não de entrega.
+            if not visitante_id:
+                ok = adicionar_na_fila(
+                    numero,
+                    mensagem,
+                    imagem_url=imagem_url,
+                    meta={
+                        "tipo": "manual",
+                        "is_reply": False,
+                        "origem": "boas_vindas_massa"
+                    }
+                )
+                if not ok:
+                    logging.error(f"❌ Falha ao enfileirar boas-vindas | numero={numero}")
+                    return jsonify({"success": False, "error": "Não foi possível adicionar o envio à fila protegida"}), 500
+
+                logging.info(f"📬 Boas-vindas enfileirada com anti-spam | numero={numero}")
+                return jsonify({
+                    "success": True,
+                    "queued": True,
+                    "delivery": "queued",
+                    "message": "Mensagem adicionada à fila protegida."
+                }), 202
+
+            # RESPOSTA HUMANA/PASTORAL: intervenção individual no Monitor.
             telefone_db = normalizar_para_recebimento(numero)
             telefone_zapi = f"55{telefone_db}" if not str(telefone_db).startswith("55") else str(telefone_db)
             resultado = enviar_mensagem(telefone_zapi, mensagem, imagem_url=imagem_url)
