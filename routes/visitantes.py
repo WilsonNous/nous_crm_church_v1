@@ -1,14 +1,12 @@
 import logging
-import os
 from flask import request, jsonify, Response
 
 from database import (
     salvar_visitante, visitante_existe, normalizar_para_recebimento,
     listar_todos_visitantes, monitorar_status_visitantes,
     visitantes_listar_fases, visitantes_listar_estatisticas,
-    salvar_conversa, obter_conversa_por_visitante, get_db_connection, atualizar_status
+    salvar_conversa, obter_conversa_por_visitante, get_db_connection
 )
-from servicos.fila_mensagens import adicionar_na_fila
 from servicos.zapi_cliente import enviar_mensagem
 
 
@@ -18,11 +16,9 @@ def register(app):
         data = request.get_json()
         if not data:
             return jsonify({"error": "Nenhum dado enviado."}), 400
-
         telefone = normalizar_para_recebimento(data.get('phone'))
         if visitante_existe(telefone):
             return jsonify({"error": "Visitante já cadastrado."}), 400
-
         visitante_data = {
             'nome': data.get('name'), 'telefone': telefone, 'email': data.get('email'),
             'data_nascimento': data.get('birthdate'), 'cidade': data.get('city'),
@@ -87,7 +83,6 @@ def register(app):
             numero = (data.get("numero") or "").strip()
             mensagem = (data.get("mensagem") or "").strip()
             imagem_url = data.get("imagem_url")
-
             if not visitante_id:
                 return jsonify({"success": False, "error": "Visitante não informado"}), 400
             if not numero:
@@ -95,34 +90,29 @@ def register(app):
             if not mensagem:
                 return jsonify({"success": False, "error": "Mensagem vazia"}), 400
 
-            telefone_zapi = f"55{numero}" if not str(numero).startswith("55") else str(numero)
+            telefone_db = normalizar_para_recebimento(numero)
+            telefone_zapi = f"55{telefone_db}" if not str(telefone_db).startswith("55") else str(telefone_db)
             resultado = enviar_mensagem(telefone_zapi, mensagem, imagem_url=imagem_url)
-
             if not resultado.get("success"):
                 erro = resultado.get("erro") or resultado.get("resposta") or "Z-API não confirmou o envio"
-                logging.warning(f"⚠️ Resposta humana não enviada | visitante={visitante_id} | erro={erro}")
-                return jsonify({"success": False, "error": erro, "details": resultado}), 502
+                logging.warning(f"⚠️ Resposta humana não enviada | visitante={visitante_id} | status={resultado.get('status_code')}")
+                # Nunca devolve o objeto bruto da Z-API: ele pode conter URL/token/credenciais.
+                return jsonify({"success": False, "error": str(erro), "status_code": resultado.get("status_code")}), 502
 
-            # Só persiste como enviada depois da confirmação real da Z-API.
-            salvar_conversa(int(visitante_id), mensagem, "enviada")
+            # salvar_conversa recebe telefone como primeiro argumento; o ID deve ser nomeado.
+            salvar_conversa(telefone_db, mensagem, "enviada", origem="humano", visitante_id=int(visitante_id))
             logging.info(f"✅ Resposta humana enviada diretamente | visitante={visitante_id} | numero={telefone_zapi}")
-            return jsonify({
-                "success": True,
-                "message": "Mensagem enviada e confirmada pela Z-API.",
-                "delivery": "confirmed"
-            }), 200
-
+            return jsonify({"success": True, "message": "Mensagem enviada e confirmada pela Z-API.", "delivery": "confirmed"}), 200
         except Exception as e:
             logging.exception(f"❌ Erro em /api/send-message-manual: {e}")
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Erro interno ao enviar a mensagem"}), 500
 
     @app.route('/api/visitantes/fase-null', methods=['GET'])
     def get_visitantes_fase_null():
         try:
             conn = get_db_connection(); cursor = conn.cursor()
             cursor.execute("""
-                SELECT v.id, v.nome, v.telefone
-                FROM visitantes v
+                SELECT v.id, v.nome, v.telefone FROM visitantes v
                 LEFT JOIN status s ON v.id = s.visitante_id
                 WHERE s.fase_id IS NULL OR s.fase_id = ''
             """)
@@ -133,7 +123,6 @@ def register(app):
                     visitantes.append({"id": row.get("id"), "nome": row.get("nome"), "telefone": row.get("telefone")})
                 else:
                     visitantes.append({"id": row[0], "nome": row[1], "telefone": row[2] if len(row) > 2 else None})
-            logging.info(f"🔍 Visitantes com fase nula: {len(visitantes)} encontrados")
             return jsonify({"status": "success", "visitantes": visitantes}), 200
         except Exception as e:
             logging.error(f"Erro em /api/visitantes/fase-null: {e}")
