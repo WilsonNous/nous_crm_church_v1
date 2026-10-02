@@ -4,190 +4,46 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Menu Principal | CRM Church</title>
-
   <style>
-    body {
-      margin: 0;
-      font-family: "Inter", Arial, sans-serif;
-      background: #000;
-      color: #fff;
-    }
-
-    header {
-      text-align: center;
-      padding: 25px 10px;
-      background: #000;
-      border-bottom: 1px solid #222;
-    }
-
-    header img {
-      height: 60px;
-      display: block;
-      margin: 0 auto 10px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 24px;
-      font-weight: 600;
-    }
-
-    main {
-      width: 95%;
-      max-width: 1050px;
-      margin: 40px auto;
-      padding: 35px;
-      background: #fff;
-      color: #333;
-      border-radius: 15px;
-      box-shadow: 0 4px 14px rgba(255,255,255,0.08);
-    }
-
-    h2 {
-      font-size: 22px;
-      margin-top: 0;
-      padding-left: 12px;
-      border-left: 4px solid #000;
-    }
-
-    #buttonContainer {
-      margin-top: 25px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 18px;
-    }
-
-    button {
-      padding: 18px;
-      font-size: 16px;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: all .2s ease-in-out;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-
-    button:hover {
-      transform: scale(1.03);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.18);
-    }
-
-    .btn-primary     { background: #000; color: #fff; }
-    .btn-secondary   { background: #333; color: #fff; }
-    .btn-info        { background: #4466ff; color: #fff; }
-    .btn-success     { background: #00b36b; color: #fff; }
-    .btn-tertiary    { background: #222; color: #fff; }
-    .btn-warning     { background: #d9534f; color: #fff; }
-
-    footer {
-      margin-top: 50px;
-      text-align: center;
-      padding: 15px;
-      color: #aaa;
-    }
-
+    body { margin:0; font-family:"Inter",Arial,sans-serif; background:#000; color:#fff; }
+    header { text-align:center; padding:25px 10px; background:#000; border-bottom:1px solid #222; }
+    header img { height:60px; display:block; margin:0 auto 10px; }
+    h1 { margin:0; font-size:24px; font-weight:600; }
+    main { width:95%; max-width:1050px; margin:40px auto; padding:35px; background:#fff; color:#333; border-radius:15px; box-shadow:0 4px 14px rgba(255,255,255,.08); box-sizing:border-box; }
+    h2 { font-size:22px; margin-top:0; padding-left:12px; border-left:4px solid #000; }
+    #buttonContainer { margin-top:25px; display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:18px; }
+    button { padding:18px; font-size:16px; border:none; border-radius:10px; cursor:pointer; font-weight:600; transition:all .2s ease-in-out; display:flex; align-items:center; justify-content:center; gap:8px; }
+    button:hover { transform:scale(1.03); box-shadow:0 4px 10px rgba(0,0,0,.18); }
+    .btn-primary{background:#000;color:#fff}.btn-secondary{background:#333;color:#fff}.btn-info{background:#4466ff;color:#fff}.btn-success{background:#00b36b;color:#fff}.btn-tertiary{background:#222;color:#fff}.btn-warning{background:#d9534f;color:#fff}.btn-planner{background:#7c3aed;color:#fff}
+    footer { margin-top:50px; text-align:center; padding:15px; color:#aaa; }
+    @media(max-width:600px){main{width:100%;margin:30px 0;padding:28px 24px;border-radius:15px 15px 0 0}#buttonContainer{grid-template-columns:1fr}}
   </style>
-
   <script src="/static/script.js" defer></script>
 </head>
-
 <body>
-<header>
-  <img src="/static/logo_maisdecristo_b2.png" alt="Logo">
-  <h1>Secretaria Mais de Cristo Canasvieiras</h1>
-</header>
-
+<header><img src="/static/logo_maisdecristo_b2.png" alt="Logo"><h1>Secretaria Mais de Cristo Canasvieiras</h1></header>
 <main>
-  <h2>Menu Principal</h2>
-  <p>Escolha uma das opções abaixo para continuar:</p>
-
+  <h2>Menu Principal</h2><p>Escolha uma das opções abaixo para continuar:</p>
   <div id="buttonContainer">
-
-    <button class="btn-primary" onclick="goTo('visitantes')">
-      📝 Cadastro de Visitantes
-    </button>
-
-    <button class="btn-secondary" onclick="goTo('monitor-status')">
-      📋 Monitor de Status Pastoral
-    </button>
-
-    <button class="btn-info" onclick="goTo('monitor')">
-      💬 Conversas do Integra+
-    </button>
-
-    <button class="btn-success" onclick="goTo('whatsapp')">
-      💌 Enviar WhatsApp
-    </button>
-
-    <button class="btn-tertiary" onclick="goTo('membros')">
-      🙋‍♂️ Cadastro de Membros
-    </button>
-
-    <button class="btn-tertiary" onclick="goTo('acolhidos')">
-      🤝 Cadastro de Acolhidos
-    </button>
-
-    <button class="btn-success" onclick="goTo('campanhas')">
-      📢 Campanhas de Eventos
-    </button>
-
-    <button class="btn-info" onclick="goTo('ia')">
-      🧠 Treinar IA
-    </button>
-
-    <button class="btn-info" onclick="goTo('estatisticas')">
-      📊 Estatísticas Gerais
-    </button>
-
-    <!-- =============================== -->
-    <!-- NOVOS BOTÕES — AGENDAMENTO -->
-    <!-- =============================== -->
-
-    <button class="btn-primary" onclick="window.open('/agendar', '_blank')">
-      📅 Agendar Espaço (Público)
-    </button>
-
-    <button class="btn-secondary" onclick="goTo('reservas-admin')">
-      🗂️ Administração de Reservas
-    </button>
-
-    <!-- BOTÃO SAIR -->
-    <button class="btn-warning" onclick="logoutUser()">
-      🚪 Sair
-    </button>
-
+    <button class="btn-primary" onclick="goTo('visitantes')">📝 Cadastro de Visitantes</button>
+    <button class="btn-secondary" onclick="goTo('monitor-status')">📋 Monitor de Status Pastoral</button>
+    <button class="btn-info" onclick="goTo('monitor')">💬 Conversas do Integra+</button>
+    <button class="btn-success" onclick="goTo('whatsapp')">💌 Enviar WhatsApp</button>
+    <button class="btn-planner" onclick="goTo('planejador-boas-vindas')">⏱️ Planejador de Boas-vindas</button>
+    <button class="btn-tertiary" onclick="goTo('membros')">🙋‍♂️ Cadastro de Membros</button>
+    <button class="btn-tertiary" onclick="goTo('acolhidos')">🤝 Cadastro de Acolhidos</button>
+    <button class="btn-success" onclick="goTo('campanhas')">📢 Campanhas de Eventos</button>
+    <button class="btn-info" onclick="goTo('ia')">🧠 Treinar IA</button>
+    <button class="btn-info" onclick="goTo('estatisticas')">📊 Estatísticas Gerais</button>
+    <button class="btn-primary" onclick="window.open('/agendar','_blank')">📅 Agendar Espaço (Público)</button>
+    <button class="btn-secondary" onclick="goTo('reservas-admin')">🗂️ Administração de Reservas</button>
+    <button class="btn-warning" onclick="logoutUser()">🚪 Sair</button>
   </div>
 </main>
-
-<footer>
-  © 2025 Nous Tecnologia – versão 3.0
-</footer>
-
+<footer>© 2026 Nous Tecnologia – CRM Church</footer>
 <script>
-  function goTo(page) {
-    // Ajuste para nova rota admin
-    if (page === 'reservas-admin') {
-      window.location.href = '/admin/reservas';
-      return;
-    }
-    window.location.href = `/app/${page}`;
-  }
-
-  function logoutUser() {
-    localStorage.removeItem('jwt_token');
-    window.location.href = '/app/login';
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    if (!localStorage.getItem('jwt_token')) {
-      window.location.href = '/app/login';
-    }
-  });
+function goTo(page){if(page==='reservas-admin'){window.location.href='/admin/reservas';return}window.location.href=`/app/${page}`}
+function logoutUser(){localStorage.removeItem('jwt_token');window.location.href='/app/login'}
+document.addEventListener('DOMContentLoaded',()=>{if(!localStorage.getItem('jwt_token'))window.location.href='/app/login'});
 </script>
-
-</body>
-</html>
+</body></html>
