@@ -2,278 +2,105 @@ import logging
 from flask import jsonify, request
 from database import get_db_connection
 
-# ============================================================
-# HELPERS
-# ============================================================
-def fetch_all_dict(cursor):
-    columns = [col[0] for col in cursor.description]
-    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+def _rows(cursor):
+    rows = cursor.fetchall() or []
+    if rows and isinstance(rows[0], dict): return rows
+    cols = [c[0] for c in cursor.description]
+    return [dict(zip(cols, r)) for r in rows]
 
 
-def fetch_one_dict(cursor):
+def _one(cursor):
     row = cursor.fetchone()
-    if row is None:
-        return {}
-    columns = [col[0] for col in cursor.description]
-    return dict(zip(columns, row))
+    if not row: return {}
+    if isinstance(row, dict): return row
+    return dict(zip([c[0] for c in cursor.description], row))
 
 
-# ============================================================
-# REGISTER
-# ============================================================
+def _periodo():
+    try: meses = int(request.args.get('meses', 6))
+    except (TypeError, ValueError): meses = 6
+    return max(0, min(meses, 120))
+
+
 def register(app):
-
-    # ============================================================
-    # 1) ESTATÍSTICAS GERAIS (VISITANTES + MEMBROS)
-    # ============================================================
     @app.route('/api/estatisticas/geral', methods=['GET'])
     def estatisticas_geral():
+        conn = cursor = None
         try:
-            meses = int(request.args.get("meses", 6))
-            conn = get_db_connection()
-            cursor = conn.cursor()
+            meses = _periodo()
+            conn = get_db_connection(); cursor = conn.cursor()
+            filtro_v = "" if meses == 0 else f"WHERE v.data_cadastro >= DATE_SUB(CURDATE(), INTERVAL {meses} MONTH)"
+            and_v = "" if meses == 0 else f"AND v.data_cadastro >= DATE_SUB(CURDATE(), INTERVAL {meses} MONTH)"
+            filtro_c = "" if meses == 0 else f"WHERE c.data_hora >= DATE_SUB(NOW(), INTERVAL {meses} MONTH)"
 
-            # ----------------------------------------------------
-            # FILTROS DINÂMICOS (VISITANTES)
-            # ----------------------------------------------------
-            filtros_base = []
-            if meses > 0:
-                filtros_base.append(
-                    f"v.data_cadastro >= DATE_SUB(CURDATE(), INTERVAL {meses} MONTH)"
+            status_atual = """
+                SELECT s.visitante_id, s.fase_id
+                FROM status s
+                INNER JOIN (
+                    SELECT visitante_id, MAX(id) AS max_id
+                    FROM status GROUP BY visitante_id
+                ) ult ON ult.max_id = s.id
+            """
+
+            cursor.execute(f"SELECT COUNT(*) total FROM visitantes v {filtro_v}"); total_i = int(_one(cursor).get('total') or 0)
+            cursor.execute(f"SELECT SUM(LOWER(TRIM(COALESCE(v.genero,''))) IN ('masculino','m')) homens,SUM(LOWER(TRIM(COALESCE(v.genero,''))) IN ('feminino','f')) mulheres FROM visitantes v {filtro_v}"); genero=_one(cursor)
+
+            # Oração é multicanal: ficha/cadastro + intenção PEDIDO_ORACAO no Integra+.
+            # Solicitações somam os dois canais; pessoas são deduplicadas por visitante.
+            cursor.execute(f"SELECT COUNT(*) via_cadastro FROM visitantes v {filtro_v} {'AND' if filtro_v else 'WHERE'} NULLIF(TRIM(COALESCE(v.pedido_oracao,'')),'') IS NOT NULL"); oracao_cadastro=int(_one(cursor).get('via_cadastro') or 0)
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT v.id) via_bot
+                FROM visitantes v
+                JOIN status s ON s.visitante_id=v.id
+                JOIN fases f ON f.id=s.fase_id
+                WHERE f.descricao='PEDIDO_ORACAO' {and_v}
+            """); oracao_bot=int(_one(cursor).get('via_bot') or 0)
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT v.id) pessoas
+                FROM visitantes v
+                LEFT JOIN status s ON s.visitante_id=v.id
+                LEFT JOIN fases f ON f.id=s.fase_id AND f.descricao='PEDIDO_ORACAO'
+                {filtro_v}
+                {'AND' if filtro_v else 'WHERE'} (
+                    NULLIF(TRIM(COALESCE(v.pedido_oracao,'')),'') IS NOT NULL
+                    OR f.id IS NOT NULL
                 )
+            """); oracao_pessoas=int(_one(cursor).get('pessoas') or 0)
+            oracao={'via_cadastro':oracao_cadastro,'via_bot':oracao_bot,'total_solicitacoes':oracao_cadastro+oracao_bot,'pessoas':oracao_pessoas}
 
-            def montar_where(filtros_extra=None):
-                filtros = list(filtros_base)
-                if filtros_extra:
-                    filtros.extend(filtros_extra)
-                return "WHERE " + " AND ".join(filtros) if filtros else ""
+            cursor.execute(f"SELECT COUNT(*) total_interesse_membro FROM visitantes v {filtro_v} {'AND' if filtro_v else 'WHERE'} LOWER(TRIM(COALESCE(v.membro,''))) IN ('sim','s','1','true')"); interesse=_one(cursor)
+            cursor.execute(f"SELECT DATE_FORMAT(v.data_cadastro,'%Y-%m') mes,COUNT(*) total FROM visitantes v {filtro_v} GROUP BY mes ORDER BY mes"); mensal=_rows(cursor)
+            cursor.execute(f"SELECT COALESCE(NULLIF(TRIM(v.indicacao),''),'Não informado') origem,COUNT(*) total FROM visitantes v {filtro_v} GROUP BY origem ORDER BY total DESC LIMIT 10"); origem=_rows(cursor)
+            cursor.execute(f"SELECT COALESCE(NULLIF(TRIM(v.cidade),''),'Não informada') cidade,COUNT(*) total FROM visitantes v {filtro_v} GROUP BY cidade ORDER BY total DESC LIMIT 10"); cidades=_rows(cursor)
+            cursor.execute(f"SELECT COALESCE(NULLIF(TRIM(v.estado_civil),''),'Não informado') estado_civil,COUNT(*) total FROM visitantes v {filtro_v} GROUP BY estado_civil ORDER BY total DESC LIMIT 10"); estado_civil=_rows(cursor)
+            cursor.execute(f"SELECT ROUND(AVG(CASE WHEN v.data_nascimento IS NOT NULL AND v.data_nascimento <= CURDATE() THEN TIMESTAMPDIFF(YEAR,v.data_nascimento,CURDATE()) END),1) idade_media,SUM(v.data_nascimento IS NOT NULL AND TIMESTAMPDIFF(YEAR,v.data_nascimento,CURDATE()) BETWEEN 12 AND 17) adolescentes,SUM(v.data_nascimento IS NOT NULL AND TIMESTAMPDIFF(YEAR,v.data_nascimento,CURDATE()) BETWEEN 18 AND 29) jovens,SUM(v.data_nascimento IS NOT NULL AND TIMESTAMPDIFF(YEAR,v.data_nascimento,CURDATE()) BETWEEN 30 AND 59) adultos,SUM(v.data_nascimento IS NOT NULL AND TIMESTAMPDIFF(YEAR,v.data_nascimento,CURDATE()) >= 60) idosos FROM visitantes v {filtro_v}"); idade=_one(cursor)
 
-            # ======================= VISITANTES =======================
+            cursor.execute(f"SELECT SUM(LOWER(TRIM(COALESCE(c.tipo,'')))='enviada') enviadas,SUM(LOWER(TRIM(COALESCE(c.tipo,'')))='recebida') recebidas,COUNT(*) total,COUNT(DISTINCT c.visitante_id) pessoas FROM conversas c {filtro_c}"); conversas=_one(cursor)
+            cursor.execute(f"SELECT COUNT(DISTINCT v.id) contatados FROM visitantes v JOIN conversas c ON c.visitante_id=v.id {filtro_v}"); contatados_row=_one(cursor)
+            cursor.execute(f"SELECT COUNT(DISTINCT v.id) responderam FROM visitantes v JOIN conversas c ON c.visitante_id=v.id {filtro_v} {'AND' if filtro_v else 'WHERE'} LOWER(TRIM(COALESCE(c.tipo,'')))='recebida'"); responderam=_one(cursor)
 
-            # INÍCIO
-            where_inicio = montar_where(["f.descricao = 'INICIO'"])
+            cursor.execute(f"""SELECT COALESCE(f.descricao,'SEM FASE') fase,COUNT(*) total FROM visitantes v LEFT JOIN ({status_atual}) sa ON sa.visitante_id=v.id LEFT JOIN fases f ON f.id=sa.fase_id {filtro_v} GROUP BY f.id,f.descricao ORDER BY total DESC"""); estados_bot=_rows(cursor)
             cursor.execute(f"""
-                SELECT COUNT(DISTINCT v.id) AS total
-                FROM visitantes v
-                JOIN status s ON v.id = s.visitante_id
-                JOIN fases f ON s.fase_id = f.id
-                {where_inicio};
-            """)
-            inicio = fetch_one_dict(cursor)
+                SELECT f.descricao intencao,COUNT(DISTINCT v.id) total
+                FROM visitantes v JOIN status s ON s.visitante_id=v.id JOIN fases f ON f.id=s.fase_id
+                WHERE f.descricao IN ('INTERESSE_DISCIPULADO','INTERESSE_NOVO_COMEC','PEDIDO_ORACAO','HORARIOS','LINK_WHATSAPP','OUTRO') {and_v}
+                GROUP BY f.id,f.descricao ORDER BY total DESC
+            """); intencoes_bot=_rows(cursor)
 
-            # GÊNERO
-            where_genero = montar_where()
-            cursor.execute(f"""
-                SELECT 
-                    SUM(v.genero='masculino') AS homens,
-                    SUM(v.genero='feminino') AS mulheres,
-                    COUNT(*) AS total
-                FROM visitantes v
-                {where_genero};
-            """)
-            genero = fetch_one_dict(cursor)
+            interesse_discipulado=next((int(x.get('total') or 0) for x in intencoes_bot if x.get('intencao')=='INTERESSE_DISCIPULADO'),0)
+            contatados=int(contatados_row.get('contatados') or 0); interagiram=int(responderam.get('responderam') or 0); interesse_i=int(interesse.get('total_interesse_membro') or 0)
+            jornada=[{'etapa':'Visitantes','total':total_i,'fonte':'cadastro'},{'etapa':'Contatados','total':contatados,'fonte':'histórico de conversas da coorte'},{'etapa':'Interagiram','total':interagiram,'fonte':'mensagens recebidas da coorte'},{'etapa':'Interesse em membresia','total':interesse_i,'fonte':'visitantes.membro'}]
+            def taxa(n,d): return round((n/d*100),1) if d else 0
+            indicadores={'taxa_contato':taxa(contatados,total_i),'taxa_interacao':taxa(interagiram,contatados),'taxa_interesse_membro':taxa(interesse_i,total_i),'interesse_discipulado_bot':interesse_discipulado}
 
-            # DISCIPULADO
-            where_discipulado = montar_where(["f.descricao LIKE '%DISCIPULADO%'"])
-            cursor.execute(f"""
-                SELECT COUNT(DISTINCT v.id) AS total_discipulado
-                FROM visitantes v
-                JOIN status s ON v.id = s.visitante_id
-                JOIN fases f ON s.fase_id = f.id
-                {where_discipulado};
-            """)
-            discipulado = fetch_one_dict(cursor)
+            cursor.execute(f"""SELECT SUM(sa.visitante_id IS NULL OR sa.fase_id IS NULL) sem_fase,SUM(sa.fase_id IS NOT NULL AND f.id IS NULL) fase_invalida,SUM(sa.fase_id IS NOT NULL AND f.id IS NOT NULL) com_fase FROM visitantes v LEFT JOIN ({status_atual}) sa ON sa.visitante_id=v.id LEFT JOIN fases f ON f.id=sa.fase_id {filtro_v}"""); qualidade_status=_one(cursor)
+            cursor.execute("SELECT COUNT(*) total FROM membros"); membros_total=_one(cursor)
+            cursor.execute("SELECT SUM(LOWER(TRIM(COALESCE(genero,''))) IN ('masculino','m')) homens,SUM(LOWER(TRIM(COALESCE(genero,''))) IN ('feminino','f')) mulheres FROM membros"); membros_genero=_one(cursor)
 
-            # ORAÇÃO
-            where_oracao = montar_where(["v.pedido_oracao IS NOT NULL"])
-            cursor.execute(f"""
-                SELECT COUNT(*) AS total_pedidos
-                FROM visitantes v
-                {where_oracao};
-            """)
-            oracao = fetch_one_dict(cursor)
-
-            # ORIGEM
-            cursor.execute(f"""
-                SELECT COALESCE(v.indicacao, 'SEM INDICAÇÃO') AS origem,
-                       COUNT(v.id) AS total
-                FROM visitantes v
-                {where_genero}
-                GROUP BY v.indicacao
-                ORDER BY total DESC;
-            """)
-            origem = fetch_all_dict(cursor)
-
-            # MENSAL
-            cursor.execute(f"""
-                SELECT DATE_FORMAT(v.data_cadastro, '%Y-%m') AS mes,
-                       COUNT(v.id) AS total
-                FROM visitantes v
-                {where_genero}
-                GROUP BY mes
-                ORDER BY mes DESC;
-            """)
-            mensal = fetch_all_dict(cursor)
-
-            # CONVERSAS
-            cursor.execute("""
-                SELECT 
-                    SUM(tipo='enviada') AS enviadas,
-                    SUM(tipo='recebida') AS recebidas
-                FROM conversas;
-            """)
-            conversas = fetch_one_dict(cursor)
-
-            # FASES
-            cursor.execute("""
-                SELECT 
-                    COALESCE(f.descricao, 'SEM FASE') AS fase,
-                    COUNT(v.id) AS total
-                FROM visitantes v
-                LEFT JOIN status s ON v.id = s.visitante_id
-                LEFT JOIN fases f ON s.fase_id = f.id
-                GROUP BY f.descricao
-                ORDER BY total DESC;
-            """)
-            fases = fetch_all_dict(cursor)
-
-            # DEMOGRAFIA
-            cursor.execute(f"""
-                SELECT 
-                    ROUND(AVG(TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE())), 1) AS idade_media,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) BETWEEN 12 AND 17 THEN 1 ELSE 0 END) AS adolescentes,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) BETWEEN 18 AND 29 THEN 1 ELSE 0 END) AS jovens,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) BETWEEN 30 AND 59 THEN 1 ELSE 0 END) AS adultos,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, v.data_nascimento, CURDATE()) >= 60 THEN 1 ELSE 0 END) AS idosos
-                FROM visitantes v
-                {where_genero};
-            """)
-            idade = fetch_one_dict(cursor)
-
-            cursor.execute(f"""
-                SELECT 
-                    COALESCE(v.estado_civil, 'Não Informado') AS estado_civil,
-                    COUNT(*) AS total
-                FROM visitantes v
-                {where_genero}
-                GROUP BY v.estado_civil
-                ORDER BY total DESC
-                LIMIT 10;
-            """)
-            estado_civil = fetch_all_dict(cursor)
-
-            cursor.execute(f"""
-                SELECT 
-                    COALESCE(v.cidade, 'Não Informada') AS cidade,
-                    COUNT(*) AS total
-                FROM visitantes v
-                {where_genero}
-                GROUP BY v.cidade
-                ORDER BY total DESC
-                LIMIT 10;
-            """)
-            cidades = fetch_all_dict(cursor)
-
-            # ======================= MEMBROS =======================
-
-            cursor.execute("SELECT COUNT(*) AS total FROM membros;")
-            membros_total = fetch_one_dict(cursor)
-
-            cursor.execute("""
-                SELECT
-                    SUM(genero='masculino') AS homens,
-                    SUM(genero='feminino') AS mulheres,
-                    COUNT(*) AS total
-                FROM membros;
-            """)
-            membros_genero = fetch_one_dict(cursor)
-
-            cursor.execute("""
-                SELECT
-                    COALESCE(estado_civil, 'Não Informado') AS estado_civil,
-                    COUNT(*) AS total
-                FROM membros
-                GROUP BY estado_civil
-                ORDER BY total DESC;
-            """)
-            membros_estado_civil = fetch_all_dict(cursor)
-
-            cursor.execute("""
-                SELECT
-                    SUM(novo_comeco = 1) AS fizeram,
-                    SUM(novo_comeco = 0) AS nao_fizeram
-                FROM membros;
-            """)
-            membros_novo_comeco = fetch_one_dict(cursor)
-
-            cursor.execute("""
-                SELECT
-                    SUM(classe_membros = 1) AS fizeram,
-                    SUM(classe_membros = 0) AS nao_fizeram
-                FROM membros;
-            """)
-            membros_classe = fetch_one_dict(cursor)
-
-            cursor.execute("""
-                SELECT
-                    SUM(consagracao = 1) AS consagrados,
-                    SUM(consagracao = 0) AS nao_consagrados
-                FROM membros;
-            """)
-            membros_consagracao = fetch_one_dict(cursor)
-
-            cursor.execute("""
-                SELECT
-                    DATE_FORMAT(data_cadastro, '%Y-%m') AS mes,
-                    COUNT(*) AS total
-                FROM membros
-                GROUP BY mes
-                ORDER BY mes DESC;
-            """)
-            membros_mensal = fetch_all_dict(cursor)
-
-            cursor.execute("""
-                SELECT
-                    COALESCE(cidade, 'Não Informada') AS cidade,
-                    COUNT(*) AS total
-                FROM membros
-                GROUP BY cidade
-                ORDER BY total DESC
-                LIMIT 10;
-            """)
-            membros_cidades = fetch_all_dict(cursor)
-
-            cursor.close()
-            conn.close()
-
-            return jsonify({
-                "visitantes": {
-                    "inicio": inicio,
-                    "genero": genero,
-                    "discipulado": discipulado,
-                    "oracao": oracao,
-                    "origem": origem,
-                    "mensal": mensal,
-                    "conversas": conversas,
-                    "fases": fases,
-                    "demografia": {
-                        "idade": idade,
-                        "estado_civil": estado_civil,
-                        "cidades": cidades
-                    }
-                },
-                "membros": {
-                    "total": membros_total,
-                    "genero": membros_genero,
-                    "estado_civil": membros_estado_civil,
-                    "novo_comeco": membros_novo_comeco,
-                    "classe": membros_classe,
-                    "consagracao": membros_consagracao,
-                    "mensal": membros_mensal,
-                    "cidades": membros_cidades
-                }
-            }), 200
-
+            return jsonify({'periodo_meses':meses,'visitantes':{'total':total_i,'genero':genero,'oracao':oracao,'interesse_membro':interesse,'mensal':mensal,'origem':origem,'conversas':conversas,'estados_bot':estados_bot,'intencoes_bot':intencoes_bot,'qualidade_status':qualidade_status,'demografia':{'idade':idade,'estado_civil':estado_civil,'cidades':cidades},'jornada':jornada,'indicadores':indicadores,'discipulado':{'estruturado':False,'interesse_bot':interesse_discipulado}},'membros':{'total':membros_total,'genero':membros_genero}}),200
         except Exception as e:
-            logging.exception(e)
-            return jsonify({"error": str(e)}), 500
+            logging.exception('Erro em estatisticas/geral'); return jsonify({'error':str(e)}),500
+        finally:
+            if cursor: cursor.close()
+            if conn: conn.close()
