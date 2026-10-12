@@ -52,8 +52,8 @@ def iniciar_pedido(numero, nome, message_sid=None, origem='integra+'):
                 existente = cur.fetchone()
                 if not existente:
                     cur.execute('''INSERT INTO integra_pedidos_oracao
-                        (telefone, origem, nome, prazo_utc) VALUES (%s,%s,%s,%s)''',
-                        (numero, origem, nome, _utc()+timedelta(minutes=15)))
+                        (telefone, origem, nome, sid_origem, prazo_utc) VALUES (%s,%s,%s,%s,%s)''',
+                        (numero, origem, nome, message_sid or None, _utc()+timedelta(minutes=15)))
                 _registrar_interesse(cur, numero, origem)
                 conn.commit()
             finally:
@@ -112,7 +112,7 @@ def processar_pendentes(limite=30):
                     for numero in INTERCESSORES:
                         cur.execute('''INSERT IGNORE INTO integra_oracao_entregas(pedido_id,destinatario)
                             VALUES (%s,%s)''', (pedido_id, numero))
-                    cur.execute("UPDATE integra_pedidos_oracao SET estado='ENCAMINHADO', encaminhado_utc=%s WHERE id=%s", (_utc(), pedido_id))
+                    cur.execute("UPDATE integra_pedidos_oracao SET estado='ENCAMINHADO', situacao_atendimento='CONCLUIDO', encaminhado_utc=%s WHERE id=%s", (_utc(), pedido_id))
                     conn.commit()
                 finally:
                     cur.execute('SELECT RELEASE_LOCK(%s)', ('integra:pedido:' + str(pedido_id),))
