@@ -30,7 +30,7 @@ def register(app):
             else:
                 return jsonify({"status": "failed", "message": "Credenciais administrativas não configuradas"}), 503
 
-            token = create_access_token(identity={'username': username, 'role': 'Adminis'})
+            token = create_access_token(identity=username, additional_claims={'role': 'Adminis'})
             return jsonify({'status': 'success', 'message': 'Login bem-sucedido!', 'token': token}), 200
 
         return jsonify({'status': 'failed', 'message': 'Usuário inválido'}), 401
