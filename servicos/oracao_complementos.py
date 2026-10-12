@@ -21,3 +21,35 @@ def registrar(numero, texto, sid=None, origem='integra+'):
                 cur.execute("INSERT IGNORE INTO integra_oracao_complemento_entregas (complemento_id,destinatario) VALUES (%s,%s)", (complemento,destino))
             conn.commit()
             return True
+
+
+def processar(limite=30):
+    from servicos.zapi_cliente import enviar_mensagem
+    from database import normalizar_para_envio
+    with closing(_conectar()) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT e.id, e.destinatario, c.texto, p.nome, p.telefone
+                FROM integra_oracao_complemento_entregas e
+                JOIN integra_oracao_complementos c ON c.id=e.complemento_id
+                JOIN integra_pedidos_oracao p ON p.id=c.pedido_id
+                WHERE e.estado='PENDENTE' ORDER BY e.id LIMIT %s""", (limite,))
+            entregas = cur.fetchall()
+    for entrega in entregas:
+        with closing(_conectar()) as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE integra_oracao_complemento_entregas SET estado='EM_ENVIO' WHERE id=%s AND estado='PENDENTE'", (entrega['id'],))
+                if cur.rowcount != 1:
+                    conn.rollback()
+                    continue
+                conn.commit()
+        mensagem = (f"🙏 Complemento de oração\\nNome: {entrega['nome']}\\n"
+                    f"Telefone: {entrega['telefone']}\\nMotivo: {entrega['texto']}")
+        try:
+            resultado = enviar_mensagem(normalizar_para_envio(entrega['destinatario']), mensagem)
+            estado = 'CONFIRMADO' if isinstance(resultado, dict) and resultado.get('success') is True else 'INCERTO'
+        except Exception:
+            estado = 'INCERTO'
+        with closing(_conectar()) as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE integra_oracao_complemento_entregas SET estado=%s WHERE id=%s AND estado='EM_ENVIO'", (estado, entrega['id']))
+                conn.commit()
