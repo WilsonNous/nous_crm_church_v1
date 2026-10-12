@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 from datetime import datetime
-from flask import Flask, jsonify, redirect, url_for, request, session
+from flask import Flask, jsonify, redirect, url_for, request, session, send_from_directory
 from flask_cors import CORS
 from menu_routes import menu_bp
 
@@ -59,7 +59,7 @@ jwt = JWTManager(app)
 # Allowlist pública: demais APIs e páginas internas exigem JWT.
 from flask_jwt_extended import verify_jwt_in_request
 _PUBLIC_PATHS = frozenset((
-    "/", "/health", "/api/health", "/app/", "/app/login",
+    "/", "/health", "/api/health", "/favicon.ico", "/app/", "/app/login",
     "/api/login", "/cadastro-visitante", "/api/public/visitantes",
     "/api/webhook", "/api/webhook-zapi", "/agendar",
     "/api/espacos/listar", "/api/reservas/nova",
@@ -113,6 +113,13 @@ logging.info("✅ Blueprint 'menu_bp' registrado com prefixo /app.")
 @app.route("/", methods=["GET"])
 def redirect_to_login():
     return redirect(url_for("menu_bp.login_page"))
+
+# --------------------------
+# Favicon público (não exige JWT)
+# --------------------------
+@app.route("/favicon.ico", methods=["GET"])
+def favicon():
+    return send_from_directory(app.static_folder, "favicon.ico")
 
 # --------------------------
 # Health Checks
