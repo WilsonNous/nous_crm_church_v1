@@ -26,7 +26,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     logging.info(f"📥 Processando mensagem | Origem={origem} | Numero={numero}, SID={message_sid}, Mensagem={texto_recebido[:80]}... | is_webhook_reply={is_webhook_reply}")
 
     # Normalização
-    numero_normalizado = numero.lstrip("55")
+    numero_normalizado = numero[2:] if numero.startswith("55") and len(numero) in (12, 13) else numero
     texto_normalizado = normalizar_texto(texto_recebido)
     texto_original = texto_recebido.strip()
     
