@@ -101,7 +101,7 @@ def _normalizar_para_envio(numero: str) -> str:
         return "55" + digits
     if len(digits) == 10:
         return "55" + digits[:2] + "9" + digits[2:]
-    return digits
+    return ""
 
 
 def _normalizar_para_salvar_no_banco(telefone_envio: str) -> str:
@@ -404,6 +404,62 @@ def _db_insert_item(numero_envio: str, mensagem: str, imagem_url: Optional[str],
         return False
 
 
+
+def enfileirar_boas_vindas_com_limite(numero: str, mensagem: str, imagem_url=None):
+    """Reserva vaga para boas-vindas com lock MySQL entre workers.
+
+    Retorna (resultado, motivo). A reserva é feita na mesma seção crítica da
+    verificação, evitando duplicidade por cliques e workers simultâneos.
+    """
+    limite = int(os.getenv("FILA_MAX_PENDING", "500"))
+    if limite <= 0:
+        return False, "limite_invalido"
+    numero_envio = _normalizar_para_envio(numero)
+    if not numero_envio or len(numero_envio) != 13 or numero_envio[2:4] == "00" or numero_envio[4:] == "000000000":
+        return False, "numero_invalido"
+    meta = {"tipo": "manual", "is_reply": False, "origem": "boas_vindas_massa"}
+    lock_name = "crm_church:boas_vindas:admissao"
+    with closing(get_db_connection()) as conn:
+        if not conn:
+            return False, "banco_indisponivel"
+        cur = conn.cursor()
+        cur.execute("SELECT GET_LOCK(%s, 10) AS acquired", (lock_name,))
+        lock_row = cur.fetchone() or {}
+        if int(lock_row.get("acquired") or 0) != 1:
+            return False, "concorrencia"
+        try:
+            conn.begin()
+            # Não repetir boas-vindas que já tenham sido registradas, inclusive
+            # em dias anteriores. Falhas exigem reprocessamento supervisionado.
+            cur.execute("""
+                SELECT id FROM fila_envios
+                WHERE numero=%s AND meta_json LIKE %s
+                LIMIT 1
+            """, (numero_envio, '%"boas_vindas_massa"%'))
+            if cur.fetchone():
+                conn.rollback()
+                return False, "duplicado"
+            # Capacidade de backlog, independente da cota diária de envio.
+            cur.execute("SELECT COUNT(*) AS total FROM fila_envios WHERE status IN ('pendente', 'processando')")
+            pendentes = int((cur.fetchone() or {}).get("total") or 0)
+            if pendentes >= limite:
+                conn.rollback()
+                return False, "limite"
+            cur.execute("""
+                INSERT INTO fila_envios (numero, mensagem, imagem_url, status, tentativas, meta_json)
+                VALUES (%s, %s, %s, 'pendente', 0, %s)
+            """, (numero_envio, mensagem, imagem_url, json.dumps(meta, ensure_ascii=False)))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            log.exception("Falha na reserva de vaga de boas-vindas")
+            return False, "erro"
+        finally:
+            cur.execute("SELECT RELEASE_LOCK(%s)", (lock_name,))
+    iniciar_worker()
+    return True, "enfileirado"
+
+
 def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
     """Pega lote de pendentes com lock transacional."""
     try:
@@ -439,11 +495,11 @@ def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
         return []
 
 
-def _db_mark_success(envio_id: int, status_code: int = 200) -> None:
+def _db_mark_success(envio_id: int, status_code: int = 200) -> bool:
     try:
         with closing(get_db_connection()) as conn:
             if not conn:
-                return
+                return False
             cur = conn.cursor()
             cur.execute("""
                 UPDATE fila_envios
@@ -451,8 +507,10 @@ def _db_mark_success(envio_id: int, status_code: int = 200) -> None:
                 WHERE id=%s
             """, (int(status_code or 0), envio_id))
             conn.commit()
+            return True
     except Exception as e:
         log.error(f"❌ Erro ao marcar sucesso envio_id={envio_id}: {e}")
+        return False
 
 
 def _db_mark_fail_or_retry(envio_id: int, next_attempt_count: int, status_code: int, err: str) -> str:
@@ -517,7 +575,8 @@ def _check_anti_spam_and_sleep(envio_id: int, numero: str, meta: Dict[str, Any])
     """
     global _anti_spam
     if not _anti_spam:
-        return True, "ok"  # Fallback se controller não estiver inicializado
+        log.error("Anti-spam indisponível: envio bloqueado por segurança | envio_id=%s", envio_id)
+        return False, "anti_spam_indisponivel"
 
     is_reply = meta.get("is_reply", False)
     is_manual = meta.get("tipo") == "manual"  # ← NOVO: detectar envio manual (boas-vindas)
@@ -633,6 +692,36 @@ def _pos_envio_falha_final(meta: Dict[str, Any]) -> None:
 # Worker loop
 # =========================
 
+
+# Serializa a verificação da cota e a chamada Z-API entre processos.
+# O lock permanece ativo até o registro do resultado no banco.
+from contextlib import contextmanager, nullcontext
+
+@contextmanager
+def _lock_envio_proativo():
+    conn = None
+    acquired = False
+    lock_name = "crm_church:proativo:envio:" + (os.getenv("ZAPI_INSTANCE") or "default")
+    try:
+        conn = get_db_connection()
+        if not conn:
+            raise RuntimeError("Banco indisponível para controle de cota")
+        cur = conn.cursor()
+        cur.execute("SELECT GET_LOCK(%s, 10) AS acquired", (lock_name,))
+        acquired = int((cur.fetchone() or {}).get("acquired") or 0) == 1
+        if not acquired:
+            raise RuntimeError("Não foi possível adquirir lock de envio proativo")
+        yield
+    finally:
+        if conn:
+            try:
+                if acquired:
+                    conn.cursor().execute("SELECT RELEASE_LOCK(%s)", (lock_name,))
+            except Exception:
+                log.exception("Falha ao liberar lock de envio proativo")
+            finally:
+                conn.close()
+
 def _processar_fila_worker():
     global _worker_running, _anti_spam
 
@@ -699,8 +788,17 @@ def _processar_fila_worker():
             pode_enviar, motivo = _check_anti_spam_and_sleep(envio_id, numero, meta)
             if not pode_enviar:
                 if motivo.startswith("reequeued:"):
-                    continue  # Item re-agendado, pula para próximo
-                # Se foi apenas pausa, continua o loop para reavaliar
+                    continue
+                # Não deixar item preso em processando após limite ou pausa.
+                # Agendar nova tentativa, sem consumir tentativa de envio.
+                if "Limite diário" in motivo:
+                    # Suspende o item até a próxima janela diária.
+                    # O worker revalida a cota antes de qualquer envio.
+                    reagendar = datetime.now() + timedelta(hours=24)
+                else:
+                    reagendar = datetime.now() + timedelta(seconds=60)
+                if not _db_reequeue_item(envio_id, reagendar):
+                    log.error("Não foi possível reagendar envio_id=%s", envio_id)
                 continue
 
             ok = False
@@ -715,19 +813,48 @@ def _processar_fila_worker():
                 if mensagem_para_envio != mensagem:
                     log.debug(f"✨ Mensagem variada para {numero}: '{mensagem[:30]}...' → '{mensagem_para_envio[:30]}...'")
 
-            # 📤 ENVIO DA MENSAGEM
+            provider_attempted = False
+            persisted_success = False
+            # 📤 Lock distribuído: revalida a cota imediatamente antes da Z-API.
+            # Inclui falhas na cota para impedir tentativas ilimitadas no dia.
             try:
-                last_res = enviar_mensagem(numero_envio, mensagem_para_envio, imagem_url)
-                ok, last_err, last_code = _parse_result(last_res)
+                with (nullcontext() if is_reply else _lock_envio_proativo()):
+                    if not is_reply:
+                        _anti_spam._cache_ts = 0  # invalida cache entre workers/processos
+                        autorizado, motivo_atual = _anti_spam.can_send_now(
+                            is_reply=False, is_manual=is_manual
+                        )
+                        if not autorizado:
+                            if "Limite diário" in motivo_atual:
+                                reagendar = datetime.now() + timedelta(hours=24)
+                            else:
+                                reagendar = datetime.now() + timedelta(seconds=60)
+                            if not _db_reequeue_item(envio_id, reagendar):
+                                log.error("Falha ao reagendar após revalidação: envio_id=%s", envio_id)
+                            continue
+                    try:
+                        provider_attempted = True
+                        last_res = enviar_mensagem(numero_envio, mensagem_para_envio, imagem_url)
+                        ok, last_err, last_code = _parse_result(last_res)
+                    except Exception as e:
+                        # Timeout ou exceção após a chamada pode significar entrega aceita.
+                        # Não transformar resultado desconhecido em falha retentável.
+                        raise RuntimeError("Resultado da Z-API incerto; requer reconciliação") from e
+                    if _anti_spam:
+                        _anti_spam.register_send(ok, is_reply=is_reply, is_manual=is_manual)
+                    if ok:
+                        persisted_success = _db_mark_success(envio_id, last_code)
+                        if not persisted_success:
+                            raise RuntimeError("Z-API aceitou envio, mas persistência falhou")
             except Exception as e:
-                ok = False
-                last_err = str(e)
-                last_code = 0
-                last_res = None
-
-            # 🛡️ REGISTRA RESULTADO NO CONTROLLER ANTI-SPAM (com is_reply e is_manual)
-            if _anti_spam:
-                _anti_spam.register_send(ok, is_reply=is_reply, is_manual=is_manual)  # ← Passa is_manual
+                log.exception("Controle distribuído indisponível; envio bloqueado | id=%s", envio_id)
+                if provider_attempted:
+                    # Resultado incerto: NÃO reenviar automaticamente. Mantém
+                    # processando para reconciliação humana, evitando duplicidade.
+                    log.critical("ENVIO_INCERTO: intervenção humana necessária | envio_id=%s", envio_id)
+                elif not _db_reequeue_item(envio_id, datetime.now() + timedelta(seconds=60)):
+                    log.error("Falha ao reagendar envio bloqueado | id=%s", envio_id)
+                continue
 
             msg_preview = (mensagem_para_envio or "").replace("\n", " ")[:60]
             err_preview = (last_err or "").replace("\n", " ")[:180]
@@ -749,7 +876,6 @@ def _processar_fila_worker():
             on_fail = meta.get("_on_fail_cb")
 
             if ok:
-                _db_mark_success(envio_id, last_code)
                 _pos_envio_sucesso(meta, mensagem_para_envio, numero_envio)
                 log.info(f"✅ Fila(DB) → {numero_envio} | {msg_preview}... | code={last_code} | envio_id={envio_id}")
                 _safe_call(on_success, payload)

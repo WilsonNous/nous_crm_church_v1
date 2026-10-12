@@ -9,7 +9,7 @@ from database import (
     salvar_conversa, obter_conversa_por_visitante, get_db_connection
 )
 from servicos.zapi_cliente import enviar_mensagem
-from servicos.fila_mensagens import adicionar_na_fila
+from servicos.fila_mensagens import adicionar_na_fila, enfileirar_boas_vindas_com_limite
 
 
 def register(app):
@@ -94,19 +94,13 @@ def register(app):
             # O frontend legado não envia visitante_id. Mantemos compatibilidade,
             # mas devolvemos apenas confirmação de ENFILEIRAMENTO, não de entrega.
             if not visitante_id:
-                ok = adicionar_na_fila(
-                    numero,
-                    mensagem,
-                    imagem_url=imagem_url,
-                    meta={
-                        "tipo": "manual",
-                        "is_reply": False,
-                        "origem": "boas_vindas_massa"
-                    }
-                )
+                ok, motivo = enfileirar_boas_vindas_com_limite(numero, mensagem, imagem_url)
                 if not ok:
-                    logging.error(f"❌ Falha ao enfileirar boas-vindas | numero={numero}")
-                    return jsonify({"success": False, "error": "Não foi possível adicionar o envio à fila protegida"}), 500
+                    if motivo == "duplicado":
+                        return jsonify({"success": False, "error": "Boas-vindas já registrada para este telefone", "code": motivo}), 409
+                    if motivo == "limite":
+                        return jsonify({"success": False, "error": "Capacidade máxima de mensagens pendentes atingida", "code": motivo}), 429
+                    return jsonify({"success": False, "error": "Não foi possível reservar vaga na fila", "code": motivo}), 503
 
                 logging.info(f"📬 Boas-vindas enfileirada com anti-spam | numero={numero}")
                 return jsonify({

@@ -11,6 +11,9 @@ import time
 import random
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+TZ_BRASIL = ZoneInfo('America/Sao_Paulo')
 from contextlib import closing
 from typing import Tuple, Dict, Optional
 
@@ -71,7 +74,7 @@ class AntiSpamController:
     # ------------------------------------------
     def _get_today_key(self) -> str:
         """Retorna chave de data no formato YYYY-MM-DD."""
-        return datetime.now().date().isoformat()
+        return datetime.now(TZ_BRASIL).date().isoformat()
 
     def _fetch_limits(self) -> dict:
         """
@@ -88,7 +91,7 @@ class AntiSpamController:
             with closing(get_db_connection()) as conn:
                 if not conn:
                     log.warning("⚠️ Sem conexão com DB para rate limits")
-                    return self._default_limits()
+                    raise RuntimeError("Banco indisponível para consultar cota de envio")
                     
                 # ✅ PyMySQL: cursor() já retorna DictCursor (configurado na conexão)
                 cur = conn.cursor()
@@ -125,7 +128,7 @@ class AntiSpamController:
                 
         except Exception as e:
             log.error(f"❌ Erro ao buscar rate limits: {e}")
-            return self._default_limits()
+            raise RuntimeError("Falha ao consultar cota de envio") from e
 
     def _default_limits(self) -> dict:
         """Retorna valores padrão em caso de erro no banco."""
@@ -148,7 +151,7 @@ class AntiSpamController:
         try:
             with closing(get_db_connection()) as conn:
                 if not conn:
-                    return
+                    raise RuntimeError("Banco indisponível para registrar tentativa")
                 cur = conn.cursor()
                 today = self._get_today_key()
                 cur.execute(f"""
@@ -161,6 +164,7 @@ class AntiSpamController:
                 self._cache_ts = 0
         except Exception as e:
             log.error(f"❌ Erro ao atualizar contador '{field}': {e}")
+            raise
 
     def _update_error_rate(self, was_success: bool):
         """
@@ -261,12 +265,12 @@ class AntiSpamController:
         # ============================================================
 
         limits = self._fetch_limits()
-        now = datetime.now()
+        now = datetime.now(TZ_BRASIL).replace(tzinfo=None)
         current_hour = now.hour
 
         # 1. Verifica limite diário (APENAS PARA PROATIVOS)
-        if DAILY_LIMIT > 0 and limits["total_sent"] >= DAILY_LIMIT:
-            log.warning(f"🚫 Limite diário atingido para envios proativos: {limits['total_sent']}/{DAILY_LIMIT}")
+        if DAILY_LIMIT > 0 and limits["total_sent"] + limits["total_failed"] >= DAILY_LIMIT:
+            log.warning(f"🚫 Limite diário atingido para envios proativos: {(limits['total_sent'] + limits['total_failed'])}/{DAILY_LIMIT}")
             return False, f"Limite diário atingido ({DAILY_LIMIT} envios)"
 
         # 2. Verifica janela de horário comercial (APENAS PARA PROATIVOS)
@@ -416,8 +420,9 @@ class AntiSpamController:
             "date": self._get_today_key(),
             "sent": limits["total_sent"],
             "failed": limits["total_failed"],
+            "attempts_today": limits["total_sent"] + limits["total_failed"],
             "daily_limit": DAILY_LIMIT if DAILY_LIMIT > 0 else "ilimitado",
-            "remaining": max(0, DAILY_LIMIT - limits["total_sent"]) if DAILY_LIMIT > 0 else "∞",
+            "remaining": max(0, DAILY_LIMIT - limits["total_sent"] - limits["total_failed"]) if DAILY_LIMIT > 0 else "∞",
             "in_batch": limits["messages_in_batch"],
             "batch_limit": BATCH_SEND_LIMIT,
             "error_rate": round(limits["error_rate"] * 100, 1),
