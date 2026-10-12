@@ -11,6 +11,9 @@ import time
 import random
 import logging
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+TZ_BRASIL = ZoneInfo('America/Sao_Paulo')
 from contextlib import closing
 from typing import Tuple, Dict, Optional
 
@@ -71,7 +74,7 @@ class AntiSpamController:
     # ------------------------------------------
     def _get_today_key(self) -> str:
         """Retorna chave de data no formato YYYY-MM-DD."""
-        return datetime.now().date().isoformat()
+        return datetime.now(TZ_BRASIL).date().isoformat()
 
     def _fetch_limits(self) -> dict:
         """
@@ -261,7 +264,7 @@ class AntiSpamController:
         # ============================================================
 
         limits = self._fetch_limits()
-        now = datetime.now()
+        now = datetime.now(TZ_BRASIL).replace(tzinfo=None)
         current_hour = now.hour
 
         # 1. Verifica limite diário (APENAS PARA PROATIVOS)
