@@ -10,6 +10,7 @@ from servicos.fila_mensagens import enviar_mensagem_para_fila
 from servicos.saudacoes import detectar_saudacao, processar_saudacao
 from servicos.agradecimentos import detectar_agradecimento, processar_agradecimento
 from servicos.oracao_persistente import iniciar_pedido, pedido_pendente, receber_motivo
+from servicos.oracao_complementos import registrar as registrar_complemento
 from servicos.atendimento_outros import processar_outro
 from servicos.atendimento_eventos import processar_evento_enviado
 from servicos.fluxo_transicoes import obter_proximo_estado, obter_mensagem_estado
@@ -65,6 +66,13 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         resultado_oracao = receber_motivo(numero_normalizado, texto_recebido, origem)
         if resultado_oracao is not None:
             return resultado_oracao
+
+    # Complemento tardio somente quando explicitamente identificado como oração.
+    if estado_atual == EstadoVisitante.PEDIDO_ORACAO and texto_normalizado.startswith(('complemento:', 'motivo:')):
+        motivo_complementar = texto_original.split(':', 1)[1].strip()
+        if motivo_complementar and registrar_complemento(numero_normalizado, motivo_complementar, message_sid, origem):
+            return {'resposta': 'Recebemos seu complemento de oração. 🙏',
+                    'estado_atual': 'PEDIDO_ORACAO', 'proximo_estado': 'FIM'}
 
     # ========== Palavra-chave de ministério ==========
     resposta_ministerio = detectar_palavra_chave_ministerio(texto_normalizado)
