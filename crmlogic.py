@@ -71,6 +71,8 @@ def controle_de_acesso():
         return None
     if path in _PUBLIC_PATHS or path.startswith("/api/reservas/listar/"):
         return None
+    if request.method == "GET" and (path.startswith("/app/") or path.startswith("/admin/")):
+        return None
     verify_jwt_in_request()
 
 
