@@ -837,10 +837,9 @@ def _processar_fila_worker():
                         last_res = enviar_mensagem(numero_envio, mensagem_para_envio, imagem_url)
                         ok, last_err, last_code = _parse_result(last_res)
                     except Exception as e:
-                        ok = False
-                        last_err = str(e)
-                        last_code = 0
-                        last_res = None
+                        # Timeout ou exceção após a chamada pode significar entrega aceita.
+                        # Não transformar resultado desconhecido em falha retentável.
+                        raise RuntimeError("Resultado da Z-API incerto; requer reconciliação") from e
                     if _anti_spam:
                         _anti_spam.register_send(ok, is_reply=is_reply, is_manual=is_manual)
                     if ok:
