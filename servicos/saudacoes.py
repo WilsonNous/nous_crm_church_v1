@@ -16,7 +16,7 @@ def detectar_saudacao(texto: str) -> bool:
     return any(saudacao in texto_normalizado for saudacao in saudacoes)
 
 
-def processar_saudacao(numero: str, message_sid: str, origem: str = "integra+") -> dict:
+def processar_saudacao(numero: str, message_sid: str, origem: str = "integra+", is_webhook_reply: bool = False) -> dict:
     """
     Processa mensagens de saudação e envia a resposta inicial do Integra+.
     """
@@ -44,7 +44,7 @@ Estou aqui pra caminhar com você! """
 
         # Atualiza o status e envia resposta
         atualizar_status(numero, EstadoVisitante.INICIO.value, origem=origem)
-        enviar_mensagem_para_fila(numero, resposta)
+        enviar_mensagem_para_fila(numero, resposta, meta={"tipo": "bot", "is_reply": bool(is_webhook_reply), "origem": origem, "sid_origem": message_sid})
         salvar_conversa(numero, resposta, tipo="enviada", sid=message_sid, origem=origem)
 
         logging.info(f"🤝 Saudação processada para {numero}")
