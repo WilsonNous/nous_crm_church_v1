@@ -1,5 +1,6 @@
 """Cadastro público: somente inserção de visitantes, sem sessão administrativa."""
 import logging
+from datetime import date
 import re
 import time
 from collections import defaultdict, deque
@@ -49,20 +50,33 @@ def cadastrar_visitante_publico():
     campos = ("city", "gender", "maritalStatus", "currentChurch", "referral", "contactTime")
     if any(len(str(dados.get(c) or "")) > 150 for c in campos):
         return jsonify(error="Um dos campos excede o limite permitido."), 400
+    cidade = str(dados.get("city") or "").strip()
+    genero = str(dados.get("gender") or "").strip()
+    estado_civil = str(dados.get("maritalStatus") or "").strip()
+    if not cidade or len(cidade) > 150:
+        return jsonify(error="Informe sua cidade."), 400
+    if genero not in {"masculino", "feminino", "outro", "nao_informado"}:
+        return jsonify(error="Selecione uma opção para gênero."), 400
+    if estado_civil not in {"solteiro", "casado", "divorciado", "viuvo", "outro", "nao_informado"}:
+        return jsonify(error="Selecione uma opção para estado civil."), 400
     oracao = str(dados.get("prayerRequest") or "").strip()
     if len(oracao) > 2000:
         return jsonify(error="Pedido de oração muito longo."), 400
     nascimento = str(dados.get("birthdate") or "").strip()
-    if nascimento and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", nascimento):
-        return jsonify(error="Data de nascimento inválida."), 400
+    try:
+        nascimento_data = date.fromisoformat(nascimento)
+        if nascimento_data > date.today() or nascimento_data.year < 1900:
+            raise ValueError("Data fora do intervalo")
+    except ValueError:
+        return jsonify(error="Informe uma data de nascimento válida."), 400
     try:
         telefone = normalizar_para_recebimento(telefone_bruto)
         if visitante_existe(telefone):
             return jsonify(error="Este telefone já está cadastrado. Procure a equipe de acolhimento."), 409
         ok = salvar_visitante(
             nome=nome, telefone=telefone, email=email or None,
-            data_nascimento=nascimento or None, cidade=dados.get("city") or None,
-            genero=dados.get("gender") or None, estado_civil=dados.get("maritalStatus") or None,
+            data_nascimento=nascimento or None, cidade=cidade,
+            genero=genero, estado_civil=estado_civil,
             igreja_atual=dados.get("currentChurch") or None,
             frequenta_igreja=1 if dados.get("attendingChurch") is True else 0,
             indicacao=dados.get("referral") or None,
