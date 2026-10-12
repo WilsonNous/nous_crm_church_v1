@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 from datetime import datetime
-from flask import Flask, jsonify, redirect, url_for, request, session, send_from_directory
+from flask import Flask, jsonify, redirect, url_for, request, session
 from flask_cors import CORS
 from menu_routes import menu_bp
 
@@ -119,7 +119,7 @@ def redirect_to_login():
 # --------------------------
 @app.route("/favicon.ico", methods=["GET"])
 def favicon():
-    return send_from_directory(app.static_folder, "favicon.ico")
+    return redirect(url_for("static", filename="logo_maisdecristo_b2.png"), code=302)
 
 # --------------------------
 # Health Checks
