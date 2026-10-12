@@ -44,6 +44,6 @@
 <script>
 function goTo(page){if(page==='reservas-admin'){window.location.href='/admin/reservas';return}window.location.href=`/app/${page}`}
 function logoutUser(){localStorage.removeItem('jwt_token');window.location.href='/app/login'}
-document.addEventListener('DOMContentLoaded',()=>{if(!localStorage.getItem('jwt_token'))window.location.href='/app/login'});
+
 </script>
 </body></html>
