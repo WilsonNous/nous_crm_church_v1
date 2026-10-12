@@ -404,6 +404,77 @@ def _db_insert_item(numero_envio: str, mensagem: str, imagem_url: Optional[str],
         return False
 
 
+
+def enfileirar_boas_vindas_com_limite(numero: str, mensagem: str, imagem_url=None):
+    """Reserva vaga para boas-vindas com lock MySQL entre workers.
+
+    Retorna (resultado, motivo). A reserva é feita na mesma seção crítica da
+    verificação, evitando duplicidade por cliques e workers simultâneos.
+    """
+    limite = int(os.getenv("FILA_DAILY_LIMIT", "10"))
+    if limite <= 0:
+        return False, "limite_invalido"
+    numero_envio = _normalizar_para_envio(numero)
+    if not numero_envio:
+        return False, "numero_invalido"
+    meta = {"tipo": "manual", "is_reply": False, "origem": "boas_vindas_massa"}
+    lock_name = "crm_church:boas_vindas:admissao"
+    with closing(get_db_connection()) as conn:
+        if not conn:
+            return False, "banco_indisponivel"
+        cur = conn.cursor()
+        cur.execute("SELECT GET_LOCK(%s, 10) AS acquired", (lock_name,))
+        lock_row = cur.fetchone() or {}
+        if int(lock_row.get("acquired") or 0) != 1:
+            return False, "concorrencia"
+        try:
+            conn.begin()
+            # Não repetir boas-vindas que já tenham sido registradas, inclusive
+            # em dias anteriores. Falhas exigem reprocessamento supervisionado.
+            cur.execute("""
+                SELECT id FROM fila_envios
+                WHERE numero=%s AND meta_json LIKE %s
+                LIMIT 1
+            """, (numero_envio, '%"boas_vindas_massa"%'))
+            if cur.fetchone():
+                conn.rollback()
+                return False, "duplicado"
+            # Fila pendente de dias anteriores também ocupa capacidade até
+            # processamento. Contar o envio diário separadamente.
+            cur.execute("""
+                SELECT COUNT(*) AS total FROM fila_envios
+                WHERE status IN ('pendente', 'processando')
+                  AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.is_reply')), 'false') = 'false'
+            """)
+            pendentes = int((cur.fetchone() or {}).get("total") or 0)
+            # Mesmo que a fila tenha sido criada ontem, os envios realizados
+            # hoje contam no limite configurado.
+            from datetime import datetime as _dt
+            hoje = _dt.now().date().isoformat()
+            instance_id = os.getenv("ZAPI_INSTANCE") or "default"
+            cur.execute("""
+                SELECT total_sent FROM fila_rate_limit
+                WHERE instance_id=%s AND date=%s
+            """, (instance_id, hoje))
+            enviados = int((cur.fetchone() or {}).get("total_sent") or 0)
+            if pendentes + enviados >= limite:
+                conn.rollback()
+                return False, "limite"
+            cur.execute("""
+                INSERT INTO fila_envios (numero, mensagem, imagem_url, status, tentativas, meta_json)
+                VALUES (%s, %s, %s, 'pendente', 0, %s)
+            """, (numero_envio, mensagem, imagem_url, json.dumps(meta, ensure_ascii=False)))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            log.exception("Falha na reserva de vaga de boas-vindas")
+            return False, "erro"
+        finally:
+            cur.execute("SELECT RELEASE_LOCK(%s)", (lock_name,))
+    iniciar_worker()
+    return True, "enfileirado"
+
+
 def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
     """Pega lote de pendentes com lock transacional."""
     try:
