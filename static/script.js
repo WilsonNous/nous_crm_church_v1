@@ -442,6 +442,10 @@ async function sendMessagesSequentially(messages, delayMs = 2000) {
     } catch (err) {
       appendLogToWhatsapp(`❌ Erro ao enviar para ${v.numero}: ${err.message}`, true);
 
+      if (String(err?.status) === "429" || String(err?.message || "").includes("Capacidade diária")) {
+        appendLogToWhatsapp("⏸️ Limite diário alcançado. Encerrando este lote.", true);
+        break;
+      }
       if (String(err?.status) === "400") {
         appendLogToWhatsapp(`ℹ️ (400) Erro não repetível. Pulando para o próximo.`, true);
       }
