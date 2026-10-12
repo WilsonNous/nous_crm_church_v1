@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 from datetime import datetime
-from flask import Flask, jsonify, redirect, url_for, request
+from flask import Flask, jsonify, redirect, url_for, request, session
 from flask_cors import CORS
 from menu_routes import menu_bp
 
@@ -72,7 +72,9 @@ def controle_de_acesso():
     if path in _PUBLIC_PATHS or path.startswith("/api/reservas/listar/"):
         return None
     if request.method == "GET" and (path.startswith("/app/") or path.startswith("/admin/")):
-        return None
+        if session.get("crm_admin_authenticated"):
+            return None
+        return redirect("/app/login")
     verify_jwt_in_request()
 
 
