@@ -588,7 +588,8 @@ def _check_anti_spam_and_sleep(envio_id: int, numero: str, meta: Dict[str, Any])
     """
     global _anti_spam
     if not _anti_spam:
-        return True, "ok"  # Fallback se controller não estiver inicializado
+        log.error("Anti-spam indisponível: envio bloqueado por segurança | envio_id=%s", envio_id)
+        return False, "anti_spam_indisponivel"
 
     is_reply = meta.get("is_reply", False)
     is_manual = meta.get("tipo") == "manual"  # ← NOVO: detectar envio manual (boas-vindas)
