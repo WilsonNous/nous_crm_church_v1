@@ -151,7 +151,7 @@ class AntiSpamController:
         try:
             with closing(get_db_connection()) as conn:
                 if not conn:
-                    return
+                    raise RuntimeError("Banco indisponível para registrar tentativa")
                 cur = conn.cursor()
                 today = self._get_today_key()
                 cur.execute(f"""
@@ -164,6 +164,7 @@ class AntiSpamController:
                 self._cache_ts = 0
         except Exception as e:
             log.error(f"❌ Erro ao atualizar contador '{field}': {e}")
+            raise
 
     def _update_error_rate(self, was_success: bool):
         """
