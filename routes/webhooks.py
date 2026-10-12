@@ -8,30 +8,10 @@ from constantes import DEBUG
 
 def register(app):
 
-    # --- Webhook TWILIO ---
+    # --- Webhook Twilio legado: desativado ---
     @app.route('/api/webhook', methods=['POST'])
     def webhook_twilio():
-        try:
-            data = request.get_json(silent=True) or request.form
-            from_number = data.get('From', '') or data.get('numero', '')
-            message_body = data.get('Body', '').strip() if 'Body' in data else data.get('mensagem', '').strip()
-            message_sid = data.get('MessageSid', '') or data.get('sid', '')
-            origem = data.get('origem') or request.args.get('origem', 'integra+')
-
-            logging.info(f"📥 Webhook TWILIO | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body[:80]}...")
-
-            # ✅ Processa como resposta conversacional (is_webhook_reply=True)
-            resultado = tratar_mensagem_webhook(
-                dados=data,
-                origem=origem,
-                is_webhook_reply=True  # ← Marca como resposta conversacional
-            )
-            
-            return jsonify({"status": resultado["status"], "origem": origem}), 200
-
-        except Exception as e:
-            logging.error(f"❌ Erro no webhook TWILIO: {e}", exc_info=True)
-            return jsonify({"error": "Erro ao processar webhook Twilio"}), 500
+        return jsonify(error='Webhook legado desativado.'), 410
 
     # --- Webhook Z-API ---
     @app.route('/api/webhook-zapi', methods=['POST'])
