@@ -72,7 +72,7 @@ def cadastrar_visitante_publico():
     try:
         telefone = normalizar_para_recebimento(telefone_bruto)
         if visitante_existe(telefone):
-            return jsonify(error="Este telefone já está cadastrado. Procure a equipe de acolhimento."), 409
+            return jsonify(error="Não foi possível concluir este cadastro. Procure a equipe de acolhimento."), 409
         ok = salvar_visitante(
             nome=nome, telefone=telefone, email=email or None,
             data_nascimento=nascimento or None, cidade=cidade,
@@ -81,7 +81,8 @@ def cadastrar_visitante_publico():
             frequenta_igreja=1 if dados.get("attendingChurch") is True else 0,
             indicacao=dados.get("referral") or None,
             membro=bool(dados.get("membership")),
-            pedido_oracao=oracao or None, horario_contato=dados.get("contactTime") or None
+            pedido_oracao=oracao or None, horario_contato=dados.get("contactTime") or None,
+            origem="cadastro_publico"
         )
         if ok:
             return jsonify(message="Cadastro realizado com sucesso! Seja bem-vindo(a)."), 201
