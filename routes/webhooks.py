@@ -1,4 +1,6 @@
 import logging
+import os
+import hmac
 from flask import request, jsonify
 from botmsg import tratar_mensagem_webhook
 from database import normalizar_para_recebimento, verificar_sid_existente
@@ -34,6 +36,13 @@ def register(app):
     # --- Webhook Z-API ---
     @app.route('/api/webhook-zapi', methods=['POST'])
     def webhook_zapi():
+        configured_token = os.getenv('ZAPI_WEBHOOK_TOKEN', '').strip()
+        supplied_token = request.headers.get('X-Webhook-Token', '')
+        if not configured_token:
+            logging.error('ZAPI_WEBHOOK_TOKEN não configurado; webhook bloqueado')
+            return jsonify(error='Webhook indisponível.'), 503
+        if not hmac.compare_digest(supplied_token, configured_token):
+            return jsonify(error='Não autorizado.'), 401
         try:
             data = request.get_json(silent=True)
             if not data:
