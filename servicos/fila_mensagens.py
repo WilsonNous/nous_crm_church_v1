@@ -774,10 +774,9 @@ def _processar_fila_worker():
                 # Não deixar item preso em processando após limite ou pausa.
                 # Agendar nova tentativa, sem consumir tentativa de envio.
                 if "Limite diário" in motivo:
-                    from zoneinfo import ZoneInfo
-                    br = datetime.now(ZoneInfo("America/Sao_Paulo"))
-                    proximo = (br + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
-                    reagendar = proximo.replace(tzinfo=None)
+                    # Evita misturar horário local do Render com NOW() do MySQL.
+                    # O worker revalida a cota antes de qualquer envio.
+                    reagendar = datetime.now() + timedelta(hours=24)
                 else:
                     reagendar = datetime.now() + timedelta(seconds=60)
                 _db_reequeue_item(envio_id, reagendar)
