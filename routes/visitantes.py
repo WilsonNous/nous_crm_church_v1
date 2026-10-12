@@ -99,7 +99,7 @@ def register(app):
                     if motivo == "duplicado":
                         return jsonify({"success": False, "error": "Boas-vindas já registrada para este telefone", "code": motivo}), 409
                     if motivo == "limite":
-                        return jsonify({"success": False, "error": "Capacidade diária de enfileiramento atingida", "code": motivo}), 429
+                        return jsonify({"success": False, "error": "Capacidade máxima de mensagens pendentes atingida", "code": motivo}), 429
                     return jsonify({"success": False, "error": "Não foi possível reservar vaga na fila", "code": motivo}), 503
 
                 logging.info(f"📬 Boas-vindas enfileirada com anti-spam | numero={numero}")
