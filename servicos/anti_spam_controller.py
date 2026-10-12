@@ -268,8 +268,8 @@ class AntiSpamController:
         current_hour = now.hour
 
         # 1. Verifica limite diário (APENAS PARA PROATIVOS)
-        if DAILY_LIMIT > 0 and limits["total_sent"] >= DAILY_LIMIT:
-            log.warning(f"🚫 Limite diário atingido para envios proativos: {limits['total_sent']}/{DAILY_LIMIT}")
+        if DAILY_LIMIT > 0 and limits["total_sent"] + limits["total_failed"] >= DAILY_LIMIT:
+            log.warning(f"🚫 Limite diário atingido para envios proativos: {(limits['total_sent'] + limits['total_failed'])}/{DAILY_LIMIT}")
             return False, f"Limite diário atingido ({DAILY_LIMIT} envios)"
 
         # 2. Verifica janela de horário comercial (APENAS PARA PROATIVOS)
@@ -419,8 +419,9 @@ class AntiSpamController:
             "date": self._get_today_key(),
             "sent": limits["total_sent"],
             "failed": limits["total_failed"],
+            "attempts_today": limits["total_sent"] + limits["total_failed"],
             "daily_limit": DAILY_LIMIT if DAILY_LIMIT > 0 else "ilimitado",
-            "remaining": max(0, DAILY_LIMIT - limits["total_sent"]) if DAILY_LIMIT > 0 else "∞",
+            "remaining": max(0, DAILY_LIMIT - limits["total_sent"] - limits["total_failed"]) if DAILY_LIMIT > 0 else "∞",
             "in_batch": limits["messages_in_batch"],
             "batch_limit": BATCH_SEND_LIMIT,
             "error_rate": round(limits["error_rate"] * 100, 1),
