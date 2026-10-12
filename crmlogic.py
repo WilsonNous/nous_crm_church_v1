@@ -50,8 +50,8 @@ logging.info("🚀 Logging configurado (stdout). LOG_LEVEL=%s", os.getenv("LOG_L
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "fallback_secret_key_para_dev")
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", app.config["SECRET_KEY"])
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY") or os.urandom(32)
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY") or app.config["SECRET_KEY"]
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = False
 
 jwt = JWTManager(app)
