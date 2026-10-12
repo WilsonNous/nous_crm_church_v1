@@ -17,7 +17,10 @@ def register(app):
     @app.route('/api/webhook-zapi', methods=['POST'])
     def webhook_zapi():
         configured_token = os.getenv('ZAPI_WEBHOOK_TOKEN', '').strip()
-        supplied_token = request.headers.get('X-Webhook-Token', '')
+        # Z-API permite configurar a URL de callback; cabeçalhos personalizados
+        # não estão disponíveis no painel apresentado. O token pode ser
+        # incluído no parâmetro da URL (HTTPS) ou em um cabeçalho opcional.
+        supplied_token = request.headers.get('X-Webhook-Token', '') or request.args.get('token', '')
         if not configured_token:
             logging.error('ZAPI_WEBHOOK_TOKEN não configurado; webhook bloqueado')
             return jsonify(error='Webhook indisponível.'), 503
