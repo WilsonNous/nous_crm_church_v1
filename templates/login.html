@@ -42,14 +42,6 @@
     <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.0</p>
   </footer>
 
-  <script>
-    // Redireciona para o menu se já estiver logado
-    document.addEventListener('DOMContentLoaded', () => {
-      const token = localStorage.getItem('jwt_token');
-      if (token) {
-        window.location.href = '/app/menu';
-      }
-    });
-  </script>
+  <!-- A autenticação do menu é verificada pelo servidor; não redirecionar pelo JWT local. -->
 </body>
 </html>
