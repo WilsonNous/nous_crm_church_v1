@@ -101,7 +101,7 @@ def _normalizar_para_envio(numero: str) -> str:
         return "55" + digits
     if len(digits) == 10:
         return "55" + digits[:2] + "9" + digits[2:]
-    return digits
+    return ""
 
 
 def _normalizar_para_salvar_no_banco(telefone_envio: str) -> str:
@@ -415,7 +415,7 @@ def enfileirar_boas_vindas_com_limite(numero: str, mensagem: str, imagem_url=Non
     if limite <= 0:
         return False, "limite_invalido"
     numero_envio = _normalizar_para_envio(numero)
-    if not numero_envio:
+    if not numero_envio or len(numero_envio) != 13 or numero_envio[2:4] == "00" or numero_envio[4:] == "000000000":
         return False, "numero_invalido"
     meta = {"tipo": "manual", "is_reply": False, "origem": "boas_vindas_massa"}
     lock_name = "crm_church:boas_vindas:admissao"
@@ -770,8 +770,17 @@ def _processar_fila_worker():
             pode_enviar, motivo = _check_anti_spam_and_sleep(envio_id, numero, meta)
             if not pode_enviar:
                 if motivo.startswith("reequeued:"):
-                    continue  # Item re-agendado, pula para próximo
-                # Se foi apenas pausa, continua o loop para reavaliar
+                    continue
+                # Não deixar item preso em processando após limite ou pausa.
+                # Agendar nova tentativa, sem consumir tentativa de envio.
+                if "Limite diário" in motivo:
+                    from zoneinfo import ZoneInfo
+                    br = datetime.now(ZoneInfo("America/Sao_Paulo"))
+                    proximo = (br + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+                    reagendar = proximo.replace(tzinfo=None)
+                else:
+                    reagendar = datetime.now() + timedelta(seconds=60)
+                _db_reequeue_item(envio_id, reagendar)
                 continue
 
             ok = False
