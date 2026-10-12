@@ -1,8 +1,15 @@
 """Testes isolados do cadastro publico sem acesso ao banco ou WhatsApp."""
 import importlib
+import sys
+from types import ModuleType
 from unittest.mock import patch
 from flask import Flask
 
+fake_db = ModuleType("database")
+fake_db.salvar_visitante = lambda **kwargs: False
+fake_db.visitante_existe = lambda phone: False
+fake_db.normalizar_para_recebimento = lambda phone: phone
+sys.modules["database"] = fake_db
 module = importlib.import_module("routes.cadastro_publico")
 
 def client():
