@@ -159,6 +159,8 @@ def processar_pendentes(limite=30):
                 AND NOT EXISTS (SELECT 1 FROM integra_oracao_entregas e
                     WHERE e.pedido_id=p.id AND e.estado<>'CONFIRMADO')""")
             conn.commit()
+    from servicos.oracao_complementos import processar as processar_complementos
+    processar_complementos(limite)
     return processados
 
 
