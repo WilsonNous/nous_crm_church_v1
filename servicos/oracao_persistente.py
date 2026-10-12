@@ -116,7 +116,7 @@ def processar_pendentes(limite=30):
                     for numero in INTERCESSORES:
                         cur.execute('''INSERT IGNORE INTO integra_oracao_entregas(pedido_id,destinatario)
                             VALUES (%s,%s)''', (pedido_id, numero))
-                    cur.execute("UPDATE integra_pedidos_oracao SET estado='ENCAMINHADO', situacao_atendimento='CONCLUIDO', encaminhado_utc=%s WHERE id=%s", (_utc(), pedido_id))
+                    cur.execute("UPDATE integra_pedidos_oracao SET estado='ENCAMINHADO', encaminhado_utc=%s WHERE id=%s", (_utc(), pedido_id))
                     conn.commit()
                 finally:
                     cur.execute('SELECT RELEASE_LOCK(%s)', ('integra:pedido:' + str(pedido_id),))
