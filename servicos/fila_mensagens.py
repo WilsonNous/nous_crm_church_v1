@@ -705,6 +705,36 @@ def _pos_envio_falha_final(meta: Dict[str, Any]) -> None:
 # Worker loop
 # =========================
 
+
+# Serializa a verificação da cota e a chamada Z-API entre processos.
+# O lock permanece ativo até o registro do resultado no banco.
+from contextlib import contextmanager, nullcontext
+
+@contextmanager
+def _lock_envio_proativo():
+    conn = None
+    acquired = False
+    lock_name = "crm_church:proativo:envio:" + (os.getenv("ZAPI_INSTANCE") or "default")
+    try:
+        conn = get_db_connection()
+        if not conn:
+            raise RuntimeError("Banco indisponível para controle de cota")
+        cur = conn.cursor()
+        cur.execute("SELECT GET_LOCK(%s, 10) AS acquired", (lock_name,))
+        acquired = int((cur.fetchone() or {}).get("acquired") or 0) == 1
+        if not acquired:
+            raise RuntimeError("Não foi possível adquirir lock de envio proativo")
+        yield
+    finally:
+        if conn:
+            try:
+                if acquired:
+                    conn.cursor().execute("SELECT RELEASE_LOCK(%s)", (lock_name,))
+            except Exception:
+                log.exception("Falha ao liberar lock de envio proativo")
+            finally:
+                conn.close()
+
 def _processar_fila_worker():
     global _worker_running, _anti_spam
 
@@ -796,19 +826,38 @@ def _processar_fila_worker():
                 if mensagem_para_envio != mensagem:
                     log.debug(f"✨ Mensagem variada para {numero}: '{mensagem[:30]}...' → '{mensagem_para_envio[:30]}...'")
 
-            # 📤 ENVIO DA MENSAGEM
+            # 📤 Lock distribuído: revalida a cota imediatamente antes da Z-API.
+            # Inclui falhas na cota para impedir tentativas ilimitadas no dia.
             try:
-                last_res = enviar_mensagem(numero_envio, mensagem_para_envio, imagem_url)
-                ok, last_err, last_code = _parse_result(last_res)
+                with (nullcontext() if is_reply else _lock_envio_proativo()):
+                    if not is_reply:
+                        _anti_spam._cache_ts = 0  # invalida cache entre workers/processos
+                        autorizado, motivo_atual = _anti_spam.can_send_now(
+                            is_reply=False, is_manual=is_manual
+                        )
+                        if not autorizado:
+                            if "Limite diário" in motivo_atual:
+                                reagendar = datetime.now() + timedelta(hours=24)
+                            else:
+                                reagendar = datetime.now() + timedelta(seconds=60)
+                            if not _db_reequeue_item(envio_id, reagendar):
+                                log.error("Falha ao reagendar após revalidação: envio_id=%s", envio_id)
+                            continue
+                    try:
+                        last_res = enviar_mensagem(numero_envio, mensagem_para_envio, imagem_url)
+                        ok, last_err, last_code = _parse_result(last_res)
+                    except Exception as e:
+                        ok = False
+                        last_err = str(e)
+                        last_code = 0
+                        last_res = None
+                    if _anti_spam:
+                        _anti_spam.register_send(ok, is_reply=is_reply, is_manual=is_manual)
             except Exception as e:
-                ok = False
-                last_err = str(e)
-                last_code = 0
-                last_res = None
-
-            # 🛡️ REGISTRA RESULTADO NO CONTROLLER ANTI-SPAM (com is_reply e is_manual)
-            if _anti_spam:
-                _anti_spam.register_send(ok, is_reply=is_reply, is_manual=is_manual)  # ← Passa is_manual
+                log.exception("Controle distribuído indisponível; envio bloqueado | id=%s", envio_id)
+                if not _db_reequeue_item(envio_id, datetime.now() + timedelta(seconds=60)):
+                    log.error("Falha ao reagendar envio bloqueado | id=%s", envio_id)
+                continue
 
             msg_preview = (mensagem_para_envio or "").replace("\n", " ")[:60]
             err_preview = (last_err or "").replace("\n", " ")[:180]
