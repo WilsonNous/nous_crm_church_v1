@@ -26,15 +26,22 @@ details summary{font-weight:700;cursor:pointer;padding:8px 0}#resultado{margin-t
 <body>
 <header><img src="/static/logo_maisdecristo_b2.png" alt="Igreja Mais de Cristo"><h1>Que alegria ter você aqui! 💙</h1><p>Mais de Cristo • Canasvieiras</p></header>
 <main><section class="card" id="cadastro">
-<p>Queremos conhecer você e manter contato, se desejar. O cadastro leva cerca de <strong>1 minuto</strong>.</p>
+<p>Queremos conhecer você e manter contato, se desejar. O cadastro é rápido e pode ser feito pelo celular.</p>
 <form id="publicForm">
 <label for="name">Como podemos chamar você? *</label>
 <input id="name" name="name" autocomplete="name" maxlength="120" required placeholder="Seu nome completo">
 <label for="phone">Qual é o seu WhatsApp? *</label>
 <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="20" required placeholder="(48) 99999-9999">
 <small class="hint">Digite seu DDD e número. Exemplo: (48) 99999-9999.</small>
-<label for="city">De qual cidade você é?</label>
-<input id="city" name="city" autocomplete="address-level2" maxlength="150" placeholder="Sua cidade">
+<label for="city">De qual cidade você é? *</label>
+<input id="city" name="city" autocomplete="address-level2" maxlength="150" required placeholder="Sua cidade">
+<label for="birthdate">Qual é a sua data de nascimento? *</label>
+<input id="birthdate" name="birthdate" type="date" autocomplete="bday" required>
+<label for="gender">Como você se identifica? *</label>
+<select id="gender" name="gender" required><option value="" selected disabled>Selecione uma opção</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option><option value="outro">Outro</option><option value="nao_informado">Prefiro não informar</option></select>
+<label for="maritalStatus">Qual é o seu estado civil? *</label>
+<select id="maritalStatus" name="maritalStatus" required><option value="" selected disabled>Selecione uma opção</option><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option><option value="outro">Outro</option><option value="nao_informado">Prefiro não informar</option></select>
+<small class="hint">Essas informações nos ajudam a conhecer melhor nossos visitantes e planejar o acolhimento.</small>
 <fieldset><legend>Você gostaria de...</legend>
 <label class="check"><input type="checkbox" id="membership" name="membership"> Conhecer mais sobre como participar da igreja</label>
 <label class="check"><input type="checkbox" id="attendingChurch" name="attendingChurch"> Informar que já frequento a igreja</label>
@@ -42,9 +49,6 @@ details summary{font-weight:700;cursor:pointer;padding:8px 0}#resultado{margin-t
 <div class="optional">
 <details><summary>Quero preencher mais informações (opcional)</summary>
 <label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" maxlength="150">
-<label for="birthdate">Data de nascimento</label><input id="birthdate" name="birthdate" type="date">
-<label for="gender">Gênero</label><select id="gender" name="gender"><option value="">Prefiro não informar</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option><option value="outro">Outro</option></select>
-<label for="maritalStatus">Estado civil</label><select id="maritalStatus" name="maritalStatus"><option value="">Prefiro não informar</option><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option></select>
 <label for="currentChurch">Frequenta outra igreja?</label><input id="currentChurch" name="currentChurch" maxlength="150">
 <label for="referral">Como conheceu nossa igreja?</label><input id="referral" name="referral" maxlength="150">
 <label for="contactTime">Qual o melhor horário para conversar?</label><input id="contactTime" name="contactTime" maxlength="150" placeholder="Manhã, tarde ou noite">
@@ -53,7 +57,7 @@ details summary{font-weight:700;cursor:pointer;padding:8px 0}#resultado{margin-t
 <small class="hint">Compartilhe somente o que se sentir confortável em informar.</small>
 </details></div>
 <div class="hp" aria-hidden="true"><label for="website">Deixe vazio</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
-<p class="privacy">Usaremos seus dados para cadastro, acolhimento e contato pastoral da Mais de Cristo Canasvieiras. Os campos adicionais são opcionais. Para dúvidas sobre seus dados, procure a secretaria da igreja.</p>
+<p class="privacy">Usaremos seus dados para cadastro, acolhimento e contato pastoral da Mais de Cristo Canasvieiras. Você pode escolher não informar gênero e estado civil. As informações extras são opcionais. Para dúvidas sobre seus dados, procure a secretaria da igreja.</p>
 <button type="submit" id="enviar">Concluir meu cadastro</button>
 <div id="resultado" role="status" aria-live="polite"></div>
 </form></section>
