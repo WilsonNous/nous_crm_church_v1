@@ -32,3 +32,22 @@ CREATE TABLE IF NOT EXISTS integra_interesses (
  atualizado_utc DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  PRIMARY KEY(telefone, origem)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Complementos tardios: entrega independente, sem reenviar o pedido original.
+CREATE TABLE IF NOT EXISTS integra_oracao_complementos (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ pedido_id BIGINT NOT NULL,
+ sid_origem VARCHAR(160) NULL,
+ texto TEXT NOT NULL,
+ criado_utc DATETIME NOT NULL,
+ UNIQUE KEY uq_complemento_sid (pedido_id, sid_origem),
+ FOREIGN KEY (pedido_id) REFERENCES integra_pedidos_oracao(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS integra_oracao_complemento_entregas (
+ id BIGINT AUTO_INCREMENT PRIMARY KEY,
+ complemento_id BIGINT NOT NULL,
+ destinatario VARCHAR(32) NOT NULL,
+ estado ENUM('PENDENTE','EM_ENVIO','CONFIRMADO','INCERTO') NOT NULL DEFAULT 'PENDENTE',
+ UNIQUE KEY uq_complemento_destinatario (complemento_id,destinatario),
+ FOREIGN KEY (complemento_id) REFERENCES integra_oracao_complementos(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
