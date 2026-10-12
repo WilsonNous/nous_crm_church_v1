@@ -79,7 +79,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
 
     # ========== Saudação ==========
     if detectar_saudacao(texto_normalizado):
-        return processar_saudacao(numero_normalizado, message_sid, origem)
+        return processar_saudacao(numero_normalizado, message_sid, origem, is_webhook_reply=is_webhook_reply)
 
     # ========== Evento enviado ==========
     if estado_atual.name == "EVENTO_ENVIADO":
