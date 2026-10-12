@@ -1,6 +1,7 @@
 """Testes isolados do cadastro publico sem acesso ao banco ou WhatsApp."""
 import importlib
 import sys
+from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
 from flask import Flask
@@ -13,7 +14,7 @@ sys.modules["database"] = fake_db
 module = importlib.import_module("routes.cadastro_publico")
 
 def client():
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder=str(Path(__file__).resolve().parents[1] / "templates"))
     app.register_blueprint(module.cadastro_publico_bp)
     app.config["TESTING"] = True
     module._tentativas.clear()
