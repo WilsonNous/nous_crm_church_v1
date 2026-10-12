@@ -59,6 +59,9 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         if texto_normalizado in ['3', '3.', '3️⃣', 'pedido de oração', 'pedido de oracao']:
             return {'resposta': 'Seu pedido já está registrado. Pode informar o motivo se desejar. 🙏',
                     'estado_atual': 'PEDIDO_ORACAO', 'proximo_estado': 'AGUARDANDO_MOTIVO'}
+        if texto_normalizado in ('oi', 'ola', 'olá', 'menu', 'voltar', 'cancelar'):
+            return {'resposta': 'Seu pedido de oração continua registrado. Se desejar, informe o motivo. 🙏',
+                    'estado_atual': 'PEDIDO_ORACAO', 'proximo_estado': 'AGUARDANDO_MOTIVO'}
         resultado_oracao = receber_motivo(numero_normalizado, texto_recebido, origem)
         if resultado_oracao is not None:
             return resultado_oracao
