@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 from datetime import datetime
-from flask import Flask, jsonify, redirect, url_for
+from flask import Flask, jsonify, redirect, url_for, request, session
 from flask_cors import CORS
 from menu_routes import menu_bp
 
@@ -50,11 +50,33 @@ logging.info("🚀 Logging configurado (stdout). LOG_LEVEL=%s", os.getenv("LOG_L
 app = Flask(__name__, static_folder="static", template_folder="templates")
 CORS(app)
 
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "fallback_secret_key_para_dev")
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", app.config["SECRET_KEY"])
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY") or os.urandom(32)
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY") or app.config["SECRET_KEY"]
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = False
 
 jwt = JWTManager(app)
+
+# Allowlist pública: demais APIs e páginas internas exigem JWT.
+from flask_jwt_extended import verify_jwt_in_request
+_PUBLIC_PATHS = frozenset((
+    "/", "/health", "/api/health", "/app/", "/app/login",
+    "/api/login", "/cadastro-visitante", "/api/public/visitantes",
+    "/api/webhook", "/api/webhook-zapi", "/agendar",
+    "/api/espacos/listar", "/api/reservas/nova",
+))
+@app.before_request
+def controle_de_acesso():
+    path = request.path
+    if request.method == "OPTIONS" or path.startswith("/static/"):
+        return None
+    if path in _PUBLIC_PATHS or path.startswith("/api/reservas/listar/"):
+        return None
+    if request.method == "GET" and (path.startswith("/app/") or path.startswith("/admin/")):
+        if session.get("crm_admin_authenticated"):
+            return None
+        return redirect("/app/login")
+    verify_jwt_in_request()
+
 
 logging.info("✅ Aplicação Flask criada e configurada com sucesso!")
 
@@ -81,6 +103,8 @@ except Exception as e:
 # Registrar Blueprint do Menu (páginas HTML)
 # --------------------------
 app.register_blueprint(menu_bp)
+from routes.cadastro_publico import cadastro_publico_bp
+app.register_blueprint(cadastro_publico_bp)
 logging.info("✅ Blueprint 'menu_bp' registrado com prefixo /app.")
 
 # --------------------------

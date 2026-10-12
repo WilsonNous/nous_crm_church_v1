@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Seja bem-vindo(a) | Mais de Cristo Canasvieiras</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#243244;background:#f3f7fb}
+*{box-sizing:border-box}body{margin:0}header{text-align:center;padding:30px 16px 12px}
+header img{width:100px;max-width:32%;height:auto}h1{font-size:clamp(1.65rem,6vw,2.2rem);margin:14px 0 8px;color:#18385a}
+main{max-width:540px;margin:0 auto 40px;padding:0 16px}.card{background:#fff;border:1px solid #e1e9f1;border-radius:20px;padding:clamp(20px,5vw,32px);box-shadow:0 8px 26px #1234a10a}
+p{line-height:1.55}label{display:block;font-weight:650;margin:18px 0 7px}
+input:not([type=checkbox]),select,textarea{display:block;width:100%;min-height:49px;padding:12px;border:1px solid #aab9c9;border-radius:10px;font:inherit;background:#fff;color:#243244}
+textarea{min-height:100px;resize:vertical}input:focus,textarea:focus,select:focus{outline:3px solid #bedcfb;border-color:#1763a5}
+.hint{display:block;color:#54677b;font-size:.88rem;margin-top:6px}fieldset{border:0;padding:0;margin:0}legend{font-weight:700;padding-top:18px}
+.check{display:flex;align-items:flex-start;gap:10px;font-weight:450;line-height:1.4}.check input{width:20px;height:20px;flex:none}
+button{border:0;border-radius:12px;min-height:52px;width:100%;font:inherit;font-weight:700;cursor:pointer;background:#1665ad;color:white;margin-top:24px}
+button:disabled{opacity:.65;cursor:wait}.secondary{background:#e9f1f8;color:#214466;margin-top:12px}
+.optional{border-top:1px solid #e3eaf1;margin-top:22px;padding-top:18px}
+details summary{font-weight:700;cursor:pointer;padding:8px 0}#resultado{margin-top:18px;font-weight:600;line-height:1.5}
+.privacy{font-size:.86rem;color:#506174}.hp{position:absolute;left:-10000px}
+#success{display:none;text-align:center}#success h2{font-size:1.7rem;color:#17633e}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header><img src="/static/logo_maisdecristo_b2.png" alt="Igreja Mais de Cristo"><h1>Que alegria ter você aqui! 💙</h1><p>Mais de Cristo • Canasvieiras</p></header>
+<main><section class="card" id="cadastro">
+<p>Queremos conhecer você e manter contato, se desejar. O cadastro é rápido e pode ser feito pelo celular.</p>
+<form id="publicForm">
+<label for="name">Como podemos chamar você? *</label>
+<input id="name" name="name" autocomplete="name" maxlength="120" required placeholder="Seu nome completo">
+<label for="phone">Qual é o seu WhatsApp? *</label>
+<input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" maxlength="20" required placeholder="(48) 99999-9999">
+<small class="hint">Digite seu DDD e número. Exemplo: (48) 99999-9999.</small>
+<label for="city">De qual cidade você é? *</label>
+<input id="city" name="city" autocomplete="address-level2" maxlength="150" required placeholder="Sua cidade">
+<label for="birthdate">Qual é a sua data de nascimento? *</label>
+<input id="birthdate" name="birthdate" type="date" autocomplete="bday" required>
+<label for="gender">Como você se identifica? *</label>
+<select id="gender" name="gender" required><option value="" selected disabled>Selecione uma opção</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option><option value="outro">Outro</option><option value="nao_informado">Prefiro não informar</option></select>
+<label for="maritalStatus">Qual é o seu estado civil? *</label>
+<select id="maritalStatus" name="maritalStatus" required><option value="" selected disabled>Selecione uma opção</option><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option><option value="outro">Outro</option><option value="nao_informado">Prefiro não informar</option></select>
+<small class="hint">Essas informações nos ajudam a conhecer melhor nossos visitantes e planejar o acolhimento.</small>
+<fieldset><legend>Você gostaria de...</legend>
+<label class="check"><input type="checkbox" id="membership" name="membership"> Conhecer mais sobre como participar da igreja</label>
+<label class="check"><input type="checkbox" id="attendingChurch" name="attendingChurch"> Informar que já frequento a igreja</label>
+</fieldset>
+<div class="optional">
+<details><summary>Quero preencher mais informações (opcional)</summary>
+<label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" maxlength="150">
+<label for="currentChurch">Frequenta outra igreja?</label><input id="currentChurch" name="currentChurch" maxlength="150">
+<label for="referral">Como conheceu nossa igreja?</label><input id="referral" name="referral" maxlength="150">
+<label for="contactTime">Qual o melhor horário para conversar?</label><input id="contactTime" name="contactTime" maxlength="150" placeholder="Manhã, tarde ou noite">
+<label for="prayerRequest">Gostaria de compartilhar um pedido de oração?</label>
+<textarea id="prayerRequest" name="prayerRequest" maxlength="2000" placeholder="Se desejar, escreva aqui."></textarea>
+<small class="hint">Compartilhe somente o que se sentir confortável em informar.</small>
+</details></div>
+<div class="hp" aria-hidden="true"><label for="website">Deixe vazio</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+<p class="privacy">Usaremos seus dados para cadastro, acolhimento e contato pastoral da Mais de Cristo Canasvieiras. Você pode escolher não informar gênero e estado civil. As informações extras são opcionais. Para dúvidas sobre seus dados, procure a secretaria da igreja.</p>
+<button type="submit" id="enviar">Concluir meu cadastro</button>
+<div id="resultado" role="status" aria-live="polite"></div>
+</form></section>
+<section class="card" id="success" aria-live="polite"><h2>Cadastro recebido! 🙏</h2><p>Que bom ter você conosco. Nossa equipe de acolhimento poderá entrar em contato com você.</p><button class="secondary" id="novo" type="button">Cadastrar outra pessoa</button></section>
+</main>
+<script>
+const form=document.getElementById('publicForm'),out=document.getElementById('resultado'),btn=document.getElementById('enviar');
+form.addEventListener('submit',async(e)=>{
+ e.preventDefault();const data=Object.fromEntries(new FormData(form).entries());
+ data.phone=String(data.phone||'').replace(/\D/g,'');
+ data.attendingChurch=document.getElementById('attendingChurch').checked;
+ data.membership=document.getElementById('membership').checked;
+ if(!/^\d{11}$/.test(data.phone)){out.textContent='Confira o WhatsApp: precisamos do DDD e dos 11 dígitos.';document.getElementById('phone').focus();return}
+ btn.disabled=true;btn.textContent='Enviando...';out.textContent='';
+ try{
+ const res=await fetch('/api/public/visitantes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+ const result=await res.json();
+ if(res.status===201){form.reset();document.getElementById('cadastro').hidden=true;document.getElementById('success').style.display='block';document.getElementById('success').scrollIntoView({block:'start'});}
+ else out.textContent=result.error||'Não foi possível concluir. Confira os dados e tente novamente.';
+ }catch(_){out.textContent='Não conseguimos conectar agora. Verifique sua internet e tente novamente.'}
+ finally{btn.disabled=false;btn.textContent='Concluir meu cadastro'}
+});
+document.getElementById('novo').addEventListener('click',()=>{document.getElementById('success').style.display='none';document.getElementById('cadastro').hidden=false;window.scrollTo(0,0)});
+</script>
+</body></html>

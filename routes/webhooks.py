@@ -1,4 +1,6 @@
 import logging
+import os
+import hmac
 from flask import request, jsonify
 from botmsg import tratar_mensagem_webhook
 from database import normalizar_para_recebimento, verificar_sid_existente
@@ -6,34 +8,24 @@ from constantes import DEBUG
 
 def register(app):
 
-    # --- Webhook TWILIO ---
+    # --- Webhook Twilio legado: desativado ---
     @app.route('/api/webhook', methods=['POST'])
     def webhook_twilio():
-        try:
-            data = request.get_json(silent=True) or request.form
-            from_number = data.get('From', '') or data.get('numero', '')
-            message_body = data.get('Body', '').strip() if 'Body' in data else data.get('mensagem', '').strip()
-            message_sid = data.get('MessageSid', '') or data.get('sid', '')
-            origem = data.get('origem') or request.args.get('origem', 'integra+')
-
-            logging.info(f"📥 Webhook TWILIO | Origem={origem} | From={from_number} | SID={message_sid} | Msg={message_body[:80]}...")
-
-            # ✅ Processa como resposta conversacional (is_webhook_reply=True)
-            resultado = tratar_mensagem_webhook(
-                dados=data,
-                origem=origem,
-                is_webhook_reply=True  # ← Marca como resposta conversacional
-            )
-            
-            return jsonify({"status": resultado["status"], "origem": origem}), 200
-
-        except Exception as e:
-            logging.error(f"❌ Erro no webhook TWILIO: {e}", exc_info=True)
-            return jsonify({"error": "Erro ao processar webhook Twilio"}), 500
+        return jsonify(error='Webhook legado desativado.'), 410
 
     # --- Webhook Z-API ---
     @app.route('/api/webhook-zapi', methods=['POST'])
     def webhook_zapi():
+        configured_token = os.getenv('ZAPI_WEBHOOK_TOKEN', '').strip()
+        # Z-API permite configurar a URL de callback; cabeçalhos personalizados
+        # não estão disponíveis no painel apresentado. O token pode ser
+        # incluído no parâmetro da URL (HTTPS) ou em um cabeçalho opcional.
+        supplied_token = request.headers.get('X-Webhook-Token', '') or request.args.get('token', '')
+        if not configured_token:
+            logging.error('ZAPI_WEBHOOK_TOKEN não configurado; webhook bloqueado')
+            return jsonify(error='Webhook indisponível.'), 503
+        if not hmac.compare_digest(supplied_token, configured_token):
+            return jsonify(error='Não autorizado.'), 401
         try:
             data = request.get_json(silent=True)
             if not data:
