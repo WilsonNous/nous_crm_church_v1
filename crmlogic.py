@@ -48,7 +48,7 @@ logging.info("🚀 Logging configurado (stdout). LOG_LEVEL=%s", os.getenv("LOG_L
 # Inicialização do Flask
 # --------------------------
 app = Flask(__name__, static_folder="static", template_folder="templates")
-CORS(app, resources={r'/api/*': {'origins': []}})
+CORS(app)
 
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "fallback_secret_key_para_dev")
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", app.config["SECRET_KEY"])
