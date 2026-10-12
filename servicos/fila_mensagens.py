@@ -449,8 +449,8 @@ def enfileirar_boas_vindas_com_limite(numero: str, mensagem: str, imagem_url=Non
             pendentes = int((cur.fetchone() or {}).get("total") or 0)
             # Mesmo que a fila tenha sido criada ontem, os envios realizados
             # hoje contam no limite configurado.
-            from datetime import datetime as _dt
-            hoje = _dt.now().date().isoformat()
+            from zoneinfo import ZoneInfo
+            hoje = datetime.now(ZoneInfo("America/Sao_Paulo")).date().isoformat()
             instance_id = os.getenv("ZAPI_INSTANCE") or "default"
             cur.execute("""
                 SELECT total_sent FROM fila_rate_limit
