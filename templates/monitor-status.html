@@ -245,18 +245,12 @@
     </main>
 
     <footer>
-      <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.1</p>
+      <p>© 2026 Nous Tecnologia. Todos os direitos reservados. - versão 3.1</p>
     </footer>
 
     <script>
       document.addEventListener("DOMContentLoaded", () => {
-        const token = localStorage.getItem("jwt_token");
-        if (!token) {
-          window.location.href = "/app/login";
-          return;
-        }
-
-        if (typeof bindPagination === "function") bindPagination();
+        // A sessão da página é validada pelo Flask; a API exige JWT.
         carregarStatus();
 
         document
@@ -265,29 +259,60 @@
       });
 
       async function carregarStatus() {
+        const tbody = document.getElementById("statusList");
+        tbody.replaceChildren();
+        const aviso = document.createElement("tr");
+        aviso.innerHTML = '<td colspan="5">Carregando visitantes...</td>';
+        tbody.appendChild(aviso);
         try {
-          const res = await fetch("/api/monitor-status");
+          const token = localStorage.getItem("jwt_token");
+          if (!token) throw new Error("Sessão da API ausente. Saia e faça login novamente.");
+          const res = await fetch("/api/pastoral/status", {
+            headers: { Authorization: `Bearer ${token}` }
+          });
           const data = await res.json();
-          const tbody = document.getElementById("statusList");
-          tbody.innerHTML = "";
-
-          data.forEach((v) => {
+          if (res.status === 401 || res.status === 422) {
+            throw new Error("Autenticação expirada. Saia e faça login novamente.");
+          }
+          if (!res.ok || data.status !== "success" || !Array.isArray(data.visitantes)) {
+            throw new Error(data.message || "Resposta inválida do servidor.");
+          }
+          tbody.replaceChildren();
+          if (!data.visitantes.length) {
             const tr = document.createElement("tr");
-            tr.innerHTML = `
-              <td data-label="ID">${v.id ?? ""}</td>
-              <td data-label="Nome">${v.name ?? ""}</td>
-              <td data-label="Telefone">${v.phone ?? ""}</td>
-              <td data-label="Status">${v.status ?? ""}</td>
-              <td data-label="Ação">
-                <button class="btn-chat" onclick="abrirConversa('${v.id}')">
-                  💬 Ver Conversas
-                </button>
-              </td>
-            `;
+            tr.innerHTML = '<td colspan="5">Nenhum visitante cadastrado.</td>';
+            tbody.appendChild(tr);
+            return;
+          }
+          data.visitantes.forEach(v => {
+            const tr = document.createElement("tr");
+            for (const [label, value] of [
+              ["ID", v.id], ["Nome", v.nome], ["Telefone", v.telefone], ["Status", v.status]
+            ]) {
+              const td = document.createElement("td");
+              td.dataset.label = label;
+              td.textContent = value ?? "";
+              tr.appendChild(td);
+            }
+            const td = document.createElement("td");
+            td.dataset.label = "Ação";
+            const btn = document.createElement("button");
+            btn.className = "btn-chat";
+            btn.textContent = "💬 Ver Conversas";
+            btn.addEventListener("click", () => abrirConversa(v.id));
+            td.appendChild(btn);
+            tr.appendChild(td);
             tbody.appendChild(tr);
           });
         } catch (e) {
           console.error("Erro ao carregar status:", e);
+          tbody.replaceChildren();
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 5;
+          td.textContent = e.message || "Erro ao carregar visitantes.";
+          tr.appendChild(td);
+          tbody.appendChild(tr);
         }
       }
 
