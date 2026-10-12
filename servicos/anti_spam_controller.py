@@ -91,7 +91,7 @@ class AntiSpamController:
             with closing(get_db_connection()) as conn:
                 if not conn:
                     log.warning("⚠️ Sem conexão com DB para rate limits")
-                    return self._default_limits()
+                    raise RuntimeError("Banco indisponível para consultar cota de envio")
                     
                 # ✅ PyMySQL: cursor() já retorna DictCursor (configurado na conexão)
                 cur = conn.cursor()
@@ -128,7 +128,7 @@ class AntiSpamController:
                 
         except Exception as e:
             log.error(f"❌ Erro ao buscar rate limits: {e}")
-            return self._default_limits()
+            raise RuntimeError("Falha ao consultar cota de envio") from e
 
     def _default_limits(self) -> dict:
         """Retorna valores padrão em caso de erro no banco."""
