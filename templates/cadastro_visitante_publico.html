@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Cadastro de Visitantes | Mais de Cristo Canasvieiras</title>
+<link rel="stylesheet" href="/static/main.css">
+<style>
+.public-container{max-width:640px;margin:24px auto;padding:20px;background:#fff;border-radius:14px}
+.public-container .form-group{margin:14px 0}.public-container input:not([type=checkbox]),.public-container select,.public-container textarea{width:100%;box-sizing:border-box;padding:10px}
+.public-container button{width:100%;margin-top:14px}#resultado{margin-top:16px;white-space:pre-wrap}
+.hp{position:absolute;left:-10000px}
+</style>
+</head>
+<body>
+<header><img src="/static/logo_maisdecristo_b2.png" alt="Mais de Cristo" id="logo"><h1>Cadastro de Visitantes</h1></header>
+<main class="public-container">
+<p>Que alegria receber você na Mais de Cristo Canasvieiras! Preencha seus dados para que nossa equipe de Integração possa acolher você.</p>
+<form id="publicForm">
+<div class="form-group"><label for="name">Nome completo *</label><input id="name" name="name" maxlength="120" required autocomplete="name"></div>
+<div class="form-group"><label for="phone">Telefone com DDD (11 dígitos) *</label><input id="phone" name="phone" type="tel" inputmode="numeric" required autocomplete="tel" placeholder="48999999999"></div>
+<div class="form-group"><label for="email">E-mail</label><input id="email" name="email" type="email" maxlength="150" autocomplete="email"></div>
+<div class="form-group"><label for="birthdate">Data de nascimento</label><input id="birthdate" name="birthdate" type="date"></div>
+<div class="form-group"><label for="city">Cidade</label><input id="city" name="city" maxlength="150"></div>
+<div class="form-group"><label for="gender">Gênero</label><select id="gender" name="gender"><option value="">Selecione</option><option value="masculino">Masculino</option><option value="feminino">Feminino</option><option value="outro">Outro</option></select></div>
+<div class="form-group"><label for="maritalStatus">Estado civil</label><select id="maritalStatus" name="maritalStatus"><option value="">Selecione</option><option value="solteiro">Solteiro(a)</option><option value="casado">Casado(a)</option><option value="divorciado">Divorciado(a)</option><option value="viuvo">Viúvo(a)</option></select></div>
+<div class="form-group"><label for="currentChurch">Igreja atual</label><input id="currentChurch" name="currentChurch" maxlength="150"></div>
+<div class="form-group"><label><input id="attendingChurch" type="checkbox"> Já frequenta nossa igreja?</label></div>
+<div class="form-group"><label for="referral">Como conheceu nossa igreja?</label><input id="referral" name="referral" maxlength="150"></div>
+<div class="form-group"><label><input id="membership" type="checkbox"> Tenho interesse em me tornar membro</label></div>
+<div class="form-group"><label for="prayerRequest">Pedido de oração (opcional)</label><textarea id="prayerRequest" name="prayerRequest" maxlength="2000" rows="3"></textarea><small>Evite informar dados sensíveis de outras pessoas.</small></div>
+<div class="form-group"><label for="contactTime">Melhor horário para contato</label><input id="contactTime" name="contactTime" maxlength="150" placeholder="Ex.: tarde"></div>
+<div class="hp" aria-hidden="true"><label for="website">Deixe vazio</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+<p><small>Os dados serão utilizados pela Igreja Mais de Cristo Canasvieiras para cadastro, acolhimento e contato pastoral. O pedido de oração é opcional. Para dúvidas sobre seus dados, procure a secretaria da igreja.</small></p>
+<button type="submit" class="btn-primary" id="enviar">Concluir cadastro</button>
+<div id="resultado" role="status" aria-live="polite"></div>
+</form>
+</main>
+<script>
+document.getElementById('publicForm').addEventListener('submit',async function(e){
+ e.preventDefault();
+ const form=e.currentTarget,btn=document.getElementById('enviar'),out=document.getElementById('resultado');
+ const data=Object.fromEntries(new FormData(form).entries());
+ data.attendingChurch=document.getElementById('attendingChurch').checked;
+ data.membership=document.getElementById('membership').checked;
+ data.phone=(data.phone||'').replace(/\D/g,'');
+ if(!/^\d{11}$/.test(data.phone)){out.textContent='Informe o telefone com DDD e 11 dígitos.';return;}
+ btn.disabled=true;out.textContent='Enviando cadastro...';
+ try{
+  const res=await fetch('/api/public/visitantes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const result=await res.json();
+  out.textContent=result.message||result.error||'Não foi possível concluir o cadastro.';
+  if(res.ok)form.reset();
+ }catch(_){out.textContent='Falha de conexão. Tente novamente.'}
+ finally{btn.disabled=false}
+});
+</script>
+</body></html>
