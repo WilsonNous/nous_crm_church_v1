@@ -47,6 +47,10 @@ def iniciar_pedido(numero, nome, message_sid=None, origem='integra+'):
             if not cur.fetchone()['acquired']:
                 raise RuntimeError('Não foi possível bloquear pedido simultâneo')
             try:
+                if message_sid:
+                    cur.execute('''SELECT id FROM integra_pedidos_oracao WHERE origem=%s AND sid_origem=%s LIMIT 1''', (origem, message_sid))
+                    if cur.fetchone():
+                        return {'resposta': None, 'estado_atual':'PEDIDO_ORACAO', 'proximo_estado':'AGUARDANDO_MOTIVO', 'duplicada': True}
                 cur.execute('''SELECT id FROM integra_pedidos_oracao WHERE telefone=%s AND origem=%s
                     AND estado='AGUARDANDO_MOTIVO' LIMIT 1''', (numero, origem))
                 existente = cur.fetchone()
