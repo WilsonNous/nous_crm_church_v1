@@ -151,6 +151,14 @@ def processar_pendentes(limite=30):
             with conn.cursor() as cur:
                 cur.execute('UPDATE integra_oracao_entregas SET estado=%s WHERE id=%s AND estado=\'EM_ENVIO\'', (estado, entrega['id']))
                 conn.commit()
+    with closing(_conectar()) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""UPDATE integra_pedidos_oracao p SET situacao_atendimento='CONCLUIDO'
+                WHERE p.estado='ENCAMINHADO' AND p.situacao_atendimento='PENDENTE'
+                AND EXISTS (SELECT 1 FROM integra_oracao_entregas e WHERE e.pedido_id=p.id)
+                AND NOT EXISTS (SELECT 1 FROM integra_oracao_entregas e
+                    WHERE e.pedido_id=p.id AND e.estado<>'CONFIRMADO')""")
+            conn.commit()
     return processados
 
 
