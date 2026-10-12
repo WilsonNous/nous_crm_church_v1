@@ -371,7 +371,7 @@ function handleWhatsappButtonClick() {
 }
 
 function fetchVisitorsAndSendMessagesManual() {
-  apiRequest("visitantes/fase-null")
+  return apiRequest("visitantes/fase-null")
     .then((data) => {
       if (data.status !== "success") throw new Error("Erro ao buscar visitantes.");
       const visitors = data.visitantes || [];
@@ -410,7 +410,7 @@ Me diga sua escolha para podermos continuar!`,
         .filter(Boolean);
 
       appendLogToWhatsapp(`📌 Total para envio: ${messages.length}`);
-      sendMessagesSequentially(messages);
+      return sendMessagesSequentially(messages);
     })
     .catch((err) => showError(`Erro ao buscar visitantes: ${err.message}`, "logContainer"));
 }
@@ -437,7 +437,7 @@ async function sendMessagesSequentially(messages, delayMs = 2000) {
         throw new Error(resp.error || "Erro ao enviar mensagem.");
       }
 
-      appendLogToWhatsapp(`✅ Mensagem enviada para ${v.numero}`);
+      appendLogToWhatsapp(`📬 Mensagem enfileirada para ${v.numero} (entrega ainda não confirmada).`);
       await sleep(delayMs);
     } catch (err) {
       appendLogToWhatsapp(`❌ Erro ao enviar para ${v.numero}: ${err.message}`, true);
