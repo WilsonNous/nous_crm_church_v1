@@ -495,11 +495,11 @@ def _db_claim_batch(limit: int) -> List[Dict[str, Any]]:
         return []
 
 
-def _db_mark_success(envio_id: int, status_code: int = 200) -> None:
+def _db_mark_success(envio_id: int, status_code: int = 200) -> bool:
     try:
         with closing(get_db_connection()) as conn:
             if not conn:
-                return
+                return False
             cur = conn.cursor()
             cur.execute("""
                 UPDATE fila_envios
@@ -507,8 +507,10 @@ def _db_mark_success(envio_id: int, status_code: int = 200) -> None:
                 WHERE id=%s
             """, (int(status_code or 0), envio_id))
             conn.commit()
+            return True
     except Exception as e:
         log.error(f"❌ Erro ao marcar sucesso envio_id={envio_id}: {e}")
+        return False
 
 
 def _db_mark_fail_or_retry(envio_id: int, next_attempt_count: int, status_code: int, err: str) -> str:
@@ -811,6 +813,8 @@ def _processar_fila_worker():
                 if mensagem_para_envio != mensagem:
                     log.debug(f"✨ Mensagem variada para {numero}: '{mensagem[:30]}...' → '{mensagem_para_envio[:30]}...'")
 
+            provider_attempted = False
+            persisted_success = False
             # 📤 Lock distribuído: revalida a cota imediatamente antes da Z-API.
             # Inclui falhas na cota para impedir tentativas ilimitadas no dia.
             try:
@@ -829,6 +833,7 @@ def _processar_fila_worker():
                                 log.error("Falha ao reagendar após revalidação: envio_id=%s", envio_id)
                             continue
                     try:
+                        provider_attempted = True
                         last_res = enviar_mensagem(numero_envio, mensagem_para_envio, imagem_url)
                         ok, last_err, last_code = _parse_result(last_res)
                     except Exception as e:
@@ -838,9 +843,17 @@ def _processar_fila_worker():
                         last_res = None
                     if _anti_spam:
                         _anti_spam.register_send(ok, is_reply=is_reply, is_manual=is_manual)
+                    if ok:
+                        persisted_success = _db_mark_success(envio_id, last_code)
+                        if not persisted_success:
+                            raise RuntimeError("Z-API aceitou envio, mas persistência falhou")
             except Exception as e:
                 log.exception("Controle distribuído indisponível; envio bloqueado | id=%s", envio_id)
-                if not _db_reequeue_item(envio_id, datetime.now() + timedelta(seconds=60)):
+                if provider_attempted:
+                    # Resultado incerto: NÃO reenviar automaticamente. Mantém
+                    # processando para reconciliação humana, evitando duplicidade.
+                    log.critical("ENVIO_INCERTO: intervenção humana necessária | envio_id=%s", envio_id)
+                elif not _db_reequeue_item(envio_id, datetime.now() + timedelta(seconds=60)):
                     log.error("Falha ao reagendar envio bloqueado | id=%s", envio_id)
                 continue
 
@@ -864,7 +877,6 @@ def _processar_fila_worker():
             on_fail = meta.get("_on_fail_cb")
 
             if ok:
-                _db_mark_success(envio_id, last_code)
                 _pos_envio_sucesso(meta, mensagem_para_envio, numero_envio)
                 log.info(f"✅ Fila(DB) → {numero_envio} | {msg_preview}... | code={last_code} | envio_id={envio_id}")
                 _safe_call(on_success, payload)
