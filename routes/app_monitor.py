@@ -139,7 +139,7 @@ def monitor_status():
         stats = get_queue_anti_spam_stats()
         
         # 🔍 LOG PARA DEBUG (remover em produção se desejar)
-        log.debug(f"📊 Stats recebidos: queue_today={stats.get('queue_today')}, anti_spam={stats.get('anti_spam')}")
+        logging.debug(f"📊 Stats recebidos: queue_today={stats.get('queue_today')}, anti_spam={stats.get('anti_spam')}")
         
         # Busca últimos envios para a tabela "Últimos Envios"
         recent_sends = _get_recent_sends(limit=10)
@@ -200,7 +200,7 @@ def monitor_status():
         }
         
         # 🔍 LOG DA RESPOSTA (debug)
-        log.debug(f"📤 Resposta /api/monitor-status: sent={response_data['queue_today']['sent']}, pending={response_data['queue_today']['pending']}")
+        logging.debug(f"📤 Resposta /api/monitor-status: sent={response_data['queue_today']['sent']}, pending={response_data['queue_today']['pending']}")
         
         return jsonify(response_data), 200
         
