@@ -411,7 +411,7 @@ def enfileirar_boas_vindas_com_limite(numero: str, mensagem: str, imagem_url=Non
     Retorna (resultado, motivo). A reserva é feita na mesma seção crítica da
     verificação, evitando duplicidade por cliques e workers simultâneos.
     """
-    limite = int(os.getenv("FILA_DAILY_LIMIT", "10"))
+    limite = int(os.getenv("FILA_MAX_PENDING", "500"))
     if limite <= 0:
         return False, "limite_invalido"
     numero_envio = _normalizar_para_envio(numero)
@@ -439,25 +439,10 @@ def enfileirar_boas_vindas_com_limite(numero: str, mensagem: str, imagem_url=Non
             if cur.fetchone():
                 conn.rollback()
                 return False, "duplicado"
-            # Fila pendente de dias anteriores também ocupa capacidade até
-            # processamento. Contar o envio diário separadamente.
-            cur.execute("""
-                SELECT COUNT(*) AS total FROM fila_envios
-                WHERE status IN ('pendente', 'processando')
-                  AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(meta_json, '$.is_reply')), 'false') = 'false'
-            """)
+            # Capacidade de backlog, independente da cota diária de envio.
+            cur.execute("SELECT COUNT(*) AS total FROM fila_envios WHERE status IN ('pendente', 'processando')")
             pendentes = int((cur.fetchone() or {}).get("total") or 0)
-            # Mesmo que a fila tenha sido criada ontem, os envios realizados
-            # hoje contam no limite configurado.
-            from zoneinfo import ZoneInfo
-            hoje = datetime.now(ZoneInfo("America/Sao_Paulo")).date().isoformat()
-            instance_id = os.getenv("ZAPI_INSTANCE") or "default"
-            cur.execute("""
-                SELECT total_sent FROM fila_rate_limit
-                WHERE instance_id=%s AND date=%s
-            """, (instance_id, hoje))
-            enviados = int((cur.fetchone() or {}).get("total_sent") or 0)
-            if pendentes + enviados >= limite:
+            if pendentes >= limite:
                 conn.rollback()
                 return False, "limite"
             cur.execute("""
