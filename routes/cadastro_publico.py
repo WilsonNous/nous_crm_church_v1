@@ -80,7 +80,8 @@ def cadastrar_visitante_publico():
             igreja_atual=dados.get("currentChurch") or None,
             frequenta_igreja=1 if dados.get("attendingChurch") is True else 0,
             indicacao=dados.get("referral") or None,
-            membro=bool(dados.get("membership")),
+            # Interesse em participar nao equivale a membro efetivo.
+            membro=False,
             pedido_oracao=oracao or None, horario_contato=dados.get("contactTime") or None,
             origem="cadastro_publico"
         )
