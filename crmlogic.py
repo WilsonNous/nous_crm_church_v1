@@ -81,6 +81,10 @@ except Exception as e:
 # Registrar Blueprint do Menu (páginas HTML)
 # --------------------------
 app.register_blueprint(menu_bp)
+
+# Formulário público independente: sem login e sem acesso ao menu.
+from routes.cadastro_publico import cadastro_publico_bp
+app.register_blueprint(cadastro_publico_bp)
 logging.info("✅ Blueprint 'menu_bp' registrado com prefixo /app.")
 
 # --------------------------
