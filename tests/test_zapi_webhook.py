@@ -48,6 +48,18 @@ def test_valid_token_dispatches_message(monkeypatch):
     assert response.status_code == 200
     fake_bot.tratar_mensagem_webhook.assert_called_once()
 
+def test_valid_query_token_dispatches_message(monkeypatch):
+    monkeypatch.setenv("ZAPI_WEBHOOK_TOKEN", "segredo-forte")
+    response = client().post("/api/webhook-zapi?token=segredo-forte", json=sample())
+    assert response.status_code == 200
+    fake_bot.tratar_mensagem_webhook.assert_called_once()
+
+def test_invalid_query_token_rejected(monkeypatch):
+    monkeypatch.setenv("ZAPI_WEBHOOK_TOKEN", "segredo-forte")
+    response = client().post("/api/webhook-zapi?token=errado", json=sample())
+    assert response.status_code == 401
+    fake_bot.tratar_mensagem_webhook.assert_not_called()
+
 def test_legacy_twilio_disabled():
     response = client().post("/api/webhook", json={"Body": "Olá"})
     assert response.status_code == 410
