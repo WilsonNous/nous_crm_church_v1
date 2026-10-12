@@ -87,6 +87,41 @@ def monitor_conversas_visitante(visitante_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+
+# API exclusiva do acompanhamento pastoral. Não confundir com /api/monitor-status
+# (métricas da fila WhatsApp).
+@monitor_bp.route('/api/pastoral/status', methods=['GET'])
+def pastoral_status():
+    conn = cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT v.id, v.nome, v.telefone,
+                   COALESCE(f.descricao, 'Sem status') AS status
+            FROM visitantes v
+            LEFT JOIN (
+                SELECT s.visitante_id, s.fase_id
+                FROM status s
+                INNER JOIN (
+                    SELECT visitante_id, MAX(id) AS ultimo_id
+                    FROM status GROUP BY visitante_id
+                ) ult ON ult.ultimo_id = s.id
+            ) atual ON atual.visitante_id = v.id
+            LEFT JOIN fases f ON f.id = atual.fase_id
+            ORDER BY v.nome ASC
+        """)
+        rows = cursor.fetchall() or []
+        cols = [c[0] for c in cursor.description]
+        data = [r if isinstance(r, dict) else dict(zip(cols, r)) for r in rows]
+        return jsonify({'status': 'success', 'visitantes': data}), 200
+    except Exception:
+        logging.exception('Erro ao listar status pastoral')
+        return jsonify({'status': 'error', 'message': 'Falha ao consultar status pastoral'}), 500
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
 # ==========================================================
 # 🆕 NOVAS ROTAS: Métricas WhatsApp para Dashboard
 # ==========================================================
