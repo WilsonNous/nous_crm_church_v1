@@ -59,7 +59,7 @@ def iniciar_pedido(numero, nome, message_sid=None, origem='integra+'):
             finally:
                 cur.execute('SELECT RELEASE_LOCK(%s)', ('integra:oracao:' + numero,))
     atualizar_status(numero, EstadoVisitante.PEDIDO_ORACAO.value, origem=origem)
-    resposta = (f'{nome}, recebemos seu pedido de oração. 🙏\\n'
+    resposta = (f'{nome}, recebemos seu pedido de oração. 🙏\n'
                 'Você gostaria de compartilhar o motivo? Pode responder aqui. '
                 'Se preferir não informar, encaminharemos seu pedido à intercessão em até 15 minutos.')
     enviar_mensagem_para_fila(numero, resposta)
@@ -132,13 +132,13 @@ def processar_pendentes(limite=30):
                     conn.rollback()
                     continue
                 conn.commit()
-        mensagem = (f"📖 Pedido de Oração\\n\\n🙏 Nome: {entrega['nome']}\\n"
-                    f"📱 Número: {entrega['telefone']}\\n"
+        mensagem = (f"📖 Pedido de Oração\n\n🙏 Nome: {entrega['nome']}\n"
+                    f"📱 Número: {entrega['telefone']}\n"
                     f"📝 Motivo: {entrega['motivo'] or 'Motivo não informado.'}")
         try:
             resultado = enviar_mensagem(normalizar_para_envio(entrega['destinatario']), mensagem)
             # Respostas negativas explícitas e exceções exigem conferência humana.
-            confirmado = bool(resultado) and (not isinstance(resultado, tuple) or bool(resultado[0]))
+            confirmado = isinstance(resultado, dict) and resultado.get('success') is True
             estado = 'CONFIRMADO' if confirmado else 'INCERTO'
         except Exception:
             logging.exception('Entrega de oração incerta: id=%s', entrega['id'])
