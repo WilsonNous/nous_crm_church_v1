@@ -74,3 +74,36 @@ def test_rate_limit():
     for _ in range(8):
         c.post("/api/public/visitantes", json=payload(name="X"))
     assert c.post("/api/public/visitantes", json=payload()).status_code == 429
+
+
+def test_invalid_phone_and_email():
+    c = client()
+    assert c.post("/api/public/visitantes", json=payload(phone="123")).status_code == 400
+    assert c.post("/api/public/visitantes", json=payload(email="invalido")).status_code == 400
+
+def test_invalid_date_and_unrecognized_choices():
+    c = client()
+    for birthday in ("2020-02-30", "1800-01-01", "texto"):
+        assert c.post("/api/public/visitantes", json=payload(birthdate=birthday)).status_code == 400
+    assert c.post("/api/public/visitantes", json=payload(gender="invalido")).status_code == 400
+    assert c.post("/api/public/visitantes", json=payload(maritalStatus="invalido")).status_code == 400
+
+def test_missing_json_and_oversized_body():
+    c = client()
+    assert c.post("/api/public/visitantes", data="texto", content_type="text/plain").status_code == 415
+    assert c.post("/api/public/visitantes", data="x" * 12001, content_type="application/json").status_code == 413
+
+def test_no_write_on_invalid_submission():
+    with patch.object(module, "salvar_visitante") as save:
+        response = client().post("/api/public/visitantes", json=payload(city=""))
+    assert response.status_code == 400
+    save.assert_not_called()
+
+def test_optional_privacy_choices():
+    with patch.object(module, "normalizar_para_recebimento", return_value="5548999999999"), \
+         patch.object(module, "visitante_existe", return_value=False), \
+         patch.object(module, "salvar_visitante", return_value=True) as save:
+        response = client().post("/api/public/visitantes", json=payload(gender="nao_informado", maritalStatus="nao_informado"))
+    assert response.status_code == 201
+    assert save.call_args.kwargs["genero"] == "nao_informado"
+    assert save.call_args.kwargs["estado_civil"] == "nao_informado"
