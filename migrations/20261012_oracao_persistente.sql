@@ -4,11 +4,14 @@ CREATE TABLE IF NOT EXISTS integra_pedidos_oracao (
  telefone VARCHAR(32) NOT NULL,
  origem VARCHAR(64) NOT NULL DEFAULT 'integra+',
  nome VARCHAR(160) NOT NULL,
+ sid_origem VARCHAR(160) NULL,
+ situacao_atendimento ENUM('PENDENTE','CONCLUIDO') NOT NULL DEFAULT 'PENDENTE',
  motivo TEXT NULL,
  estado ENUM('AGUARDANDO_MOTIVO','PRONTO','ENCAMINHADO','ENVIO_INCERTO') NOT NULL DEFAULT 'AGUARDANDO_MOTIVO',
  prazo_utc DATETIME NOT NULL,
  criado_utc DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  encaminhado_utc DATETIME NULL,
+ UNIQUE KEY uq_oracao_sid (origem, sid_origem),
  INDEX idx_prazo (estado, prazo_utc),
  INDEX idx_telefone (telefone, origem, estado)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
