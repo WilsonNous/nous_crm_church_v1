@@ -110,8 +110,8 @@ def test_optional_privacy_choices():
 
 
 def test_interest_in_membership_does_not_create_member():
-    with patch.object(module, "normalizar_para_recebimento", return_value="5548999999999"), \\
-         patch.object(module, "visitante_existe", return_value=False), \\
+    with patch.object(module, "normalizar_para_recebimento", return_value="5548999999999"), \
+         patch.object(module, "visitante_existe", return_value=False), \
          patch.object(module, "salvar_visitante", return_value=True) as save:
         response = client().post("/api/public/visitantes", json=payload(membership=True))
     assert response.status_code == 201
