@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 from datetime import datetime
-from flask import Flask, jsonify, redirect, url_for, request
+from flask import Flask, jsonify, redirect, url_for
 from flask_cors import CORS
 from menu_routes import menu_bp
 
@@ -48,37 +48,13 @@ logging.info("🚀 Logging configurado (stdout). LOG_LEVEL=%s", os.getenv("LOG_L
 # Inicialização do Flask
 # --------------------------
 app = Flask(__name__, static_folder="static", template_folder="templates")
-CORS(app, resources={r"/api/public/*": {"origins": []}})
+CORS(app)
 
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "fallback_secret_key_para_dev")
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", app.config["SECRET_KEY"])
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = False
 
 jwt = JWTManager(app)
-
-# Política padrão: todas as APIs e páginas internas exigem JWT.
-# Exceções públicas são explícitas, para evitar exposição acidental de novas rotas.
-from flask_jwt_extended import verify_jwt_in_request
-PUBLIC_ENDPOINTS = frozenset({
-    "redirect_to_login", "health", "api_health",
-    "menu_bp.login_page", "login", "cadastro_publico.pagina_cadastro_publico",
-    "cadastro_publico.cadastrar_visitante_publico",
-    "agendamentos.pagina_agendar", "agendamentos.listar_espacos",
-    "agendamentos.listar_reservas", "agendamentos.nova_reserva",
-})
-PUBLIC_PATHS = {"/", "/health", "/api/health", "/app/", "/app/login",
-                "/api/login", "/cadastro-visitante", "/api/public/visitantes",
-                "/agendar", "/api/espacos/listar"}
-@app.before_request
-def exigir_autenticacao_interna():
-    if request.method == "OPTIONS" or request.path.startswith("/static/"):
-        return None
-    if request.path in PUBLIC_PATHS or request.path.startswith("/api/reservas/listar/"):
-        return None
-    # Agendamento público mantém suas rotas próprias, mas ações administrativas
-    # de agenda e quaisquer APIs não listadas requerem JWT.
-    verify_jwt_in_request()
-
 
 logging.info("✅ Aplicação Flask criada e configurada com sucesso!")
 
@@ -105,8 +81,6 @@ except Exception as e:
 # Registrar Blueprint do Menu (páginas HTML)
 # --------------------------
 app.register_blueprint(menu_bp)
-
-# Formulário público independente: sem login e sem acesso ao menu.
 from routes.cadastro_publico import cadastro_publico_bp
 app.register_blueprint(cadastro_publico_bp)
 logging.info("✅ Blueprint 'menu_bp' registrado com prefixo /app.")
