@@ -128,7 +128,11 @@ function toggleForm() {
 function showLoginError(message) {
   const c = $("loginErrorContainer");
   if (!c) return;
-  c.innerHTML = `<div class="error-message">${message}</div>`;
+  c.replaceChildren();
+  const error = document.createElement("div");
+  error.className = "error-message";
+  error.textContent = message;
+  c.appendChild(error);
 }
 
 async function handleLogin(event) {
