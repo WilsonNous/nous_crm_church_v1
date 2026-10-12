@@ -1,0 +1,23 @@
+name: Queue safety - offline
+on:
+  pull_request:
+    paths:
+      - 'servicos/fila_mensagens.py'
+      - 'servicos/anti_spam_controller.py'
+      - 'tests/test_queue_safety_static.py'
+      - '.github/workflows/queue-safety.yml'
+  push:
+    branches:
+      - 'fix/daily-queue-admission'
+jobs:
+  offline-queue-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile changed Python modules
+        run: python -m py_compile servicos/fila_mensagens.py servicos/anti_spam_controller.py
+      - name: Run offline queue safety regression checks
+        run: python -m unittest discover -s tests -p 'test_queue_safety_static.py' -v
