@@ -1,5 +1,5 @@
 import os
-from flask import request, jsonify
+from flask import request, jsonify, session
 from werkzeug.security import check_password_hash
 
 try:
@@ -30,6 +30,9 @@ def register(app):
             else:
                 return jsonify({"status": "failed", "message": "Credenciais administrativas não configuradas"}), 503
 
+            session.clear()
+            session['crm_admin_authenticated'] = True
+            session['crm_admin_username'] = username
             token = create_access_token(identity=username, additional_claims={'role': 'Adminis'})
             return jsonify({'status': 'success', 'message': 'Login bem-sucedido!', 'token': token}), 200
 
