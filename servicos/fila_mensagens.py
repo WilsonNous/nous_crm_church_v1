@@ -774,12 +774,13 @@ def _processar_fila_worker():
                 # Não deixar item preso em processando após limite ou pausa.
                 # Agendar nova tentativa, sem consumir tentativa de envio.
                 if "Limite diário" in motivo:
-                    # Evita misturar horário local do Render com NOW() do MySQL.
+                    # Suspende o item até a próxima janela diária.
                     # O worker revalida a cota antes de qualquer envio.
                     reagendar = datetime.now() + timedelta(hours=24)
                 else:
                     reagendar = datetime.now() + timedelta(seconds=60)
-                _db_reequeue_item(envio_id, reagendar)
+                if not _db_reequeue_item(envio_id, reagendar):
+                    log.error("Não foi possível reagendar envio_id=%s", envio_id)
                 continue
 
             ok = False
