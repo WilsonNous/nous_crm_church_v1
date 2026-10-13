@@ -30,6 +30,12 @@ class PrayerStaticTests(unittest.TestCase):
         self.assertIn('sem_retry=True', prayer)
         self.assertIn('sem_retry=True', complements)
 
+    def test_completion_requires_both_intercessors(self):
+        source = (ROOT / 'servicos/oracao_persistente.py').read_text(encoding='utf-8')
+        self.assertIn("AND e.destinatario IN (%s,%s)", source)
+        self.assertIn("AND e.estado='CONFIRMADO')=2", source)
+        self.assertIn('INTERCESSORES)', source)
+
     def test_complements_compiled(self):
         ast.parse((ROOT / 'servicos/oracao_complementos.py').read_text(encoding='utf-8'))
 
