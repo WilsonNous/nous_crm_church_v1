@@ -157,9 +157,11 @@ def processar_pendentes(limite=30):
         with conn.cursor() as cur:
             cur.execute("""UPDATE integra_pedidos_oracao p SET situacao_atendimento='CONCLUIDO'
                 WHERE p.estado='ENCAMINHADO' AND p.situacao_atendimento='PENDENTE'
-                AND EXISTS (SELECT 1 FROM integra_oracao_entregas e WHERE e.pedido_id=p.id)
+                AND (SELECT COUNT(*) FROM integra_oracao_entregas e
+                    WHERE e.pedido_id=p.id AND e.destinatario IN (%s,%s)
+                    AND e.estado='CONFIRMADO')=2
                 AND NOT EXISTS (SELECT 1 FROM integra_oracao_entregas e
-                    WHERE e.pedido_id=p.id AND e.estado<>'CONFIRMADO')""")
+                    WHERE e.pedido_id=p.id AND e.estado<>'CONFIRMADO')""", INTERCESSORES)
             conn.commit()
     from servicos.oracao_complementos import processar as processar_complementos
     processar_complementos(limite)
