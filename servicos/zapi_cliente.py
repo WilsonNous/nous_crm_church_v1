@@ -56,14 +56,14 @@ def _cfg_ok() -> bool:
     return bool(ZAPI_INSTANCE and ZAPI_TOKEN and ZAPI_CLIENT_TOKEN)
 
 
-def _create_session() -> requests.Session:
+def _create_session(retry_post: bool = True) -> requests.Session:
     """Cria sessão HTTP com retry automático para falhas transitórias."""
     session = requests.Session()
     retry = Retry(
         total=2,
         backoff_factor=0.3,
         status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET", "POST"],
+        allowed_methods=["GET", "POST"] if retry_post else ["GET"],
     )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
@@ -139,7 +139,8 @@ def verificar_status_instancia(force: bool = False) -> dict:
 def enviar_mensagem(
     numero_destino: str,
     corpo_mensagem: str,
-    imagem_url: Optional[str] = None
+    imagem_url: Optional[str] = None,
+    sem_retry: bool = False
 ) -> ZapiResponse:
     """
     Envia mensagem via Z-API (texto ou imagem).
@@ -190,7 +191,7 @@ def enviar_mensagem(
             f"msg={(corpo_mensagem or '')[:60]}{'...' if len(corpo_mensagem or '') > 60 else ''}"
         )
 
-        session = _create_session()
+        session = _create_session(retry_post=not sem_retry)
         r = session.post(url, json=payload, headers=headers, timeout=TIMEOUTS[endpoint])
         body = (r.text or "").strip()
         data = _parse_json_safe(r)
