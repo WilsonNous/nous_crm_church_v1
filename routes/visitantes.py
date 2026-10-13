@@ -55,7 +55,7 @@ def register(app):
     def monitor_status():
         try:
             status_info = monitorar_status_visitantes()
-            return jsonify(status_info), 200 if status_info else 500
+            return jsonify(status_info), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
