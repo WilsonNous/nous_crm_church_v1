@@ -5,6 +5,8 @@ from servicos.oracao_persistente import _conectar, INTERCESSORES
 
 
 def registrar(numero, texto, sid=None, origem='integra+'):
+    if not sid or not (texto or '').strip():
+        return False
     with closing(_conectar()) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM integra_pedidos_oracao WHERE telefone=%s AND origem=%s AND estado='ENCAMINHADO' ORDER BY id DESC LIMIT 1", (numero, origem))
