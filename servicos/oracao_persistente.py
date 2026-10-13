@@ -140,7 +140,7 @@ def processar_pendentes(limite=30):
                     f"📱 Número: {entrega['telefone']}\n"
                     f"📝 Motivo: {entrega['motivo'] or 'Motivo não informado.'}")
         try:
-            resultado = enviar_mensagem(normalizar_para_envio(entrega['destinatario']), mensagem)
+            resultado = enviar_mensagem(normalizar_para_envio(entrega['destinatario']), mensagem, sem_retry=True)
             # Respostas negativas explícitas e exceções exigem conferência humana.
             confirmado = isinstance(resultado, dict) and resultado.get('success') is True
             estado = 'CONFIRMADO' if confirmado else 'INCERTO'
