@@ -15,7 +15,9 @@ def registrar(numero, texto, sid=None, origem='integra+'):
                 cur.execute("SELECT id FROM integra_oracao_complementos WHERE pedido_id=%s AND sid_origem=%s", (pedido['id'], sid))
                 if cur.fetchone():
                     return True
-            cur.execute("INSERT INTO integra_oracao_complementos (pedido_id,sid_origem,texto,criado_utc) VALUES (%s,%s,%s,%s)", (pedido['id'],sid,texto,datetime.now(timezone.utc).replace(tzinfo=None)))
+            cur.execute("INSERT IGNORE INTO integra_oracao_complementos (pedido_id,sid_origem,texto,criado_utc) VALUES (%s,%s,%s,%s)", (pedido['id'],sid,texto,datetime.now(timezone.utc).replace(tzinfo=None)))
+            if cur.rowcount == 0:
+                return True
             complemento = cur.lastrowid
             for destino in INTERCESSORES:
                 cur.execute("INSERT IGNORE INTO integra_oracao_complemento_entregas (complemento_id,destinatario) VALUES (%s,%s)", (complemento,destino))
