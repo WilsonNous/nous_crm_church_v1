@@ -266,10 +266,26 @@
 
       async function carregarStatus() {
         try {
-          const res = await fetch("/api/monitor-status");
+          const token = localStorage.getItem("jwt_token");
+          if (!token) {
+            window.location.href = "/app/login";
+            return;
+          }
+          const res = await fetch("/api/monitor-status", {
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          if (res.status === 401 || res.status === 422) {
+            localStorage.removeItem("jwt_token");
+            window.location.href = "/app/login";
+            return;
+          }
+          if (!res.ok) throw new Error(`Falha ao consultar status: HTTP ${res.status}`);
           const data = await res.json();
           const tbody = document.getElementById("statusList");
           tbody.innerHTML = "";
+          if (!Array.isArray(data)) {
+            throw new Error(data?.message || "A API de status não retornou uma lista de visitantes.");
+          }
 
           data.forEach((v) => {
             const tr = document.createElement("tr");
