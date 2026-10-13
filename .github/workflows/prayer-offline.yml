@@ -9,6 +9,7 @@ on:
       - 'migrations/20261012_oracao_persistente.sql'
       - 'tests/test_prayer_static.py'
       - 'tests/test_prayer_behavior.py'
+      - 'tests/test_prayer_window.py'
       - '.github/workflows/prayer-offline.yml'
   workflow_dispatch:
 jobs:
