@@ -1,0 +1,26 @@
+name: Prayer flow - offline
+on:
+  pull_request:
+    paths:
+      - 'servicos/oracao_persistente.py'
+      - 'servicos/oracao_complementos.py'
+      - 'servicos/zapi_cliente.py'
+      - 'servicos/processamento_mensagens.py'
+      - 'migrations/20261012_oracao_persistente.sql'
+      - 'tests/test_prayer_static.py'
+      - 'tests/test_prayer_behavior.py'
+      - 'tests/test_prayer_window.py'
+      - '.github/workflows/prayer-offline.yml'
+  workflow_dispatch:
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile prayer modules
+        run: python -m py_compile servicos/oracao_persistente.py servicos/oracao_complementos.py servicos/processamento_mensagens.py servicos/zapi_cliente.py
+      - name: Run offline prayer checks
+        run: python -m unittest discover -s tests -p 'test_prayer_*.py' -v

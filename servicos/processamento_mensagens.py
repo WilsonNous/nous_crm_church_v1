@@ -9,7 +9,8 @@ from utilitarios.identificacao import obter_primeiro_nome
 from servicos.fila_mensagens import enviar_mensagem_para_fila
 from servicos.saudacoes import detectar_saudacao, processar_saudacao
 from servicos.agradecimentos import detectar_agradecimento, processar_agradecimento
-from servicos.atendimento_oracao import processar_pedido_oracao
+from servicos.oracao_persistente import iniciar_pedido, pedido_pendente, receber_motivo
+from servicos.oracao_complementos import registrar as registrar_complemento
 from servicos.atendimento_outros import processar_outro
 from servicos.atendimento_eventos import processar_evento_enviado
 from servicos.fluxo_transicoes import obter_proximo_estado, obter_mensagem_estado
@@ -26,7 +27,7 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
     logging.info(f"📥 Processando mensagem | Origem={origem} | Numero={numero}, SID={message_sid}, Mensagem={texto_recebido[:80]}... | is_webhook_reply={is_webhook_reply}")
 
     # Normalização
-    numero_normalizado = numero.lstrip("55")
+    numero_normalizado = numero[2:] if numero.startswith("55") and len(numero) in (12, 13) else numero
     texto_normalizado = normalizar_texto(texto_recebido)
     texto_original = texto_recebido.strip()
     
@@ -52,6 +53,26 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
             "telefone_raw": numero_normalizado,
             "sid_origem": message_sid,
         }
+
+    # Pedido de oração pendente tem prioridade sobre saudação e palavras-chave.
+    # O comando 3 repetido não deve ser interpretado como motivo.
+    if estado_str and pedido_pendente(numero_normalizado, origem):
+        if texto_normalizado in ['3', '3.', '3️⃣', 'pedido de oração', 'pedido de oracao']:
+            return {'resposta': 'Seu pedido já está registrado. Pode informar o motivo se desejar. 🙏',
+                    'estado_atual': 'PEDIDO_ORACAO', 'proximo_estado': 'AGUARDANDO_MOTIVO'}
+        if texto_normalizado in ('oi', 'ola', 'olá', 'menu', 'voltar', 'cancelar'):
+            return {'resposta': 'Seu pedido de oração continua registrado. Se desejar, informe o motivo. 🙏',
+                    'estado_atual': 'PEDIDO_ORACAO', 'proximo_estado': 'AGUARDANDO_MOTIVO'}
+        resultado_oracao = receber_motivo(numero_normalizado, texto_recebido, origem)
+        if resultado_oracao is not None:
+            return resultado_oracao
+
+    # Complemento tardio somente quando explicitamente identificado como oração.
+    if estado_atual == EstadoVisitante.PEDIDO_ORACAO and texto_normalizado.startswith(('complemento:', 'motivo:')):
+        motivo_complementar = texto_original.split(':', 1)[1].strip()
+        if motivo_complementar and registrar_complemento(numero_normalizado, motivo_complementar, message_sid, origem):
+            return {'resposta': 'Recebemos seu complemento de oração. 🙏',
+                    'estado_atual': 'PEDIDO_ORACAO', 'proximo_estado': 'FIM'}
 
     # ========== Palavra-chave de ministério ==========
     resposta_ministerio = detectar_palavra_chave_ministerio(texto_normalizado)
@@ -86,25 +107,10 @@ def processar_mensagem(numero: str, texto_recebido: str, message_sid: str, acao_
         visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
         return processar_evento_enviado(numero_normalizado, visitor_name, message_sid, origem)
 
-    # ========== Pedido de Oração ==========
-    if texto_normalizado in ["3", "3.", "3️⃣", "pedido de oração", "pedido de oracao"]:
-        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
-        texto_pedido_generico = "Pedido de oração solicitado pelo visitante."
-        
-        logging.info(f"🙏 Pedido de oração automático iniciado para {visitor_name} ({numero_normalizado})")
-
-        return processar_pedido_oracao(
-            numero=numero_normalizado,
-            nome_visitante=visitor_name,
-            texto_recebido=texto_pedido_generico,
-            message_sid=message_sid,
-            origem=origem
-        )
-
-    # ========== Pedido de oração (mensagem complementar) ==========
-    if estado_atual == EstadoVisitante.PEDIDO_ORACAO:
-        visitor_name = obter_nome_do_visitante(numero_normalizado).split()[0]
-        return processar_pedido_oracao(numero_normalizado, visitor_name, texto_recebido, message_sid, origem)
+    # ========== Novo pedido de oração ==========
+    if texto_normalizado in ['3', '3.', '3️⃣', 'pedido de oração', 'pedido de oracao']:
+        visitor_name = (obter_nome_do_visitante(numero_normalizado) or 'Visitante').split()[0]
+        return iniciar_pedido(numero_normalizado, visitor_name, message_sid, origem)
 
     # ========== Outro assunto ==========
     if estado_atual == EstadoVisitante.OUTRO:
