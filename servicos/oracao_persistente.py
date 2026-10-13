@@ -54,6 +54,8 @@ def iniciar_pedido(numero, nome, message_sid=None, origem='integra+'):
                 cur.execute('''SELECT id FROM integra_pedidos_oracao WHERE telefone=%s AND origem=%s
                     AND estado='AGUARDANDO_MOTIVO' LIMIT 1''', (numero, origem))
                 existente = cur.fetchone()
+                if existente:
+                    return {'resposta': None, 'estado_atual': 'PEDIDO_ORACAO', 'proximo_estado': 'AGUARDANDO_MOTIVO', 'duplicada': True}
                 if not existente:
                     cur.execute('''INSERT INTO integra_pedidos_oracao
                         (telefone, origem, nome, sid_origem, prazo_utc) VALUES (%s,%s,%s,%s,%s)''',
