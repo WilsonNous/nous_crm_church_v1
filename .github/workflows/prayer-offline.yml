@@ -4,6 +4,7 @@ on:
     paths:
       - 'servicos/oracao_persistente.py'
       - 'servicos/oracao_complementos.py'
+      - 'servicos/zapi_cliente.py'
       - 'servicos/processamento_mensagens.py'
       - 'migrations/20261012_oracao_persistente.sql'
       - 'tests/test_prayer_static.py'
@@ -18,6 +19,6 @@ jobs:
         with:
           python-version: '3.11'
       - name: Compile prayer modules
-        run: python -m py_compile servicos/oracao_persistente.py servicos/oracao_complementos.py servicos/processamento_mensagens.py
+        run: python -m py_compile servicos/oracao_persistente.py servicos/oracao_complementos.py servicos/processamento_mensagens.py servicos/zapi_cliente.py
       - name: Run offline prayer checks
         run: python -m unittest discover -s tests -p 'test_prayer_static.py' -v
