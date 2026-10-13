@@ -21,6 +21,18 @@ class PrayerStaticTests(unittest.TestCase):
         self.assertIn("estado='PENDENTE'", source)
         self.assertIn("resultado.get('success') is True", source)
 
+    def test_post_retries_disabled_for_prayer(self):
+        zapi = (ROOT / 'servicos/zapi_cliente.py').read_text(encoding='utf-8')
+        prayer = (ROOT / 'servicos/oracao_persistente.py').read_text(encoding='utf-8')
+        complements = (ROOT / 'servicos/oracao_complementos.py').read_text(encoding='utf-8')
+        self.assertIn('sem_retry: bool = False', zapi)
+        self.assertIn('_create_session(retry_post=not sem_retry)', zapi)
+        self.assertIn('sem_retry=True', prayer)
+        self.assertIn('sem_retry=True', complements)
+
+    def test_complements_compiled(self):
+        ast.parse((ROOT / 'servicos/oracao_complementos.py').read_text(encoding='utf-8'))
+
     def test_schema(self):
         schema = (ROOT / 'migrations/20261012_oracao_persistente.sql').read_text(encoding='utf-8')
         self.assertIn('UNIQUE KEY uq_pedido_destinatario', schema)
