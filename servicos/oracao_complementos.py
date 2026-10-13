@@ -42,8 +42,8 @@ def processar(limite=30):
                     conn.rollback()
                     continue
                 conn.commit()
-        mensagem = (f"🙏 Complemento de oração\\nNome: {entrega['nome']}\\n"
-                    f"Telefone: {entrega['telefone']}\\nMotivo: {entrega['texto']}")
+        mensagem = (f"🙏 Complemento de oração\nNome: {entrega['nome']}\n"
+                    f"Telefone: {entrega['telefone']}\nMotivo: {entrega['texto']}")
         try:
             resultado = enviar_mensagem(normalizar_para_envio(entrega['destinatario']), mensagem)
             estado = 'CONFIRMADO' if isinstance(resultado, dict) and resultado.get('success') is True else 'INCERTO'
