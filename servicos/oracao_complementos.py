@@ -45,7 +45,7 @@ def processar(limite=30):
         mensagem = (f"🙏 Complemento de oração\nNome: {entrega['nome']}\n"
                     f"Telefone: {entrega['telefone']}\nMotivo: {entrega['texto']}")
         try:
-            resultado = enviar_mensagem(normalizar_para_envio(entrega['destinatario']), mensagem)
+            resultado = enviar_mensagem(normalizar_para_envio(entrega['destinatario']), mensagem, sem_retry=True)
             estado = 'CONFIRMADO' if isinstance(resultado, dict) and resultado.get('success') is True else 'INCERTO'
         except Exception:
             estado = 'INCERTO'
