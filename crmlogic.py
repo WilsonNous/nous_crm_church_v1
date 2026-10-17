@@ -59,7 +59,7 @@ jwt = JWTManager(app)
 # Allowlist pública: demais APIs e páginas internas exigem JWT.
 from flask_jwt_extended import verify_jwt_in_request
 _PUBLIC_PATHS = frozenset((
-    "/", "/health", "/api/health", "/app/", "/app/login",
+    "/", "/health", "/api/health", "/favicon.ico", "/app/", "/app/login",
     "/api/login", "/cadastro-visitante", "/api/public/visitantes",
     "/api/webhook", "/api/webhook-zapi", "/agendar",
     "/api/espacos/listar", "/api/reservas/nova",
@@ -113,6 +113,13 @@ logging.info("✅ Blueprint 'menu_bp' registrado com prefixo /app.")
 @app.route("/", methods=["GET"])
 def redirect_to_login():
     return redirect(url_for("menu_bp.login_page"))
+
+# --------------------------
+# Favicon público (não exige JWT)
+# --------------------------
+@app.route("/favicon.ico", methods=["GET"])
+def favicon():
+    return redirect(url_for("static", filename="logo_maisdecristo_b2.png"), code=302)
 
 # --------------------------
 # Health Checks
