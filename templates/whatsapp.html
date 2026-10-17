@@ -435,7 +435,7 @@
   </main>
 
   <footer>
-    <p>© 2025 Nous Tecnologia. Todos os direitos reservados. - versão 3.4</p>
+    <p>© 2026 Nous Tecnologia. Todos os direitos reservados. - versão 3.4</p>
   </footer>
 
   <script>
@@ -452,6 +452,16 @@
         delay: { min: 25, max: 45 }
       }
     };
+
+    // Todas as APIs internas exigem JWT; não expor endpoints de monitoramento.
+    function authenticatedFetch(url, options = {}) {
+      const token = localStorage.getItem('jwt_token');
+      if (!token) return Promise.reject(new Error('Sessão da API ausente. Faça login novamente.'));
+      return fetch(url, {
+        ...options,
+        headers: { ...(options.headers || {}), Authorization: `Bearer ${token}` }
+      });
+    }
 
     // Estado global
     let autoRefreshTimer = null;
@@ -527,7 +537,7 @@
       try {
         // Cache-busting: adiciona timestamp para evitar cache do browser
         const timestamp = Date.now();
-        const response = await fetch(`${CONFIG.API_BASE}/ia/stats?t=${timestamp}`);
+        const response = await authenticatedFetch(`${CONFIG.API_BASE}/ia/stats?t=${timestamp}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
@@ -574,7 +584,7 @@
     async function updateWhatsAppStatusFromAPI() {
       try {
         const timestamp = Date.now();
-        const response = await fetch(`${CONFIG.API_BASE}/whatsapp/status?t=${timestamp}`);
+        const response = await authenticatedFetch(`${CONFIG.API_BASE}/whatsapp/status?t=${timestamp}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         const data = await response.json();
@@ -606,11 +616,11 @@
         const qs = timestamp ? `?t=${timestamp}` : '';
         
         const [queueStats, antiSpamStats] = await Promise.all([
-          fetch(`${CONFIG.API_BASE}/monitor-status${qs}`).then(r => {
+          authenticatedFetch(`${CONFIG.API_BASE}/monitor-status${qs}`).then(r => {
             if (!r.ok) throw new Error(`Monitor: ${r.status}`);
             return r.json();
           }),
-          fetch(`${CONFIG.API_BASE}/ia/stats${qs}`).then(r => {
+          authenticatedFetch(`${CONFIG.API_BASE}/ia/stats${qs}`).then(r => {
             if (!r.ok) throw new Error(`IA Stats: ${r.status}`);
             return r.json();
           }).catch(() => ({})) // Fallback silencioso para stats da IA
@@ -722,14 +732,14 @@
         // Tenta buscar de endpoint dedicado primeiro
         let recentSends = [];
         try {
-          const response = await fetch(`${CONFIG.API_BASE}/fila/recentes${qs}`);
+          const response = await authenticatedFetch(`${CONFIG.API_BASE}/fila/recentes${qs}`);
           if (response.ok) {
             const data = await response.json();
             recentSends = data.data || data.recent_sends || [];
           }
         } catch (e) {
           // Fallback: usa dados do monitor-status
-          const response = await fetch(`${CONFIG.API_BASE}/monitor-status${qs}`);
+          const response = await authenticatedFetch(`${CONFIG.API_BASE}/monitor-status${qs}`);
           const data = await response.json();
           recentSends = data.recent_sends || [];
         }
