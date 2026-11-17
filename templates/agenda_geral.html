@@ -174,7 +174,7 @@
 
     {% for grupo in reservas|groupby('data') %}
         <div class="day-block">
-            <div class="day-title">{{ grupo.grouper }}</div>
+            <div class="day-title">{{ grupo.grouper.strftime('%d/%m/%Y') }}</div>
             {% for r in grupo.list %}
                 <div class="event">
                     <strong>{{ r.espaco }}</strong><br>
