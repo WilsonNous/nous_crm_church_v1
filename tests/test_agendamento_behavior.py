@@ -107,7 +107,7 @@ class BookingBehaviorTests(unittest.TestCase):
             "hora_fim": "20:00", "inicio_formatado": "19:00",
             "fim_formatado": "20:00"
         }
-        conn = FakeConnection([{"space_id": 1}, {"id": 1}, row, {"qtd": 1}])
+        conn = FakeConnection([{"space_id": 1}, row, {"qtd": 1}])
         with patch.object(agenda, "get_db_connection", return_value=conn):
             res = self.client.post("/admin/reservas/alterar/7/aprovar")
         self.assertEqual(res.status_code, 409)
