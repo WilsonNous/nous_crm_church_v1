@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, render_template
 from database import get_db_connection
 from contextlib import closing
 from datetime import datetime, timedelta
+import logging
 
 # 🔗 Z-API
 from servicos.zapi_cliente import enviar_mensagem
@@ -294,7 +295,20 @@ def alterar_status(id, acao):
             f"das {r['hora_inicio']} às {r['hora_fim']} foi *{novo_status.upper()}*."
         )
 
-        enviar_mensagem(r["telefone"], mensagem)
+        try:
+            envio = enviar_mensagem(r["telefone"], mensagem)
+            if not envio or not envio.get("success"):
+                logging.warning("Notificação de reserva não confirmada | reserva_id=%s", id)
+                return jsonify({
+                    "success": True,
+                    "warning": "Alteração salva, mas a notificação por WhatsApp não foi confirmada."
+                }), 200
+        except Exception:
+            logging.exception("Falha na notificação de reserva | reserva_id=%s", id)
+            return jsonify({
+                "success": True,
+                "warning": "Alteração salva, mas ocorreu uma falha ao notificar pelo WhatsApp."
+            }), 200
 
         return jsonify({"success": True})
 
@@ -320,6 +334,8 @@ def excluir_reserva(id):
                 FROM reservas WHERE id = %s
             """, (id,))
             r = cursor.fetchone()
+            if not r:
+                return jsonify({"error": "Reserva não encontrada."}), 404
 
             cursor.execute("DELETE FROM reservas WHERE id = %s", (id,))
             conn.commit()
@@ -329,7 +345,20 @@ def excluir_reserva(id):
             f"das {r['hora_inicio']} às {r['hora_fim']} foi *EXCLUÍDA* pela Secretaria."
         )
 
-        enviar_mensagem(r["telefone"], mensagem)
+        try:
+            envio = enviar_mensagem(r["telefone"], mensagem)
+            if not envio or not envio.get("success"):
+                logging.warning("Notificação de reserva não confirmada | reserva_id=%s", id)
+                return jsonify({
+                    "success": True,
+                    "warning": "Alteração salva, mas a notificação por WhatsApp não foi confirmada."
+                }), 200
+        except Exception:
+            logging.exception("Falha na notificação de reserva | reserva_id=%s", id)
+            return jsonify({
+                "success": True,
+                "warning": "Alteração salva, mas ocorreu uma falha ao notificar pelo WhatsApp."
+            }), 200
 
         return jsonify({"success": True})
 
