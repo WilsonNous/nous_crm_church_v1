@@ -172,35 +172,27 @@
 
     <h2>📅 Visão Geral de Agendamentos</h2>
 
-    {% set current_date = None %}
-
-    {% for r in reservas %}
-
-        {% if current_date != r.data %}
-            {% if current_date != None %}
+    {% for grupo in reservas|groupby('data') %}
+        <div class="day-block">
+            <div class="day-title">{{ grupo.grouper }}</div>
+            {% for r in grupo.list %}
+                <div class="event">
+                    <strong>{{ r.espaco }}</strong><br>
+                    {{ r.hora_inicio }} às {{ r.hora_fim }}<br>
+                    <strong>Responsável:</strong> {{ r.nome }}<br>
+                    <strong>Finalidade:</strong> {{ r.finalidade }}<br>
+                    {% if r.status == 'pendente' %}
+                        <span class="status status-pendente">Pendente</span>
+                    {% elif r.status == 'aprovado' %}
+                        <span class="status status-aprovado">Aprovado</span>
+                    {% else %}
+                        <span class="status status-negado">Negado</span>
+                    {% endif %}
                 </div>
-            {% endif %}
-
-            <div class="day-block">
-                <div class="day-title">{{ r.data }}</div>
-            {% set current_date = r.data %}
-        {% endif %}
-
-        <div class="event">
-            <strong>{{ r.espaco }}</strong><br>
-            {{ r.hora_inicio }} às {{ r.hora_fim }}<br>
-            <strong>Responsável:</strong> {{ r.nome }}<br>
-            <strong>Finalidade:</strong> {{ r.finalidade }}<br>
-
-            {% if r.status == 'pendente' %}
-                <span class="status status-pendente">Pendente</span>
-            {% elif r.status == 'aprovado' %}
-                <span class="status status-aprovado">Aprovado</span>
-            {% else %}
-                <span class="status status-negado">Negado</span>
-            {% endif %}
+            {% endfor %}
         </div>
-
+    {% else %}
+        <p>Nenhuma reserva encontrada.</p>
     {% endfor %}
 
 </div>
