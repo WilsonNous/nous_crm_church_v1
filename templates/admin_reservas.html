@@ -247,21 +247,52 @@
 </div>
 
 <script>
-async function alterar(id, acao) {
-    const res = await fetch(`/admin/reservas/alterar/${id}/${acao}`, {
-        method: "POST"
+async function executarAcao(url) {
+    const token = localStorage.getItem("jwt_token");
+    if (!token) {
+        alert("Sua sessão expirou. Faça login novamente.");
+        window.location.href = "/app/login";
+        return null;
+    }
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
     });
+    if (res.status === 401 || res.status === 422) {
+        localStorage.removeItem("jwt_token");
+        alert("Sua sessão expirou. Faça login novamente.");
+        window.location.href = "/app/login";
+        return null;
+    }
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.success !== true) {
+        throw new Error(json.error || json.message || `Erro HTTP ${res.status}`);
+    }
+    return json;
+}
 
-    alert("Status atualizado!");
-    location.reload();
+async function alterar(id, acao) {
+    if (!confirm(`Deseja realmente ${acao === "aprovar" ? "aprovar" : "negar"} esta reserva?`)) return;
+    try {
+        const resultado = await executarAcao(`/admin/reservas/alterar/${id}/${acao}`);
+        if (!resultado) return;
+        alert(resultado.warning || "Status atualizado com sucesso!");
+        location.reload();
+    } catch (e) {
+        alert("Não foi possível atualizar a reserva: " + e.message);
+    }
 }
 
 async function excluir(id) {
     if (!confirm("Deseja realmente excluir esta reserva?")) return;
-
-    await fetch(`/admin/reservas/excluir/${id}`, { method: "POST" });
-    alert("Reserva excluída com sucesso!");
-    location.reload();
+    try {
+        const resultado = await executarAcao(`/admin/reservas/excluir/${id}`);
+        if (!resultado) return;
+        alert(resultado.warning || "Reserva excluída com sucesso!");
+        location.reload();
+    } catch (e) {
+        alert("Não foi possível excluir a reserva: " + e.message);
+    }
 }
 </script>
 
