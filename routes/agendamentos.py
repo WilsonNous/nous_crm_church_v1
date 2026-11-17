@@ -204,9 +204,9 @@ def admin_reservas():
             cursor.execute("""
                 SELECT 
                     r.id,
-                    r.data,
-                    TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
-                    TIME_FORMAT(r.hora_fim,   '%%H:%%i') AS hora_fim,
+                    DATE_FORMAT(r.data, '%d/%m/%Y') AS data,
+                    TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
+                    TIME_FORMAT(r.hora_fim,   '%H:%i') AS hora_fim,
                     r.nome,
                     r.telefone,
                     r.finalidade,
@@ -238,9 +238,9 @@ def agenda_geral():
             cursor.execute("""
                 SELECT 
                     r.id,
-                    r.data,
-                    TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
-                    TIME_FORMAT(r.hora_fim,   '%%H:%%i') AS hora_fim,
+                    DATE_FORMAT(r.data, '%d/%m/%Y') AS data,
+                    TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
+                    TIME_FORMAT(r.hora_fim,   '%H:%i') AS hora_fim,
                     r.nome,
                     r.telefone,
                     r.finalidade,
