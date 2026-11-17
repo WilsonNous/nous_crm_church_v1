@@ -186,7 +186,7 @@ def agenda_geral():
             cursor.execute("""
                 SELECT 
                     r.id,
-                    DATE_FORMAT(r.data, '%d/%m/%Y') AS data,
+                    r.data,
                     TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
                     TIME_FORMAT(r.hora_fim,   '%H:%i') AS hora_fim,
                     r.nome,
