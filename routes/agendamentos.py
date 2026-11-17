@@ -97,8 +97,8 @@ def nova_reserva():
             cursor.execute("""
                 SELECT 
                     id,
-                    TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
-                    TIME_FORMAT(hora_fim,   '%H:%i') AS hora_fim,
+                    TIME_FORMAT(hora_inicio, '%%H:%%i') AS hora_inicio,
+                    TIME_FORMAT(hora_fim,   '%%H:%%i') AS hora_fim,
                     nome,
                     finalidade
                 FROM reservas
@@ -205,8 +205,8 @@ def admin_reservas():
                 SELECT 
                     r.id,
                     r.data,
-                    TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
-                    TIME_FORMAT(r.hora_fim,   '%H:%i') AS hora_fim,
+                    TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
+                    TIME_FORMAT(r.hora_fim,   '%%H:%%i') AS hora_fim,
                     r.nome,
                     r.telefone,
                     r.finalidade,
@@ -239,8 +239,8 @@ def agenda_geral():
                 SELECT 
                     r.id,
                     r.data,
-                    TIME_FORMAT(r.hora_inicio, '%H:%i') AS hora_inicio,
-                    TIME_FORMAT(r.hora_fim,   '%H:%i') AS hora_fim,
+                    TIME_FORMAT(r.hora_inicio, '%%H:%%i') AS hora_inicio,
+                    TIME_FORMAT(r.hora_fim,   '%%H:%%i') AS hora_fim,
                     r.nome,
                     r.telefone,
                     r.finalidade,
@@ -277,8 +277,8 @@ def alterar_status(id, acao):
 
             cursor.execute("""
                 SELECT nome, telefone, data,
-                       TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
-                       TIME_FORMAT(hora_fim, '%H:%i') AS hora_fim
+                       TIME_FORMAT(hora_inicio, '%%H:%%i') AS hora_inicio,
+                       TIME_FORMAT(hora_fim, '%%H:%%i') AS hora_fim
                 FROM reservas WHERE id = %s
             """, (id,))
             r = cursor.fetchone()
@@ -315,8 +315,8 @@ def excluir_reserva(id):
 
             cursor.execute("""
                 SELECT nome, telefone, data,
-                       TIME_FORMAT(hora_inicio, '%H:%i') AS hora_inicio,
-                       TIME_FORMAT(hora_fim, '%H:%i') AS hora_fim
+                       TIME_FORMAT(hora_inicio, '%%H:%%i') AS hora_inicio,
+                       TIME_FORMAT(hora_fim, '%%H:%%i') AS hora_fim
                 FROM reservas WHERE id = %s
             """, (id,))
             r = cursor.fetchone()
