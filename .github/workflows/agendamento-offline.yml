@@ -21,7 +21,7 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -p ci-only-password"
+          --health-cmd="mysqladmin ping -h localhost --password=ci-only-password"
           --health-interval=10s --health-timeout=5s --health-retries=12
     env:
       AGENDA_TEST_DB: isolated_ci
