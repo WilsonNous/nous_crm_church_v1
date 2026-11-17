@@ -60,6 +60,13 @@ class BookingBehaviorTests(unittest.TestCase):
             "finalidade": "Ensaio"
         }
 
+    def test_database_unavailable_returns_controlled_error(self):
+        with patch.object(agenda, "get_db_connection", return_value=None):
+            response = self.client.get("/admin/reservas")
+            self.assertEqual(response.status_code, 500)
+            self.assertNotIn("NoneType", response.get_data(as_text=True))
+            self.assertIn("Conexão com o banco de dados indisponível", response.get_data(as_text=True))
+
     def test_invalid_json(self):
         res = self.client.post("/api/reservas/nova", data="oops", content_type="application/json")
         self.assertEqual(res.status_code, 400)
