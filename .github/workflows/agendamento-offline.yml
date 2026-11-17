@@ -1,0 +1,40 @@
+name: Agendamento - testes offline e MySQL isolado
+on:
+  pull_request:
+    paths:
+      - 'routes/agendamentos.py'
+      - 'templates/agendar_espacos.html'
+      - 'templates/admin_reservas.html'
+      - 'templates/agenda_geral.html'
+      - 'tests/test_agendamento_*.py'
+      - '.github/workflows/agendamento-offline.yml'
+  workflow_dispatch:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-password
+          MYSQL_DATABASE: agenda_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost --password=ci-only-password"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      AGENDA_TEST_DB: isolated_ci
+      AGENDA_DB_HOST: 127.0.0.1
+      AGENDA_DB_PORT: 3306
+      AGENDA_DB_USER: root
+      AGENDA_DB_PASSWORD: ci-only-password
+      AGENDA_DB_NAME: agenda_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install Flask PyMySQL requests
+      - run: python -m py_compile routes/agendamentos.py
+      - run: python -m unittest discover -s tests -p 'test_agendamento_*.py' -v

@@ -155,58 +155,66 @@
     <label>Hora Fim</label>
     <input type="time" id="horaFim">
 
-    <button onclick="enviarReserva()">Salvar Reserva</button>
+    <button id="salvarReserva" onclick="enviarReserva()">Salvar Reserva</button>
 
 </div>
 
 <script>
+let salvando = false;
 
-/* CARREGAR ESPAÇOS */
 async function carregarEspacos() {
-    const res = await fetch("/api/espacos/listar");
-    const data = await res.json();
-
     const sel = document.getElementById("espacoSelect");
-    sel.innerHTML = "";
-
-    data.espacos.forEach(e => {
-        sel.innerHTML += `<option value="${e.id}">${e.nome}</option>`;
-    });
+    try {
+        const res = await fetch("/api/espacos/listar");
+        const dados = await res.json();
+        if (!res.ok || !Array.isArray(dados.espacos)) throw new Error("Não foi possível listar os espaços.");
+        sel.replaceChildren();
+        dados.espacos.forEach(e => {
+            const opt = document.createElement("option");
+            opt.value = e.id;
+            opt.textContent = e.nome;
+            sel.appendChild(opt);
+        });
+        await carregarAgenda();
+    } catch (e) {
+        document.getElementById("horariosArea").textContent = e.message;
+    }
 }
 
-/* CARREGAR AGENDA DO DIA */
 async function carregarAgenda() {
-    const space_id = document.getElementById("espacoSelect").value;
+    const spaceId = document.getElementById("espacoSelect").value;
     const data = document.getElementById("dataInput").value;
     const area = document.getElementById("horariosArea");
-
-    if (!space_id || !data) {
-        area.innerHTML = "<p style='color:#777;'>Selecione um espaço e uma data.</p>";
+    if (!spaceId || !data) {
+        area.textContent = "Selecione um espaço e uma data.";
         return;
     }
-
-    const res = await fetch(`/api/reservas/listar/${space_id}/${data}`);
-    const dados = await res.json();
-
-    area.innerHTML = "";
-
-    if (dados.reservas.length === 0) {
-        area.innerHTML = "<p style='color:#777;'>Nenhuma reserva para esta data.</p>";
-        return;
+    try {
+        const res = await fetch(`/api/reservas/listar/${encodeURIComponent(spaceId)}/${encodeURIComponent(data)}`);
+        const dados = await res.json();
+        if (!res.ok || !Array.isArray(dados.reservas)) throw new Error(dados.error || "Erro ao consultar agenda.");
+        area.replaceChildren();
+        if (!dados.reservas.length) {
+            area.textContent = "Nenhuma reserva para esta data.";
+            return;
+        }
+        dados.reservas.forEach(r => {
+            const div = document.createElement("div");
+            div.className = "ocupado";
+            const horario = document.createElement("strong");
+            horario.textContent = `${r.hora_inicio} → ${r.hora_fim}`;
+            div.appendChild(horario);
+            div.appendChild(document.createElement("br"));
+            div.appendChild(document.createTextNode(r.status === "aprovado" ? "Reservado" : "Solicitação pendente"));
+            area.appendChild(div);
+        });
+    } catch (e) {
+        area.textContent = e.message || "Não foi possível carregar a agenda.";
     }
-
-    dados.reservas.forEach(r => {
-        area.innerHTML += `
-            <div class="ocupado">
-                <strong>${r.hora_inicio} → ${r.hora_fim}</strong><br>
-                ${r.finalidade}
-            </div>
-        `;
-    });
 }
 
-/* ENVIAR RESERVA */
 async function enviarReserva() {
+    if (salvando) return;
     const payload = {
         space_id: document.getElementById("espacoSelect").value,
         nome: document.getElementById("nome").value.trim(),
@@ -216,48 +224,38 @@ async function enviarReserva() {
         hora_inicio: document.getElementById("horaInicio").value,
         hora_fim: document.getElementById("horaFim").value
     };
-
-    if (!payload.space_id || !payload.nome || !payload.telefone ||
-        !payload.finalidade || !payload.data || !payload.hora_inicio || !payload.hora_fim) {
-        alert("⚠ Preencha todos os campos!");
+    if (Object.values(payload).some(v => !v)) {
+        alert("Preencha todos os campos.");
         return;
     }
-
-    const res = await fetch("/api/reservas/nova", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload)
-    });
-
-    const json = await res.json();
-
-    if (json.status === "error") {
-        if (json.conflito) {
-            alert(
-                `${json.message}\n\n` +
-                `⛔ Horário já reservado:\n` +
-                `• ${json.conflito.inicio} → ${json.conflito.fim}\n` +
-                `• Responsável: ${json.conflito.responsavel}\n` +
-                `• Finalidade: ${json.conflito.finalidade}`
-            );
-        } else {
-            alert(json.message);
-        }
+    if (payload.hora_fim <= payload.hora_inicio) {
+        alert("A hora final deve ser posterior à inicial. Para atravessar a meia-noite, faça reservas separadas.");
         return;
     }
-
-    alert(json.message);
-
-    /* LIMPAR CAMPOS */
-    document.getElementById("nome").value = "";
-    document.getElementById("telefone").value = "";
-    document.getElementById("finalidade").value = "";
-    document.getElementById("horaInicio").value = "";
-    document.getElementById("horaFim").value = "";
-
-    carregarAgenda();
+    salvando = true;
+    const btn = document.getElementById("salvarReserva");
+    btn.disabled = true;
+    try {
+        const res = await fetch("/api/reservas/nova", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (!res.ok || json.status !== "success") throw new Error(json.message || "Falha ao salvar reserva.");
+        alert(json.message);
+        ["nome", "telefone", "finalidade", "horaInicio", "horaFim"].forEach(id => {
+            document.getElementById(id).value = "";
+        });
+        await carregarAgenda();
+    } catch (e) {
+        alert(e.message || "Falha de comunicação. Confira a agenda antes de tentar novamente.");
+    } finally {
+        salvando = false;
+        btn.disabled = false;
+    }
 }
-
+document.getElementById("dataInput").min = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 carregarEspacos();
 </script>
 
