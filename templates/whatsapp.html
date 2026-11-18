@@ -313,7 +313,7 @@
     <!-- 🔘 Ações -->
     <div class="header-actions">
       <button class="btn-secondary" onclick="window.location.href='/app/menu'">← Voltar ao Menu</button>
-      <button class="btn-success" id="btnStartSend">🚀 Iniciar envio</button>
+      <button class="btn-success" id="btnStartSend" disabled title="Disparo em massa temporariamente suspenso para auditoria de duplicidade e limites">🔒 Envio em massa suspenso</button>
       <button class="refresh-btn" id="btnRefresh" onclick="loadMetrics(true)">
         🔄 Forçar Atualizar
       </button>
@@ -474,8 +474,10 @@
       // Atualiza badges de configuração na UI
       updateConfigBadges();
 
-      // Botão de envio
+      // Envio em massa suspenso até validação da deduplicação e do limite de fila.
       document.getElementById('btnStartSend')?.addEventListener('click', async () => {
+        logMessage('Envio em massa temporariamente suspenso para auditoria.', 'error');
+        return;
         if (isSending) return;
         
         const dailyLimit = currentConfig.dailyLimit;
