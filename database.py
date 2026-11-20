@@ -33,22 +33,44 @@ except Exception:
 # Conexão MySQL
 # =======================
 def get_db_connection():
+    """MySQL connection; TLS certificate verification required for Enzonic."""
     try:
-        conn = pymysql.connect(
-            host=os.getenv("MYSQL_HOST"),
-            user=os.getenv("MYSQL_USER"),
-            password=os.getenv("MYSQL_PASSWORD"),
-            db=os.getenv("MYSQL_DB"),
-            port=int(os.getenv("MYSQL_PORT", 3306)),
-            charset="utf8mb4",
-            cursorclass=pymysql.cursors.DictCursor,  # ✅ sempre dict
-            autocommit=False
-        )
+        import ssl
+
+        host = os.getenv("MYSQL_HOST")
+        ssl_required = os.getenv("MYSQL_SSL_REQUIRED", "0").strip().lower() in ("1", "true", "yes")
+        ssl_ca = os.getenv("MYSQL_SSL_CA", "").strip()
+        options = {
+            "host": host,
+            "user": os.getenv("MYSQL_USER"),
+            "password": os.getenv("MYSQL_PASSWORD"),
+            "db": os.getenv("MYSQL_DB"),
+            "port": int(os.getenv("MYSQL_PORT", 3306)),
+            "charset": "utf8mb4",
+            "cursorclass": pymysql.cursors.DictCursor,
+            "autocommit": False,
+            "connect_timeout": 15,
+            "read_timeout": 30,
+            "write_timeout": 30,
+        }
+        if ssl_required:
+            # CERT_REQUIRED + check_hostname prevent silent downgrade and MITM.
+            context = ssl.create_default_context(cafile=ssl_ca or None)
+            context.verify_mode = ssl.CERT_REQUIRED
+            context.check_hostname = True
+            options["ssl"] = context
+        conn = pymysql.connect(**options)
+        if ssl_required:
+            with conn.cursor() as cursor:
+                cursor.execute("SHOW STATUS LIKE 'Ssl_cipher'")
+                row = cursor.fetchone()
+                if not row or not row.get("Value"):
+                    conn.close()
+                    raise RuntimeError("MySQL TLS handshake not confirmed")
         return conn
     except Exception as e:
-        logging.error(f"❌ Erro ao conectar no MySQL: {e}")
+        logging.error("MySQL connection failed (%s)", type(e).__name__)
         return None
-
 
 # =======================
 # Helpers internos
