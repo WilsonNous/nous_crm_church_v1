@@ -29,6 +29,8 @@ Escolha uma das opções abaixo, respondendo com o número correspondente:
 Me diga sua escolha para podermos continuar!"""
 
 def _ensure_table(conn):
+    if conn is None:
+        raise ConnectionError("MySQL indisponível para o planejador de boas-vindas")
     cur=conn.cursor(); cur.execute("""CREATE TABLE IF NOT EXISTS crm_automation_settings (automation_key VARCHAR(80) PRIMARY KEY,enabled TINYINT(1) NOT NULL DEFAULT 0,last_run DATETIME NULL,last_result VARCHAR(255) NULL,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"""); cur.execute("INSERT IGNORE INTO crm_automation_settings (automation_key,enabled) VALUES ('boas_vindas',0)"); conn.commit(); cur.close()
 
 def get_status():
@@ -86,6 +88,9 @@ def _loop():
 
 def iniciar_planejador():
     global _thread,_running
+    if os.getenv("PLANEJADOR_ENABLED", "0").strip().lower() not in ("1", "true", "yes"):
+        log.info("Planejador de boas-vindas desativado por PLANEJADOR_ENABLED=0")
+        return
     with _lock:
         if _thread and _thread.is_alive(): return
         _running=True; _thread=threading.Thread(target=_loop,daemon=True,name="planejador-boas-vindas"); _thread.start(); log.info("Planejador automático de boas-vindas iniciado")
