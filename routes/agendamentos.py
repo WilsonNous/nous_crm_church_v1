@@ -7,6 +7,18 @@ import logging
 # 🔗 Z-API
 from servicos.zapi_cliente import enviar_mensagem
 
+def conexao_agenda():
+    """Falha explícita se a conexão não estiver disponível.
+
+    database.get_db_connection() registra o erro original e retorna None.
+    """
+    conn = get_db_connection()
+    if conn is None:
+        logging.error("Agenda: conexão MySQL indisponível; confira o erro anterior do database nos logs.")
+        raise RuntimeError("Conexão com o banco de dados indisponível.")
+    return conn
+
+
 bp_agenda = Blueprint("agendamentos", __name__)
 
 def register(app):
@@ -27,7 +39,7 @@ def pagina_agendar():
 @bp_agenda.route("/api/espacos/listar")
 def listar_espacos():
     try:
-        with closing(get_db_connection()) as conn:
+        with closing(conexao_agenda()) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT id, nome FROM spaces ORDER BY nome")
             espacos = cursor.fetchall()
@@ -47,7 +59,7 @@ def listar_reservas(space_id, data):
         except ValueError:
             return jsonify({"error": "Data inválida."}), 400
 
-        with closing(get_db_connection()) as conn:
+        with closing(conexao_agenda()) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT
@@ -95,7 +107,7 @@ def nova_reserva():
         return jsonify({"status": "error", "message": "Confira espaço, data, horários e campos obrigatórios."}), 400
 
     try:
-        with closing(get_db_connection()) as conn:
+        with closing(conexao_agenda()) as conn:
             cursor = conn.cursor()
             # Serializa operações por espaço para evitar reservas simultâneas conflitantes.
             cursor.execute("SELECT id FROM spaces WHERE id = %s FOR UPDATE", (space_id,))
@@ -146,7 +158,7 @@ def nova_reserva():
 @bp_agenda.route("/admin/reservas")
 def admin_reservas():
     try:
-        with closing(get_db_connection()) as conn:
+        with closing(conexao_agenda()) as conn:
             cursor = conn.cursor()
 
             cursor.execute("""
@@ -180,7 +192,7 @@ def admin_reservas():
 @bp_agenda.route("/admin/agenda-geral")
 def agenda_geral():
     try:
-        with closing(get_db_connection()) as conn:
+        with closing(conexao_agenda()) as conn:
             cursor = conn.cursor()
 
             cursor.execute("""
@@ -218,7 +230,7 @@ def alterar_status(id, acao):
 
     novo_status = "aprovado" if acao == "aprovar" else "negado"
     try:
-        with closing(get_db_connection()) as conn:
+        with closing(conexao_agenda()) as conn:
             cursor = conn.cursor()
             # Primeiro localiza o espaço, depois o bloqueia na mesma ordem do cadastro.
             cursor.execute("SELECT space_id FROM reservas WHERE id = %s", (id,))
@@ -279,7 +291,7 @@ def alterar_status(id, acao):
 def excluir_reserva(id):
 
     try:
-        with closing(get_db_connection()) as conn:
+        with closing(conexao_agenda()) as conn:
             cursor = conn.cursor()
 
             cursor.execute("""

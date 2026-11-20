@@ -60,7 +60,7 @@ jwt = JWTManager(app)
 from flask_jwt_extended import verify_jwt_in_request
 _PUBLIC_PATHS = frozenset((
     "/", "/health", "/api/health", "/app/", "/app/login",
-    "/api/login", "/cadastro-visitante", "/api/public/visitantes",
+    "/api/login", "/favicon.ico", "/cadastro-visitante", "/api/public/visitantes",
     "/api/webhook", "/api/webhook-zapi", "/agendar",
     "/api/espacos/listar", "/api/reservas/nova",
 ))
