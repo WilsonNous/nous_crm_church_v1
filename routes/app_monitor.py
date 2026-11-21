@@ -1,4 +1,6 @@
 import logging
+
+log = logging.getLogger(__name__)
 import os
 import requests  # ✅ Usar requests diretamente para status Z-API
 from flask import Blueprint, render_template, jsonify, request
@@ -175,7 +177,7 @@ def monitor_status():
         daily_limit_fallback = int(os.getenv("FILA_DAILY_LIMIT", "10"))
         return jsonify({
             "status": "error",
-            "message": str(e),
+            "message": "Não foi possível consultar as métricas do WhatsApp.",
             "queue_today": {},
             "anti_spam": {
                 "daily_limit": daily_limit_fallback,
